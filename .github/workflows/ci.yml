@@ -1,0 +1,41 @@
+# CI for hivebreak: unit tests and a type-checked production build of the client.
+
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  client:
+    name: Client tests + build (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        # Vite 8 needs Node 20.19+ or 22.12+.
+        node-version: [22.x, 24.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Unit tests
+        working-directory: client
+        run: npm test
+
+      - name: Type-check and build
+        working-directory: client
+        run: npm run build

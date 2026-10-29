@@ -1,0 +1,462 @@
+<meta charset="utf-8">
+<title>Hivebreak Slice 1</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=Barlow:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; concept pictures break out into a wider band of "phone" frames. Single dark arcade look by choice. */
+:root {
+  --void: #0c0918;       /* page ground: the space behind the hive */
+  --panel: #161128;      /* frames and table rows */
+  --line: #2c2450;       /* hairlines */
+  --ink: #ece8ff;        /* body text */
+  --muted: #9a92c4;      /* secondary text */
+  --hive: #ff4fd8;       /* the aliens' colour */
+  --pilot: #4ff0ff;      /* the player's colour */
+  --warm: #ffb04f;       /* engines, explosions */
+  --f-display: 'Silkscreen', ui-monospace, monospace;
+  --f-body: 'Barlow', system-ui, -apple-system, sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+body { background: var(--void); color: var(--ink); font-family: var(--f-body); font-size: 17px; line-height: 1.55; }
+.wrap { max-width: 1060px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 56px; }
+.prose { max-width: 66ch; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 400; text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(2.2rem, 7vw, 3.6rem); letter-spacing: 0.02em; }
+h1 .hive { color: var(--hive); }
+h2 { font-size: 1.45rem; margin-bottom: 14px; }
+h3 { font-size: 1rem; margin-bottom: 6px; }
+p { margin: 0 0 12px; }
+.eyebrow { font-family: var(--f-mono); font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+.lede { font-size: 1.2rem; color: var(--ink); }
+.muted { color: var(--muted); }
+section { display: grid; gap: 4px; }
+a { color: var(--pilot); }
+kbd, code { font-family: var(--f-mono); font-size: 0.85em; background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; }
+
+/* Concept band */
+.concepts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 32px; align-items: start; }
+figure { margin: 0; display: grid; gap: 10px; min-width: 0; }
+figcaption { font-size: 0.92rem; color: var(--muted); max-width: 46ch; }
+figcaption b { color: var(--ink); font-weight: 600; }
+.tag { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--hive); }
+
+.phone { position: relative; width: 100%; max-width: 360px; background: #000; border: 2px solid var(--line); border-radius: 26px; padding: 14px 10px 0; overflow: hidden; }
+.field { position: relative; width: 100%; aspect-ratio: 9 / 16; }
+canvas.px { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
+.hud { position: absolute; inset: 0; pointer-events: none; font-family: var(--f-display); font-size: clamp(9px, 3.2vw, 12px); line-height: 1.2; color: var(--ink); padding: 6px 8px; display: flex; justify-content: space-between; align-items: flex-start; }
+.hud .combo { color: var(--hive); }
+.hud .lives { color: var(--pilot); letter-spacing: 2px; }
+.hud .right { text-align: right; }
+.strip { position: relative; height: 104px; display: grid; place-items: center; }
+.strip svg { width: 100%; height: 100%; }
+.strip-label { position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+
+.pick { position: absolute; inset: 0; display: grid; align-content: center; gap: 8px; padding: 0 9%; background: rgb(12 9 24 / 0.62); }
+.pick h4 { margin: 0 0 4px; font-family: var(--f-display); font-weight: 400; font-size: clamp(12px, 4vw, 16px); text-align: center; }
+.card { border: 2px solid var(--line); background: var(--panel); border-radius: 4px; padding: 8px 10px; display: grid; gap: 2px; }
+.card.focus { border-color: var(--pilot); box-shadow: 0 0 0 2px rgb(79 240 255 / 0.25); }
+.card .name { font-family: var(--f-display); font-size: clamp(10px, 3.4vw, 13px); }
+.card .what { font-size: clamp(11px, 3.4vw, 13px); color: var(--muted); line-height: 1.3; }
+.card .rarity { font-family: var(--f-mono); font-size: 10px; color: var(--warm); }
+
+.lineup { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
+.unit { display: grid; gap: 6px; justify-items: start; }
+.unit .stage { width: 100%; aspect-ratio: 1; background: radial-gradient(circle at 50% 55%, #1d1638, var(--void) 70%); border: 1px solid var(--line); border-radius: 6px; }
+.unit .nm { font-family: var(--f-display); font-size: 0.95rem; }
+.unit .nm.pl { color: var(--pilot); }
+.unit .nm.al { color: var(--hive); }
+.unit p { font-size: 0.9rem; color: var(--muted); margin: 0; }
+
+.desk { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border: 2px solid var(--line); border-radius: 10px; overflow: hidden; display: grid; grid-template-columns: 1fr auto 1fr; }
+.desk .side { padding: 6% 7%; font-family: var(--f-display); font-size: clamp(8px, 1.5vw, 14px); color: var(--muted); display: grid; align-content: start; gap: 1.2em; }
+.desk .side b { display: block; color: var(--ink); font-weight: 400; font-size: 1.35em; }
+.desk .side .combo b { color: var(--hive); }
+.desk .side .lives b { color: var(--pilot); }
+.desk canvas.px { height: 100%; width: auto; aspect-ratio: 9 / 16; }
+
+/* Plan */
+.done { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px 32px; }
+ul.ticks { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+ul.ticks li { padding-left: 22px; position: relative; }
+ul.ticks li::before { content: ""; position: absolute; left: 2px; top: 0.55em; width: 8px; height: 8px; background: var(--pilot); }
+ul.later li::before { background: var(--line); }
+
+ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 0; display: grid; gap: 0; border-top: 1px solid var(--line); }
+ol.steps > li { counter-increment: step; display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 4px 16px; padding-block: 18px; border-bottom: 1px solid var(--line); }
+ol.steps > li::before { content: counter(step); font-family: var(--f-display); font-size: 1.6rem; color: var(--muted); line-height: 1; }
+ol.steps > li.par::before { color: var(--pilot); }
+.step-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
+.badge { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 1px 6px; }
+.badge.p { color: var(--pilot); }
+.badge.m { color: var(--muted); }
+.badge.y { color: var(--warm); }
+ol.steps ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; color: var(--ink); }
+ol.steps ul li::marker { color: var(--muted); }
+.files { font-family: var(--f-mono); font-size: 0.82rem; color: var(--muted); }
+
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 0.93rem; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; background: var(--panel); }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+
+.foot { font-size: 0.9rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 18px; }
+</style>
+
+<div class="wrap">
+
+<header class="prose">
+  <div class="eyebrow">Plan · slice 1 of Hivebreak · approved 29 Oct 2026</div>
+  <h1>Hive<span class="hive">break</span></h1>
+  <p class="lede" style="margin-top:16px">One full run you can play on a phone held upright or on a desktop: five waves of aliens, an upgrade pick after each, combo scoring and a local high score. It works with keyboard, touch and a controller.</p>
+  <p class="muted">The pictures below are concept renders, drawn live on this page with Three.js. They use the same pipeline as the game: low-poly 3D models, stepped toon lighting, a dark outline, all rendered at the game's 180 × 320 art resolution and scaled up by whole pixels. The shapes are stand-ins; the real models come from Blender scripts in step 4.</p>
+</header>
+
+<section>
+  <h2>Concepts</h2>
+  <div class="concepts">
+    <figure>
+      <div class="phone">
+        <div class="field"><canvas class="px" id="c-hero" width="180" height="320" aria-label="Concept: a run in progress on a phone"></canvas>
+          <div class="hud"><div>SCORE<br>004250<br><span class="combo">x3 COMBO</span></div><div class="right">WAVE 2/5<br><span class="lives">▲▲▲</span></div></div>
+        </div>
+        <div class="strip">
+          <svg viewBox="0 0 340 104" aria-hidden="true">
+            <rect x="0" y="0" width="340" height="104" fill="#07050f"/>
+            <circle cx="130" cy="46" r="18" fill="none" stroke="#2c2450" stroke-width="2" stroke-dasharray="4 4"/>
+            <line x1="148" y1="46" x2="196" y2="46" stroke="#4ff0ff" stroke-width="2"/>
+            <polygon points="196,40 206,46 196,52" fill="#4ff0ff"/>
+            <circle cx="222" cy="46" r="18" fill="rgb(79 240 255 / 0.18)" stroke="#4ff0ff" stroke-width="2"/>
+          </svg>
+          <div class="strip-label">drag to move · fires while your thumb is down</div>
+        </div>
+      </div>
+      <figcaption><span class="tag">Concept · in a run</span><br><b>Phone, portrait.</b> The 9:16 field fills the width; the spare height below is the touch strip, so thumbs never cover the action. The ship moves by your thumb's offset, not to where it is.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone">
+        <div class="field"><canvas class="px" id="c-pick" width="180" height="320" aria-label="Concept: the upgrade pick after a wave"></canvas>
+          <div class="pick">
+            <h4>WAVE 2 CLEAR · PICK ONE</h4>
+            <div class="card focus"><span class="name">TWIN SHOT</span><span class="what">Fire two shots side by side.</span><span class="rarity">common</span></div>
+            <div class="card"><span class="name">PIERCING</span><span class="what">Shots pass through the first alien they hit.</span><span class="rarity">uncommon</span></div>
+            <div class="card"><span class="name">SHIELD PULSE</span><span class="what">Absorb one hit each wave.</span><span class="rarity">uncommon</span></div>
+          </div>
+        </div>
+        <div class="strip"><svg viewBox="0 0 340 104" aria-hidden="true"><rect x="0" y="0" width="340" height="104" fill="#07050f"/></svg><div class="strip-label" style="bottom:44px">tap a card · d-pad + A · arrows + Enter</div></div>
+      </div>
+      <figcaption><span class="tag">Concept · between waves</span><br><b>The roguelite twist.</b> After each cleared wave, three upgrades from a pool of about six. They stack for the rest of the run, so no two runs build the same way.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <h2>The cast</h2>
+  <p class="prose muted" style="margin-bottom:18px">One ship and three alien types for slice 1. Each is built from separate parts so wings, eyes and cores can move in code.</p>
+  <div class="lineup">
+    <div class="unit"><canvas class="px stage" id="m-player" width="48" height="48" aria-label="Concept: player ship"></canvas><span class="nm pl">Breaker</span><p>Your ship. Moves left and right, fires up; upgrades change how.</p></div>
+    <div class="unit"><canvas class="px stage" id="m-drone" width="48" height="48" aria-label="Concept: Drone alien"></canvas><span class="nm al">Drone</span><p>The bulk of the formation. One hit, fires now and then.</p></div>
+    <div class="unit"><canvas class="px stage" id="m-warden" width="48" height="48" aria-label="Concept: Warden alien"></canvas><span class="nm al">Warden</span><p>Armoured, takes two hits, fires shots aimed at you.</p></div>
+    <div class="unit"><canvas class="px stage" id="m-diver" width="48" height="48" aria-label="Concept: Diver alien"></canvas><span class="nm al">Diver</span><p>Breaks formation to swoop at you, then returns.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>On desktop</h2>
+  <figure>
+    <div class="desk">
+      <div class="side"><div>SCORE<b>004250</b></div><div class="combo">COMBO<b>x3</b></div><div>HIGH<b>011800</b></div></div>
+      <canvas class="px" id="c-desk" width="180" height="320" aria-label="Concept: the same field letterboxed on a desktop screen"></canvas>
+      <div class="side"><div>WAVE<b>2/5</b></div><div class="lives">LIVES<b>▲▲▲</b></div><div>UPGRADES<b style="font-size:1em">TWIN SHOT<br>RAPID FIRE</b></div></div>
+    </div>
+    <figcaption><span class="tag">Concept · desktop</span><br><b>Same field, letterboxed.</b> The playfield stays 9:16 at a whole-pixel scale; the space either side holds the HUD and the run's upgrades.</figcaption>
+  </figure>
+</section>
+
+<section class="prose" style="max-width:none">
+  <h2>Done means</h2>
+  <div class="done">
+    <ul class="ticks">
+      <li>A full run plays from the title to a win after wave 5, or to game over, and back to the title.</li>
+      <li>Keyboard, gamepad (Xbox and PlayStation layouts) and touch on a portrait phone all work, and you can switch mid-run.</li>
+      <li>Ship and aliens are Blender-scripted models rendered in the pixel style.</li>
+      <li><code>npm test</code>, <code>typecheck</code> and <code>build</code> pass, CI is green, and it's live at hivebreak.folkes.dev.</li>
+    </ul>
+    <div>
+      <h3 class="muted" style="margin-bottom:10px">Saved for later slices</h3>
+      <ul class="ticks later muted">
+        <li>Hive mothership bosses</li>
+        <li>Power-up drops</li>
+        <li>Destructible shields</li>
+        <li>Unlocks between runs</li>
+        <li>Music, online leaderboard, local co-op, the special button</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Steps</h2>
+  <p class="prose muted" style="margin-bottom:12px">In order. Once step 1 has fixed the shared types, steps 2, 3 and 4 don't depend on each other and can run in parallel. Routine coding goes to the <code>implementer</code> subagent; design and review stay in the main session.</p>
+  <ol class="steps">
+    <li><div><div class="step-head"><h3>Sim core types</h3><span class="badge m">main session</span></div>
+      <p>The shapes everything else builds on: a seeded RNG so runs and tests are reproducible, and the player (kept in an array for co-op later), shots, aliens, waves, upgrades, the run, and the events sound and effects react to.</p>
+      <div class="files">game/rng.ts · game/types.ts</div></div></li>
+    <li class="par"><div><div class="step-head"><h3>Simulation</h3><span class="badge p">parallel</span><span class="badge m">tested</span></div>
+      <ul>
+        <li>Ship movement, fire rate, a moment of safety after a hit.</li>
+        <li>Formation march, step down, speed-up as it thins, enemy fire.</li>
+        <li>Drone, Warden and Diver behaviour; collisions with simple boxes.</li>
+        <li>Five waves as data; the upgrade pool and the three-card offer.</li>
+        <li>Combo scoring up to x8, reset on a miss; local high scores.</li>
+        <li>A full run played by a scripted bot as a test, the way rc-racer tests whole races.</li>
+      </ul>
+      <div class="files">player · formation · aliens · collision · waves · upgrades · scoring · run · records</div></div></li>
+    <li class="par"><div><div class="step-head"><h3>Input</h3><span class="badge p">parallel</span></div>
+      <ul>
+        <li>Port controls, keyboard and gamepad from rc-racer, with ship input instead of car input.</li>
+        <li>New touch module: relative drag in the lower screen, auto-fire while held, a pause button.</li>
+        <li>Controller rumble when you're hit.</li>
+      </ul>
+      <div class="files">controls.ts · input.ts · gamepad.ts · touch.ts</div></div></li>
+    <li class="par"><div><div class="step-head"><h3>Models</h3><span class="badge p">parallel</span><span class="badge y">needs your OK</span></div>
+      <ul>
+        <li>Install Blender with <code>brew install --cask blender</code>.</li>
+        <li>Shared helpers: materials by role (hull, accent, glow), named moving parts, <code>.glb</code> export.</li>
+        <li>One script each for the ship, Drone, Warden, Diver and shots; <code>npm run models</code> rebuilds them all. The <code>.glb</code> files are committed, so CI and Vercel never need Blender.</li>
+      </ul>
+      <div class="files">art/blender/*.py → client/public/models/*.glb</div></div></li>
+    <li><div><div class="step-head"><h3>Renderer</h3></div>
+      <ul>
+        <li>180 × 320 render at whole-pixel scale, tilted orthographic camera (already scaffolded).</li>
+        <li>Toon lighting, 1-pixel outline, palette pass.</li>
+        <li>Load the models, animate parts, hit-flash; starfield, pixel explosions, screen shake.</li>
+      </ul></div></li>
+    <li><div><div class="step-head"><h3>UI and sound</h3></div>
+      <ul>
+        <li>Title, how to play, settings, pause, the upgrade pick, game over and win with high score, in rc-racer's menu style.</li>
+        <li>HUD with score, combo, lives and wave.</li>
+        <li>Sound effects made in code for shots, hits, kills, upgrade picks, wave clears and game over.</li>
+      </ul></div></li>
+    <li><div><div class="step-head"><h3>Ship it</h3><span class="badge y">needs your OK</span></div>
+      <ul>
+        <li>README with controls and how to run.</li>
+        <li>Create the public repo <code>wayne-folkes/hivebreak</code>, the Vercel project and the hivebreak.folkes.dev domain; follow CI and the deploy through.</li>
+        <li>Play-test on a phone and with a controller; tune speeds, fire rates and upgrade values.</li>
+      </ul></div></li>
+  </ol>
+</section>
+
+<section>
+  <h2>Controls</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Action</th><th>Keyboard</th><th>Gamepad</th><th>Touch</th></tr></thead>
+      <tbody>
+        <tr><td>Move</td><td><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd></td><td>Left stick or d-pad</td><td>Drag in the lower screen</td></tr>
+        <tr><td>Fire</td><td><kbd>Space</kbd>, <kbd>Z</kbd> or <kbd>↑</kbd>, hold for auto</td><td>A / Cross or RT</td><td>Automatic while a thumb is down</td></tr>
+        <tr><td>Pause</td><td><kbd>Esc</kbd> or <kbd>P</kbd></td><td>Start</td><td>⏸ in the corner</td></tr>
+        <tr><td>Mute</td><td><kbd>M</kbd></td><td></td><td>Speaker button in the HUD</td></tr>
+        <tr><td>Menus, upgrade pick</td><td>Arrows, <kbd>Enter</kbd></td><td>D-pad or stick, A</td><td>Tap</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="prose">
+  <h2>Open for later</h2>
+  <ul class="ticks later">
+    <li>What the boss looks like, and how often it comes.</li>
+    <li>Which power-ups drop, and how they differ from upgrades.</li>
+    <li>Leaderboard: anonymous names or sign-in, and what counts as a fair score.</li>
+  </ul>
+</section>
+
+<p class="foot">Full requirements: <code>docs/requirements.md</code> · This plan as Markdown: <code>docs/plan-slice-1.md</code></p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  if (!window.THREE) return;
+  const T = THREE;
+  const W = 180, H = 320;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let renderer;
+  try {
+    renderer = new T.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true });
+  } catch (e) { return; }
+  renderer.setPixelRatio(1);
+  renderer.setSize(W, H, false);
+  renderer.setClearColor(0x000000, 0);
+
+  // Three-step toon ramp: the "stepped" pixel-art shading.
+  const grad = new T.DataTexture(new Uint8Array([70, 70, 70, 150, 150, 150, 255, 255, 255]), 3, 1, T.RGBFormat);
+  grad.minFilter = grad.magFilter = T.NearestFilter;
+  grad.generateMipmaps = false;
+  grad.needsUpdate = true;
+  const outlineMat = new T.MeshBasicMaterial({ color: 0x07040f, side: T.BackSide });
+  const toon = (c) => new T.MeshToonMaterial({ color: c, gradientMap: grad });
+  const glow = (c) => new T.MeshBasicMaterial({ color: c });
+
+  // A part: mesh plus a slightly larger back-face copy, which reads as a 1-pixel outline at this size.
+  function part(geo, mat, x, y, z, outline) {
+    const m = new T.Mesh(geo, mat);
+    m.position.set(x || 0, y || 0, z || 0);
+    if (outline !== false) { const o = new T.Mesh(geo, outlineMat); o.scale.setScalar(1.16); m.add(o); }
+    return m;
+  }
+
+  function makePlayer() {
+    const g = new T.Group();
+    const hull = part(new T.ConeGeometry(4, 16, 4), toon(0xd8f6ff), 0, 2, 0); hull.rotation.y = Math.PI / 4; g.add(hull);
+    g.add(part(new T.BoxGeometry(18, 5, 2.4), toon(0x2bb6d9), 0, -4, 0));
+    g.add(part(new T.BoxGeometry(2.4, 7, 2.6), toon(0xffb04f), -9, -4, 0));
+    g.add(part(new T.BoxGeometry(2.4, 7, 2.6), toon(0xffb04f), 9, -4, 0));
+    g.add(part(new T.SphereGeometry(1.8, 8, 6), glow(0x4ff0ff), 0, 3, 2.6, false));
+    for (const x of [-3.5, 3.5]) {
+      const f = part(new T.ConeGeometry(1.6, 5, 5), glow(0xffd36a), x, -9.5, 0, false); f.rotation.z = Math.PI; g.add(f);
+    }
+    g.userData.wings = [g.children[2], g.children[3]];
+    return g;
+  }
+  function makeDrone() {
+    const g = new T.Group();
+    const body = part(new T.OctahedronGeometry(6), toon(0xb04cff), 0, 0, 0); body.scale.set(1.3, 0.8, 0.8); g.add(body);
+    g.add(part(new T.BoxGeometry(2.2, 1.6, 1), glow(0xffe14f), -2.4, 0.6, 4.4, false));
+    g.add(part(new T.BoxGeometry(2.2, 1.6, 1), glow(0xffe14f), 2.4, 0.6, 4.4, false));
+    const legs = [];
+    for (const x of [-4.5, 0, 4.5]) { const l = part(new T.BoxGeometry(1.4, 4.5, 1.4), toon(0x6a2bb0), x, -5.5, 0); g.add(l); legs.push(l); }
+    for (const s of [-1, 1]) { const a = part(new T.BoxGeometry(1, 4, 1), toon(0x6a2bb0), s * 3, 5.5, 0); a.rotation.z = -s * 0.5; g.add(a); }
+    g.userData.legs = legs;
+    return g;
+  }
+  function makeWarden() {
+    const g = new T.Group();
+    g.add(part(new T.BoxGeometry(14, 8, 7), toon(0x4a3a8c), 0, -1, 0));
+    g.add(part(new T.BoxGeometry(16, 3, 8), toon(0xc9c2e8), 0, 4, 0));
+    g.add(part(new T.DodecahedronGeometry(2.6), glow(0xff4fd8), 0, -1, 4.2, false));
+    for (const s of [-1, 1]) { const sp = part(new T.ConeGeometry(1.6, 5, 4), toon(0xc9c2e8), s * 8.5, 6, 0); sp.rotation.z = -s * 0.4; g.add(sp); }
+    for (const s of [-1, 1]) g.add(part(new T.BoxGeometry(2, 4, 2), toon(0x2c2450), s * 4, -6.5, 0));
+    return g;
+  }
+  function makeDiver() {
+    const g = new T.Group();
+    const body = part(new T.ConeGeometry(3.6, 13, 3), toon(0xff6a3d), 0, -1, 0); body.rotation.z = Math.PI; g.add(body);
+    for (const s of [-1, 1]) { const w = part(new T.BoxGeometry(9, 2, 1.6), toon(0xffb04f), s * 5, 2.5, 0); w.rotation.z = s * 0.6; g.add(w); }
+    g.add(part(new T.SphereGeometry(1.7, 8, 6), glow(0xfff27a), 0, 1, 3, false));
+    return g;
+  }
+  function lights(scene) {
+    scene.add(new T.HemisphereLight(0x9ab8ff, 0x1a0f2e, 0.9));
+    const sun = new T.DirectionalLight(0xffffff, 1.1); sun.position.set(-2, 3, 4); scene.add(sun);
+  }
+  function tiltCam(w, h) {
+    const c = new T.OrthographicCamera(-w / 2, w / 2, h / 2, -h / 2, 1, 1000);
+    c.position.set(0, -110, 300); c.lookAt(0, 0, 0); return c;
+  }
+
+  // ---- Hero: a run in progress ----
+  const hero = new T.Scene(); lights(hero);
+  const heroCam = tiltCam(W, H);
+  const aliens = [];
+  for (let i = 0; i < 5; i++) { const a = makeWarden(); a.position.set(-56 + i * 28, 100, 0); hero.add(a); aliens.push(a); }
+  for (let r = 0; r < 2; r++) for (let i = 0; i < 6; i++) {
+    if (r === 1 && i === 3) continue; // just destroyed: the explosion is here
+    const a = makeDrone(); a.position.set(-60 + i * 24, 72 - r * 24, 0); hero.add(a); aliens.push(a);
+  }
+  const diver = makeDiver(); diver.position.set(46, -18, 0); diver.rotation.z = 0.7; hero.add(diver);
+  const player = makePlayer(); player.position.set(-14, -128, 0); hero.add(player);
+
+  const shotGeo = new T.BoxGeometry(1.6, 7, 1.6);
+  const pShots = [-82, -30, 18].map((y) => { const s = part(shotGeo, glow(0x9ffbff), -14, y, 0, false); hero.add(s); return s; });
+  const eGeo = new T.OctahedronGeometry(2.2);
+  const eShots = [[24, -40], [-50, 10], [60, -90]].map(([x, y]) => { const s = part(eGeo, glow(0xff4fd8), x, y, 0, false); hero.add(s); return s; });
+  const sparks = [];
+  for (let i = 0; i < 16; i++) {
+    const s = part(new T.BoxGeometry(2, 2, 2), glow(i % 3 ? 0xffb04f : 0xfff27a), 12, 48, 0, false);
+    const a = (i / 16) * Math.PI * 2; s.userData.d = [Math.cos(a), Math.sin(a), 0.6 + (i % 4) * 0.25]; hero.add(s); sparks.push(s);
+  }
+
+  // Starfield in art pixels, drawn under the 3D layer.
+  const stars = [];
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 90; i++) stars.push([Math.floor(rnd() * W), rnd() * H, rnd() < 0.2 ? 2 : 1, rnd() < 0.15]);
+
+  // ---- Model stages ----
+  const stage = new T.Scene(); lights(stage);
+  const stageCam = new T.OrthographicCamera(-24, 24, 24, -24, 1, 1000);
+  stageCam.position.set(0, -90, 300); stageCam.lookAt(0, 0, 0);
+  const models = { 'm-player': makePlayer(), 'm-drone': makeDrone(), 'm-warden': makeWarden(), 'm-diver': makeDiver() };
+  for (const k in models) { models[k].scale.setScalar(1.25); models[k].visible = false; stage.add(models[k]); }
+
+  const ctx = (id) => { const c = document.getElementById(id); const x = c && c.getContext('2d'); if (x) x.imageSmoothingEnabled = false; return x; };
+  const heroCtx = ctx('c-hero'), pickCtx = ctx('c-pick'), deskCtx = ctx('c-desk');
+  const stageCtx = {}; for (const k in models) stageCtx[k] = ctx(k);
+  const gl = renderer.domElement;
+
+  function drawField(t) {
+    // Animate
+    const sway = Math.sin(t * 0.6) * 6;
+    aliens.forEach((a, i) => {
+      a.userData.bx = a.userData.bx ?? a.position.x;
+      a.position.x = a.userData.bx + sway;
+      a.rotation.y = Math.sin(t * 2 + i) * 0.25;
+      if (a.userData.legs) a.userData.legs.forEach((l, j) => (l.rotation.z = Math.sin(t * 6 + i + j) * 0.3));
+    });
+    diver.position.set(46 + Math.sin(t * 1.1) * 10, -18 + Math.cos(t * 1.1) * 6, 0);
+    diver.rotation.z = 0.7 + Math.sin(t * 1.1) * 0.3;
+    player.position.x = -14 + Math.sin(t * 0.9) * 16;
+    player.rotation.y = Math.cos(t * 0.9) * 0.45; // banks into the turn
+    pShots.forEach((s, i) => { s.position.y = -110 + ((t * 120 + i * 52) % 156); s.position.x = player.position.x; });
+    eShots.forEach((s, i) => { s.position.y = 20 - ((t * 45 + i * 50) % 150); s.rotation.y = t * 4; });
+    const k = (t * 0.8) % 1.4;
+    sparks.forEach((s) => { const d = s.userData.d; s.position.set(12 + d[0] * k * 14 * d[2], 48 + d[1] * k * 14 * d[2], 0); s.visible = k < 1; });
+
+    renderer.setViewport(0, 0, W, H); renderer.setScissor(0, 0, W, H); renderer.setScissorTest(true);
+    renderer.clear(); renderer.render(hero, heroCam);
+
+    for (const c of [heroCtx, deskCtx, pickCtx]) {
+      if (!c) continue;
+      c.fillStyle = '#05030f'; c.fillRect(0, 0, W, H);
+      for (const [x, y, sz, tw] of stars) {
+        const yy = Math.floor((y + t * (sz === 2 ? 14 : 7)) % H);
+        c.fillStyle = tw && Math.sin(t * 5 + x) > 0.5 ? '#ffffff' : sz === 2 ? '#8f86c9' : '#463e7a';
+        c.fillRect(x, yy, sz === 2 ? 1 : 1, sz);
+      }
+      c.drawImage(gl, 0, 0);
+      // Soft glow on the bright parts, drawn over the pixels.
+      if ('filter' in c) { c.save(); c.filter = 'blur(2px)'; c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.45; c.drawImage(gl, 0, 0); c.restore(); }
+    }
+  }
+
+  function drawStages(t) {
+    let i = 0;
+    for (const k in models) {
+      const m = models[k], c = stageCtx[k]; if (!c) continue;
+      for (const kk in models) models[kk].visible = kk === k;
+      m.rotation.y = Math.sin(t * 0.8 + i) * 0.7;
+      m.position.y = Math.sin(t * 1.6 + i) * 1.2;
+      renderer.setViewport(0, H - 48, 48, 48); renderer.setScissor(0, H - 48, 48, 48); renderer.setScissorTest(true);
+      renderer.clear(); renderer.render(stage, stageCam);
+      c.clearRect(0, 0, 48, 48);
+      c.drawImage(gl, 0, 0, 48, 48, 0, 0, 48, 48);
+      i++;
+    }
+  }
+
+  let last = 0;
+  function frame(ms) {
+    const t = ms / 1000;
+    if (ms - last > 30) { last = ms; drawStages(t); drawField(t); }
+    if (!reduce) requestAnimationFrame(frame);
+  }
+  if (reduce) frame(1600); else requestAnimationFrame(frame);
+})();
+</script>
