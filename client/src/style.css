@@ -85,3 +85,778 @@ body {
   background: var(--touch-pressed);
   transform: scale(0.96);
 }
+
+/*
+ * Menus and HUD. Pixel display face for the logo, headings, numbers and card names; a plain
+ * system face for sentences. Dark only: the hive is magenta, the pilot cyan, engines warm.
+ */
+:root {
+  --void: #0c0918;
+  --panel: #161128;
+  --line: #2c2450;
+  --ink: #ece8ff;
+  --muted: #9a92c4;
+  --hive: #ff4fd8;
+  --hive-deep: #8f1f78;
+  --pilot: #4ff0ff;
+  --warm: #ffb04f;
+  --danger: #ff6b6b;
+  --scrim: rgb(5 3 15 / 0.82);
+  --font-display: 'Silkscreen', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: dark;
+}
+
+/* Cards over the game ------------------------------------------------------------------- */
+
+.menu {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: var(--scrim);
+  font-family: var(--font-body);
+  color: var(--ink);
+}
+
+.panel {
+  width: 100%;
+  max-width: 380px;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* The body blocks touch gestures for the game; a tall card still has to scroll. */
+  touch-action: pan-y;
+  padding: 20px;
+  border: 2px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  box-shadow:
+    0 0 0 4px var(--void),
+    0 0 48px rgb(255 79 216 / 0.14);
+}
+
+.panel-wide {
+  max-width: 820px;
+}
+
+.logo {
+  margin: 4px 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(28px, 10vw, 40px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-align: center;
+  color: var(--ink);
+  text-shadow: 0 3px 0 var(--line);
+}
+
+.logo span {
+  color: var(--hive);
+  text-shadow: 0 3px 0 var(--hive-deep);
+}
+
+.tagline {
+  margin: 14px 0 6px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.best {
+  margin: 0 0 4px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: var(--warm);
+}
+
+.heading {
+  margin: 0 0 14px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.heading-center {
+  text-align: center;
+  text-wrap: balance;
+}
+
+.heading-big {
+  font-size: clamp(24px, 8vw, 34px);
+  font-weight: 700;
+}
+
+.subheading {
+  margin: 18px 0 8px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pilot);
+}
+
+.text {
+  margin: 0 0 14px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.note {
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--pilot);
+}
+
+.hint {
+  margin: 16px 0 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: var(--void);
+  color: var(--ink);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.85em;
+  text-align: center;
+}
+
+.stack {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.stack:first-child {
+  margin-top: 0;
+}
+
+/* Buttons ------------------------------------------------------------------------------- */
+
+.btn {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 48px;
+  margin: 0;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--hive);
+  color: #1a0616;
+  font-family: var(--font-display);
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  box-shadow: 0 4px 0 var(--hive-deep);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 var(--hive-deep);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--line);
+}
+
+.btn-secondary:active {
+  box-shadow: inset 0 0 0 2px var(--line);
+}
+
+.btn-secondary[aria-pressed='true'] {
+  color: var(--pilot);
+}
+
+.btn-danger {
+  background: var(--danger);
+  box-shadow: 0 4px 0 #8f2a2a;
+}
+
+.btn:focus-visible,
+.btn.is-menu-focus,
+.pick-card:focus-visible,
+.pick-card.is-menu-focus,
+.slider:focus-visible,
+.slider.is-menu-focus {
+  outline: 3px solid var(--pilot);
+  outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .btn:hover {
+    filter: brightness(1.12);
+  }
+}
+
+/* Settings ------------------------------------------------------------------------------ */
+
+.field-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.field-label {
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.field-value {
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.slider {
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  background: transparent;
+  accent-color: var(--hive);
+  touch-action: pan-y;
+}
+
+/* How to play --------------------------------------------------------------------------- */
+
+.keys {
+  display: grid;
+  grid-template-columns: 4.5em minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.keys dt {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding-top: 3px;
+}
+
+.keys dd {
+  margin: 0;
+  color: var(--ink);
+}
+
+/* Records ------------------------------------------------------------------------------- */
+
+.records-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-display);
+  font-size: 13px;
+}
+
+.record-row {
+  display: grid;
+  grid-template-columns: 1.7em 1fr 2.2em 2.4em 3.2em;
+  align-items: center;
+  column-gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--void);
+}
+
+.record-rank {
+  color: var(--muted);
+}
+
+.record-score {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.record-wave {
+  color: var(--pilot);
+}
+
+.record-combo {
+  color: var(--hive);
+}
+
+.record-result {
+  color: var(--muted);
+  text-align: right;
+}
+
+.record-row.is-won .record-result {
+  color: var(--warm);
+}
+
+/* The date sits on its own line under the numbers. */
+.record-date {
+  grid-column: 2 / -1;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Upgrade pick -------------------------------------------------------------------------- */
+
+.pick-cards {
+  display: grid;
+  gap: 10px;
+}
+
+.pick-card {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+  padding: 12px 14px;
+  border: 2px solid var(--line);
+  border-radius: 4px;
+  background: var(--void);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pick-card:focus-visible,
+.pick-card.is-menu-focus {
+  border-color: var(--pilot);
+  box-shadow: 0 0 0 2px rgb(79 240 255 / 0.25);
+  outline: none;
+}
+
+.pick-name {
+  font-family: var(--font-display);
+  font-size: 16px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.pick-what {
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.pick-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+}
+
+.pick-rarity {
+  color: var(--muted);
+}
+
+.pick-rarity[data-rarity='uncommon'] {
+  color: var(--warm);
+}
+
+.pick-stacks {
+  color: var(--ink);
+}
+
+/* "WAVE 2 CLEAR" over "PICK ONE" on a phone; one line, with the dot, when there's room. */
+.pick-sep {
+  display: none;
+}
+
+.pick-ask {
+  display: block;
+  margin-top: 6px;
+  color: var(--hive);
+}
+
+/* Phones stack the cards; with room they sit side by side. */
+@media (min-width: 720px) {
+  .pick-sep {
+    display: inline;
+    color: var(--muted);
+  }
+
+  .pick-ask {
+    display: inline;
+    margin-top: 0;
+  }
+
+  .pick-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .pick-card {
+    align-content: start;
+    grid-template-rows: auto 1fr auto;
+    min-height: 170px;
+    padding: 16px;
+  }
+
+  .pick-name {
+    font-size: 18px;
+  }
+
+  .pick-what {
+    font-size: 15px;
+  }
+}
+
+/* Game over and win --------------------------------------------------------------------- */
+
+#over[data-outcome='won'] .heading {
+  color: var(--pilot);
+}
+
+#over[data-outcome='lost'] .heading {
+  color: var(--hive);
+}
+
+.badge {
+  width: fit-content;
+  margin: -4px auto 14px;
+  padding: 4px 10px;
+  border: 2px solid var(--warm);
+  border-radius: 3px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--warm);
+}
+
+.result-stats {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.result-stats div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.result-stats dt {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.result-stats dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--ink);
+}
+
+.result-stats div:first-child dd {
+  font-size: 26px;
+}
+
+/* HUD ----------------------------------------------------------------------------------- */
+
+.hud {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  font-family: var(--font-display);
+  color: var(--ink);
+  text-shadow:
+    0 1px 0 #000,
+    0 0 4px #000;
+}
+
+/* Hud sizes this to the playfield; the columns hang off its edges. */
+.hud-field {
+  position: absolute;
+}
+
+.hud-col {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hud-stat {
+  display: grid;
+  gap: 1px;
+}
+
+.hud-label {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hud-value {
+  font-size: 15px;
+  line-height: 1.1;
+}
+
+.hud-combo .hud-value {
+  color: var(--hive);
+}
+
+.hud-combo.is-off {
+  visibility: hidden;
+}
+
+.hud-combo.pulse .hud-value {
+  display: inline-block;
+  transform-origin: left center;
+  animation: combo-pulse 0.3s ease-out;
+}
+
+@keyframes combo-pulse {
+  0% {
+    transform: scale(1.7);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.hud-lives {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 15px;
+  font-size: 13px;
+  color: var(--pilot);
+}
+
+.life {
+  display: block;
+  width: 13px;
+  height: 12px;
+  background: var(--pilot);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.hud-upgrade-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.hud-upgrade-list:empty::before {
+  content: '-';
+  color: var(--muted);
+}
+
+.hud-mute {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: rgb(5 3 15 / 0.55);
+  box-shadow: inset 0 0 0 2px rgb(245 243 255 / 0.25);
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1;
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hud-mute:active {
+  background: rgb(255 79 216 / 0.4);
+}
+
+/* Overlay: the top of the field, with the pause button's corner of the screen left clear. */
+.hud[data-mode='overlay'] .hud-col-left {
+  top: max(8px, env(safe-area-inset-top));
+  left: 8px;
+}
+
+.hud[data-mode='overlay'] .hud-col-right {
+  top: max(8px, env(safe-area-inset-top));
+  right: calc(var(--hud-inset, 0px) + 44px + 8px);
+  align-items: flex-end;
+  text-align: right;
+}
+
+.hud[data-mode='overlay'] .hud-high,
+.hud[data-mode='overlay'] .hud-upgrades {
+  display: none;
+}
+
+.hud[data-mode='overlay'] .hud-mute {
+  top: max(12px, env(safe-area-inset-top));
+  right: var(--hud-inset, 0px);
+}
+
+/*
+ * Side panels: score, combo and high on the left, wave, lives and upgrades on the right. They
+ * hug the field's edges, so the numbers stay near the action however wide the screen is.
+ */
+.hud[data-mode='side'] .hud-col {
+  top: 0;
+  width: min(var(--hud-side, 0px), 260px);
+  gap: 24px;
+  padding: 28px 24px;
+}
+
+.hud[data-mode='side'] .hud-col-left {
+  right: 100%;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.hud[data-mode='side'] .hud-col-left .hud-stat {
+  justify-items: end;
+}
+
+.hud[data-mode='side'] .hud-col-right {
+  left: 100%;
+}
+
+.hud[data-mode='side'] .hud-label {
+  font-size: 12px;
+}
+
+.hud[data-mode='side'] .hud-value {
+  font-size: clamp(20px, 2.2vw, 30px);
+}
+
+.hud[data-mode='side'] .hud-lives {
+  gap: 6px;
+}
+
+.hud[data-mode='side'] .life {
+  width: 20px;
+  height: 18px;
+}
+
+.hud[data-mode='side'] .hud-upgrade-list {
+  font-size: 13px;
+}
+
+.hud[data-mode='side'] .hud-mute {
+  bottom: 20px;
+  left: calc(100% + 24px);
+}
+
+/* Wave banner --------------------------------------------------------------------------- */
+
+.banner {
+  position: fixed;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: 0 12px;
+  pointer-events: none;
+  text-align: center;
+}
+
+.banner-text {
+  font-family: var(--font-display);
+  font-size: var(--banner-size, 40px);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-wrap: balance;
+  color: var(--ink);
+  text-shadow:
+    0 3px 0 var(--hive-deep),
+    0 0 24px rgb(255 79 216 / 0.6);
+  animation: banner-fade var(--banner-seconds, 1.5s) ease-out forwards;
+}
+
+@keyframes banner-fade {
+  0% {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+  15% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-combo.pulse .hud-value {
+    animation: none;
+  }
+
+  .banner-text {
+    animation-name: banner-fade-still;
+  }
+
+  @keyframes banner-fade-still {
+    0%,
+    65% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  .btn:active {
+    transform: none;
+  }
+}

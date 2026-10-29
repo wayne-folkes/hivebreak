@@ -1,0 +1,134 @@
+import { describe, expect, it } from 'vitest';
+import type { Fit } from '../game/playfield';
+import { fitPlayfield } from '../game/playfield';
+import type { RunRecord } from '../game/records';
+import {
+  comboLabel,
+  endTitle,
+  formatDate,
+  formatScore,
+  hudLayout,
+  pickReady,
+  PAUSE_RESERVE,
+  PICK_GUARD_SECONDS,
+  rankBadge,
+  recordRowText,
+  stackLabel,
+  summarizeUpgrades,
+  waveLabel,
+} from './format';
+
+describe('formatScore', () => {
+  it('pads to six digits', () => {
+    expect(formatScore(0)).toBe('000000');
+    expect(formatScore(4250)).toBe('004250');
+    expect(formatScore(123456)).toBe('123456');
+  });
+
+  it('lets a bigger score grow and ignores bad numbers', () => {
+    expect(formatScore(1234567)).toBe('1234567');
+    expect(formatScore(42.9)).toBe('000042');
+    expect(formatScore(-5)).toBe('000000');
+    expect(formatScore(Number.NaN)).toBe('000000');
+  });
+});
+
+describe('labels', () => {
+  it('writes the combo and wave', () => {
+    expect(comboLabel(3)).toBe('x3');
+    expect(comboLabel(0)).toBe('x1');
+    expect(waveLabel(2, 5)).toBe('2/5');
+  });
+
+  it('writes stacks as taken over max', () => {
+    expect(stackLabel(0, 2)).toBe('0/2');
+    expect(stackLabel(2, 3)).toBe('2/3');
+  });
+
+  it('names the ways a run ends', () => {
+    expect(endTitle(true)).toBe('HIVE BROKEN');
+    expect(endTitle(false, 'lives')).toBe('SHIP LOST');
+    expect(endTitle(false, 'invaded')).toBe('THE HIVE LANDED');
+    expect(endTitle(false)).toBe('SHIP LOST');
+  });
+
+  it('badges only runs that made the top 10', () => {
+    expect(rankBadge(-1)).toBeNull();
+    expect(rankBadge(0)).toBe('New best!');
+    expect(rankBadge(2)).toBe('Rank #3');
+    expect(rankBadge(9)).toBe('Rank #10');
+  });
+});
+
+describe('pickReady', () => {
+  it('ignores presses inside the guard time', () => {
+    expect(PICK_GUARD_SECONDS).toBe(0.4);
+    expect(pickReady(1000, 1000)).toBe(false);
+    expect(pickReady(1000, 1399)).toBe(false);
+  });
+
+  it('takes presses from 0.4 s on', () => {
+    expect(pickReady(1000, 1400)).toBe(true);
+    expect(pickReady(1000, 5000)).toBe(true);
+  });
+
+  it('handles a clock that has not reached the open time', () => {
+    expect(pickReady(-Infinity, 0)).toBe(true);
+    expect(pickReady(2000, 1500)).toBe(false);
+  });
+});
+
+describe('records', () => {
+  const record: RunRecord = { score: 4250, wave: 3, bestCombo: 6, won: false, date: new Date(2026, 9, 29, 12).toISOString() };
+
+  it('formats a date as day and month', () => {
+    expect(formatDate(record.date)).toBe('29 Oct');
+    expect(formatDate('not a date')).toBe('-');
+  });
+
+  it('turns a record into row text, ranked from 1', () => {
+    expect(recordRowText(0, record)).toEqual({
+      rank: '1',
+      score: '004250',
+      wave: 'W3',
+      combo: 'x6',
+      result: 'LOST',
+      date: '29 Oct',
+    });
+    expect(recordRowText(9, { ...record, won: true, wave: 5 })).toMatchObject({ rank: '10', wave: 'W5', result: 'WON' });
+  });
+});
+
+describe('summarizeUpgrades', () => {
+  it('counts each upgrade once, in the order first picked', () => {
+    expect(summarizeUpgrades(['rapidFire', 'twinShot', 'rapidFire'])).toEqual([
+      { id: 'rapidFire', name: 'Rapid fire', count: 2 },
+      { id: 'twinShot', name: 'Twin shot', count: 1 },
+    ]);
+    expect(summarizeUpgrades([])).toEqual([]);
+  });
+});
+
+describe('hudLayout', () => {
+  it('overlays the field on a phone and leaves room for the pause button', () => {
+    const layout = hudLayout(fitPlayfield(390, 844, 1), 390);
+    expect(layout.side).toBe(false);
+    expect(layout.sideWidth).toBe(0);
+    // The field leaves 15 px at the right; the pause button needs 64 from the screen edge.
+    expect(layout.rightInset).toBe(PAUSE_RESERVE - 15);
+  });
+
+  it('needs no inset when the field leaves room for the pause button', () => {
+    const fit: Fit = { scale: 2, width: 360, height: 640, left: 100, top: 0 };
+    expect(hudLayout(fit, 560).rightInset).toBe(0);
+  });
+
+  it('moves to side panels on a wide screen', () => {
+    const layout = hudLayout(fitPlayfield(1440, 900, 1), 1440);
+    expect(layout).toEqual({ side: true, sideWidth: 540, rightInset: 0 });
+  });
+
+  it('stays overlaid when the sides are too narrow', () => {
+    expect(hudLayout(fitPlayfield(640, 700, 1), 640).side).toBe(false);
+  });
+});

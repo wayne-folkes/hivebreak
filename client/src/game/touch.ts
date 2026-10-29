@@ -63,7 +63,14 @@ export class TouchControls implements InputSource {
     this.overlay.innerHTML = MARKUP;
     root.append(this.overlay);
 
-    this.enabled = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+    const coarse = window.matchMedia?.('(pointer: coarse)');
+    this.enabled = coarse?.matches ?? false;
+    // Switching device (or the browser's device emulation) changes the pointer type under us.
+    coarse?.addEventListener?.('change', (e) => {
+      this.enabled = e.matches;
+      if (!this.enabled) this.releaseAll();
+      this.updateVisibility();
+    });
     window.addEventListener(
       'pointerdown',
       (e) => {
@@ -140,7 +147,9 @@ export class TouchControls implements InputSource {
 
   private onDown(e: PointerEvent): void {
     if (!this.live()) return;
-    const target = e.target as Element;
+    // Not every event target is an element (a pointer can land on the document or window).
+    const target = e.target as Element | null;
+    if (typeof target?.closest !== 'function') return;
     const tap = target.closest<HTMLElement>('[data-tap]');
     if (tap) {
       e.preventDefault();

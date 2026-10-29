@@ -77,6 +77,7 @@ const field = { closest: () => null };
 
 /** Builds the controls on a fake window (innerHeight 800) and document, and returns handles to them. */
 function setup({ coarse = true } = {}) {
+  const mediaListeners: ((e: { matches: boolean }) => void)[] = [];
   const overlay = {
     className: '',
     hidden: false,
@@ -84,7 +85,11 @@ function setup({ coarse = true } = {}) {
     classList: { toggle: () => false },
     querySelectorAll: () => [],
   };
-  const win = Object.assign(fakeTarget(), { innerHeight: 800, matchMedia: () => ({ matches: coarse }) });
+  const win = Object.assign(fakeTarget(), { innerHeight: 800, matchMedia: () => ({
+      matches: coarse,
+      addEventListener: (_: string, fn: (e: { matches: boolean }) => void) => mediaListeners.push(fn),
+    }),
+  });
   const doc = Object.assign(fakeTarget(), { createElement: () => overlay as unknown as HTMLElement });
   const g = globalThis as Record<string, unknown>;
   g.window = win;
@@ -97,6 +102,10 @@ function setup({ coarse = true } = {}) {
     touch,
     win,
     doc,
+    /** Fires the pointer-type media query's change event, as a device switch would. */
+    switchPointer(matches: boolean) {
+      for (const fn of mediaListeners) fn({ matches });
+    },
     down(id: number, clientY: number, clientX = 100) {
       const e = fakeEvent({ pointerType: 'touch', pointerId: id, clientX, clientY, target: field });
       win.dispatch('pointerdown', e);
@@ -169,6 +178,31 @@ describe('TouchControls drags', () => {
     touch.setVisible(false);
     touch.setVisible(true);
     expect(touch.shipInput()).toEqual({ move: 0, drag: 0, fire: false });
+  });
+});
+
+describe('TouchControls on a changing device', () => {
+  it('ignores a pointer whose target is not an element', () => {
+    const { touch, win } = setup();
+    const e = fakeEvent({ pointerType: 'touch', pointerId: 1, clientX: 100, clientY: 600, target: {} });
+    expect(() => win.dispatch('pointerdown', e)).not.toThrow();
+    expect(touch.shipInput().fire).toBe(false);
+  });
+
+  it('turns the overlay on when the pointer type becomes coarse', () => {
+    const { touch, switchPointer, doc } = setup({ coarse: false });
+    expect(touch.touchDevice).toBe(false);
+    switchPointer(true);
+    expect(touch.touchDevice).toBe(true);
+    const e = fakeEvent();
+    doc.dispatch('contextmenu', e);
+    expect(e.prevented).toBe(true);
+  });
+
+  it('turns it off again when the pointer type is no longer coarse', () => {
+    const { touch, switchPointer } = setup();
+    switchPointer(false);
+    expect(touch.touchDevice).toBe(false);
   });
 });
 
