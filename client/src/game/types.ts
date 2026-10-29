@@ -15,8 +15,9 @@ export interface ShipInput {
   move: number;
   /**
    * Art pixels to shift the ship sideways, from a touch drag. Added to the ship's pending drag,
-   * which the sim plays out over the next steps at a capped speed. The game loop passes a
-   * frame's drag to the first sim step of that frame only, and 0 to the rest.
+   * which the sim plays out over the next steps at a capped speed. The game loop reads input
+   * once per frame (reading drains the touch drag), adds the drag to a carry, and passes the
+   * carry to the next sim step that runs, then zeroes it, so frames with no sim step lose nothing.
    */
   drag: number;
   /** Fire is held. The ship fires whenever its cooldown allows. */
@@ -82,8 +83,13 @@ export interface Shot {
   vy: number;
   /** Aliens this shot can still pass through. */
   pierceLeft: number;
-  /** Aliens this shot has hit. A player's shot that leaves the field with 0 hits is a miss. */
+  /** Aliens this shot has hit. */
   hits: number;
+  /**
+   * The volley this shot was fired in (shots fired together share it). A volley is a miss, and
+   * breaks the combo, only when every shot in it has left the field with 0 hits.
+   */
+  volley: number;
 }
 
 export type AlienKind = 'drone' | 'warden' | 'diver';
@@ -93,6 +99,13 @@ export type AlienKind = 'drone' | 'warden' | 'diver';
  * Only divers leave the formation.
  */
 export type AlienMode = 'formation' | 'diving' | 'returning';
+
+/** The curve a diving alien follows: where it left the formation and the x it swoops towards. */
+export interface DivePath {
+  fromX: number;
+  fromY: number;
+  toX: number;
+}
 
 export interface Alien {
   id: number;
@@ -108,6 +121,8 @@ export interface Alien {
   modeTime: number;
   /** Seconds left of the white hit-flash, for the renderer. */
   flash: number;
+  /** The path of the current dive. Only set while `mode` is `diving`. */
+  dive?: DivePath;
 }
 
 export interface FormationState {

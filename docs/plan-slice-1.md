@@ -72,12 +72,19 @@ Define the shapes the rest builds on, in `client/src/game/`:
 - Load the `.glb` models, instance aliens, animate parts (bank, wobble, flap), hit-flash.
 - Starfield, pixel particle explosions, screen shake. Render interpolated between sim steps.
 
+- Align the ship model's hull (not its bounding box, which includes the flames) with `SHIP_Y`
+  plus the hit box offset from `player.ts`.
+- Main loop: read `Controls.shipInput()` exactly once per frame (it drains the touch drag); carry
+  the drag to the next sim step that runs (see `ShipInput.drag` in `types.ts`).
+
 ### 6. UI and audio
 
 - DOM cards in the rc-racer style (`ui/card.ts` focus and menu pattern): title, how to play,
   settings (sound, volume), pause, upgrade pick (three cards; d-pad, arrows or tap), game over and
   win with high score.
-- HUD: score, combo, lives, wave.
+- Upgrade pick ignores `confirm` for the first 0.4 s of `upgradePick`, so a fire press as the last
+  alien dies doesn't pick a card; call `Controls.holdFireUntilReleased()` on every menu confirm.
+- HUD: score, combo, lives, wave, and the mute button (the only one; touch has none of its own).
 - `audio.ts`: synth SFX for the events in `RunEvent`, sound on/off and volume saved.
 - A page view per screen for Vercel Analytics.
 

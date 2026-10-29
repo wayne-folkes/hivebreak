@@ -32,3 +32,56 @@ body {
   /* The canvas is drawn at art resolution; keep its pixels square and sharp when scaled up. */
   image-rendering: pixelated;
 }
+
+/*
+ * Touch controls: pause in the top-right corner. The overlay covers the screen but only
+ * its buttons take touches, so a drag anywhere in the lower half still reaches the game.
+ */
+:root {
+  --touch-bg: rgb(5 3 15 / 0.55);
+  --touch-line: rgb(245 243 255 / 0.25);
+  --touch-pressed: rgb(255 79 216 / 0.4);
+}
+
+.touch-controls {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.touch-utility {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  gap: 8px;
+}
+
+.touch-mini {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: var(--touch-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  box-shadow: inset 0 0 0 2px var(--touch-line);
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-mini.is-pressed {
+  background: var(--touch-pressed);
+  transform: scale(0.96);
+}
