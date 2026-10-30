@@ -3,7 +3,9 @@ import type { Fit } from '../game/playfield';
 import { fitPlayfield } from '../game/playfield';
 import type { RunRecord } from '../game/records';
 import {
+  bossBarLabel,
   bossBarPercent,
+  bossPhaseLabel,
   bossDownHeading,
   comboLabel,
   endTitle,
@@ -17,12 +19,14 @@ import {
   PAUSE_RESERVE,
   PICK_GUARD_SECONDS,
   rankBadge,
+  sectorBanner,
   recordRowText,
   specialHint,
   stackLabel,
   summarizeUpgrades,
   synergyToast,
   waveClearHeading,
+  waveSector,
   waveLabel,
 } from './format';
 
@@ -98,12 +102,12 @@ describe('records', () => {
     expect(recordRowText(0, record)).toEqual({
       rank: '1',
       score: '004250',
-      wave: 'W3',
+      wave: 'W3/10',
       combo: 'x6',
       result: 'LOST',
       date: '29 Oct',
     });
-    expect(recordRowText(9, { ...record, won: true, wave: 5 })).toMatchObject({ rank: '10', wave: 'W5', result: 'WON' });
+    expect(recordRowText(9, { ...record, won: true, wave: 5 })).toMatchObject({ rank: '10', wave: 'W5/10', result: 'WON' });
   });
 });
 
@@ -208,6 +212,7 @@ describe('pick headings', () => {
   it('reads WAVE n CLEAR after a wave and the boss name after a boss', () => {
     expect(waveClearHeading(3)).toBe('WAVE 3 CLEAR');
     expect(bossDownHeading('broodMother')).toBe('BROOD MOTHER DOWN');
+    expect(bossDownHeading('hiveMind')).toBe('HIVE MIND DOWN');
   });
 });
 
@@ -233,5 +238,46 @@ describe('synergyToast', () => {
       sub: 'Every volley adds a bolt that pierces everything.',
     });
     expect(synergyToast('chainReaction').text).toBe('SYNERGY: CHAIN REACTION');
+  });
+});
+
+describe('waveSector', () => {
+  it('puts waves 1-5 in sector 1 and 6-10 in sector 2 (0-based index)', () => {
+    expect(waveSector(0)).toBe(1);
+    expect(waveSector(4)).toBe(1);
+    expect(waveSector(5)).toBe(2);
+    expect(waveSector(9)).toBe(2);
+  });
+
+  it('stays in the last sector past the end', () => {
+    expect(waveSector(10)).toBe(2);
+    expect(waveSector(-3)).toBe(1);
+  });
+});
+
+describe('sectorBanner', () => {
+  it('has a banner for sector 2 and keeps sector 1 quiet', () => {
+    expect(sectorBanner(1)).toBeNull();
+    expect(sectorBanner(2)).toEqual({ title: 'SECTOR 2', sub: 'Deeper into the hive' });
+  });
+});
+
+describe('bossBarLabel', () => {
+  it('shows the Hive Mind with its phase and the Brood Mother by name', () => {
+    expect(bossBarLabel('hiveMind', 2)).toBe('HIVE MIND · PHASE 2');
+    expect(bossBarLabel('broodMother', 2)).toBe('BROOD MOTHER');
+  });
+
+  it('gives the phase tag alone for the Hive Mind only', () => {
+    expect(bossPhaseLabel('hiveMind', 3)).toBe('PHASE 3');
+    expect(bossPhaseLabel('hiveMind', 0)).toBe('PHASE 1');
+    expect(bossPhaseLabel('broodMother', 2)).toBeNull();
+  });
+});
+
+describe('the wave counter over ten waves', () => {
+  it('reads 1/10 to 10/10', () => {
+    expect(waveLabel(1, 10)).toBe('1/10');
+    expect(waveLabel(10, 10)).toBe('10/10');
   });
 });

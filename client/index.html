@@ -45,7 +45,7 @@
     <div id="hud" class="hud" data-mode="overlay" hidden>
       <div id="hud-field" class="hud-field">
         <div id="hud-boss" class="hud-boss" hidden>
-          <span id="hud-boss-name" class="hud-boss-name">BROOD MOTHER</span>
+          <span class="hud-boss-title"><span id="hud-boss-name" class="hud-boss-name">BROOD MOTHER</span><span id="hud-boss-phase" class="hud-boss-phase" hidden></span></span>
           <span class="hud-boss-bar" role="progressbar" id="hud-boss-bar" aria-label="Boss health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span id="hud-boss-fill" class="hud-boss-fill"></span></span>
         </div>
         <div id="hud-toast" class="hud-toast" role="status" aria-live="polite" hidden>
@@ -67,6 +67,10 @@
             <span id="hud-special-cells" class="hud-cells" role="img" aria-label="Special charging"><i></i><i></i><i></i><i></i><i></i></span>
             <span id="hud-special-hint" class="hud-hint"></span>
           </div>
+          <div id="hud-powerups-stat" class="hud-stat hud-powerups" hidden>
+            <span class="hud-label hud-powerups-tag">Power-ups</span>
+            <ul id="hud-powerups" class="hud-chips"></ul>
+          </div>
           <div class="hud-stat hud-high">
             <span class="hud-label">High</span>
             <span id="hud-high" class="hud-value">000000</span>
@@ -74,8 +78,12 @@
         </div>
         <div class="hud-col hud-col-right">
           <div class="hud-stat">
-            <span class="hud-label">Wave</span>
-            <span id="hud-wave" class="hud-value">1/5</span>
+            <span class="hud-label">Wave<span id="hud-sector-tag" class="hud-sector-tag">S1</span></span>
+            <span id="hud-wave" class="hud-value">1/10</span>
+          </div>
+          <div class="hud-stat hud-sector-stat">
+            <span class="hud-label">Sector</span>
+            <span id="hud-sector" class="hud-value">1</span>
           </div>
           <div class="hud-stat">
             <span class="hud-label">Lives</span>
@@ -85,10 +93,6 @@
             <span class="hud-label">Upgrades</span>
             <ul id="hud-upgrades" class="hud-upgrade-list"></ul>
           </div>
-          <div id="hud-powerups-stat" class="hud-stat hud-powerups" hidden>
-            <span class="hud-label hud-powerups-tag">Power-ups</span>
-            <ul id="hud-powerups" class="hud-chips"></ul>
-          </div>
         </div>
         <button id="hud-mute" class="hud-mute" type="button" tabindex="-1" aria-label="Mute sound" aria-pressed="false">🔊</button>
       </div>
@@ -96,6 +100,12 @@
 
     <div id="banner" class="banner" role="status" aria-live="polite" hidden>
       <span id="banner-text" class="banner-text"></span>
+    </div>
+
+    <div id="sector-banner" class="banner sector-banner" role="status" aria-live="polite" hidden>
+      <span id="sector-banner-title" class="sector-banner-title">SECTOR 2</span>
+      <span id="sector-banner-sub" class="sector-banner-sub">Deeper into the hive</span>
+      <span id="sector-banner-wave" class="sector-banner-wave" hidden></span>
     </div>
 
     <div id="title" class="menu" hidden>
@@ -124,11 +134,24 @@
       <div class="panel" role="dialog" aria-labelledby="howto-heading">
         <h2 id="howto-heading" class="heading">How to play</h2>
         <p class="text">
-          Clear five waves of the hive to win; the fifth ends in a boss. After each wave you pick one
-          of three upgrades, and they stack for the rest of the run, so no two runs build the same
-          way. Every hit in a row raises your combo multiplier, up to x8; a shot that misses resets
-          it, so aim rather than spray. Lose your last life, or let the formation reach your row, and
-          the run is over.
+          Clear ten waves of the hive to win, in two sectors of five; each sector ends in a boss.
+          After each wave you pick one of three upgrades, and they stack for the rest of the run, so
+          no two runs build the same way. Every hit in a row raises your combo multiplier, up to x8;
+          a shot that misses resets it, so aim rather than spray. Lose your last life, or let the
+          formation reach your row, and the run is over.
+        </p>
+        <h3 class="subheading">Sectors</h3>
+        <p class="text">
+          Sector 1 is the outer hive and ends with the Brood Mother. Past it is sector 2: a redder
+          sky, faster and busier formations, and Splitters that break in two when they die. It ends
+          with the Hive Mind.
+        </p>
+        <h3 class="subheading">Bunkers</h3>
+        <p class="text">
+          Four bunkers float above your ship. They stop shots from both sides, so the aliens can
+          shoot through them and so can you, and every hit chews a piece away. Your own shots erode
+          your cover too, so don't fire into it for nothing. Fresh bunkers rise at the start of each
+          sector.
         </p>
         <h3 class="subheading">Your Special</h3>
         <p class="text">
@@ -153,6 +176,13 @@
           Hold the right pair of upgrades and they combine into something stronger. A card that would
           complete a pair says so, for example "completes LANCE", and a banner announces the moment
           it clicks.
+        </p>
+        <h3 class="subheading">The Hive Mind</h3>
+        <p class="text">
+          The last boss hides its core inside a turning ring of shield segments. Shots that hit the
+          ring are wasted, so aim through the gaps. Later it fires beams, shown as a dashed warning
+          line first: get behind a bunker, which blocks them. When the ring breaks, the core comes
+          for you.
         </p>
         <h3 class="subheading">Keyboard</h3>
         <dl class="keys">
@@ -303,7 +333,7 @@
         <p id="over-badge" class="badge" hidden></p>
         <dl class="result-stats">
           <div><dt>Score</dt><dd id="over-score">000000</dd></div>
-          <div><dt>Wave reached</dt><dd id="over-wave">1 / 5</dd></div>
+          <div><dt>Wave reached</dt><dd id="over-wave">1 / 10</dd></div>
           <div><dt>Best combo</dt><dd id="over-combo">x1</dd></div>
         </dl>
         <div class="stack">

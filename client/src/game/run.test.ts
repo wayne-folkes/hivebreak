@@ -1064,7 +1064,10 @@ describe('sectors and bunkers', () => {
     const run = createRun(1, 1, 7);
     expect(run.bunkers).toHaveLength(4);
     chooseSpecial(run, 'pulseBomb');
-    expect(steps(run, 1)).toContainEqual({ type: 'sectorStart', sector: 2 });
+    const events = steps(run, 1);
+    expect(events).toContainEqual({ type: 'sectorStart', sector: 2 });
+    // The sector comes before the wave's own announcement.
+    expect(events.map((e) => e.type).filter((t) => t === 'sectorStart' || t === 'waveStart')).toEqual(['sectorStart', 'waveStart']);
   });
 
   it('spends an enemy shot on a bunker with a bunkerHit, and the ship beneath is not hurt', () => {

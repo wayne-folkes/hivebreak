@@ -5,7 +5,6 @@ import type { Fit } from '../game/playfield';
 import type { PlayerState, PowerUpKind, RunState, SpecialId, SynergyId, UpgradeId } from '../game/types';
 import { byId } from './card';
 import {
-  BOSS_NAMES,
   bossBarPercent,
   comboLabel,
   formatScore,
@@ -18,14 +17,18 @@ import {
   summarizeUpgrades,
   synergyToast,
   waveLabel,
+  waveSector,
+  BOSS_NAMES,
+  bossPhaseLabel,
 } from './format';
 
-// The in-run display: score, combo, wave, lives, the Special meter, power-up timer chips, the boss
-// bar, a toast line and the mute button. On a phone these overlay the top of the field (score,
-// combo and the Special meter left; wave, lives and power-up chips right, clear of the touch pause
-// button in the screen's corner; the boss bar between them). With room either side of the field
-// they move out into side panels: score, combo, high score and the Special on the left; wave,
-// lives, the upgrades taken and power-ups on the right.
+// The in-run display: score, combo, wave (1/10 to 10/10, with a small sector tag on phones), lives,
+// the Special meter, power-up timer chips, the boss bar (the Hive Mind's shows its phase), a toast
+// line and the mute button. On a phone these overlay the top of the field (score, combo, the
+// Special meter and the power-up chips down the left; wave and lives right, clear of the touch
+// pause button in the screen's corner; the boss bar between them, so chips never sit over the
+// boss). With room either side of the field they move out into side panels: score, combo, Special,
+// power-ups and high score on the left; wave, sector, lives and the upgrades taken on the right.
 //
 // main.ts: `new Hud(onMute)`; `layout(fit)` with the playfield's fit on start and on every resize;
 // `setBest(score)` with the saved best, `setMuted(muted)` whenever sound changes (this is the
@@ -48,6 +51,8 @@ export class Hud {
   private readonly combo = byId('hud-combo');
   private readonly high = byId('hud-high');
   private readonly wave = byId('hud-wave');
+  private readonly sectorTag = byId('hud-sector-tag');
+  private readonly sector = byId('hud-sector');
   private readonly lives = byId('hud-lives');
   private readonly upgrades = byId('hud-upgrades');
   private readonly mute = byId<HTMLButtonElement>('hud-mute');
@@ -60,6 +65,7 @@ export class Hud {
   private readonly powerUpList = byId('hud-powerups');
   private readonly boss = byId('hud-boss');
   private readonly bossName = byId('hud-boss-name');
+  private readonly bossPhase = byId('hud-boss-phase');
   private readonly bossBar = byId('hud-boss-bar');
   private readonly bossFill = byId('hud-boss-fill');
   private readonly toastEl = byId('hud-toast');
@@ -72,6 +78,9 @@ export class Hud {
   private shownCombo = -1;
   private shownHigh = -1;
   private shownWave = -1;
+  private shownSector = -1;
+  private shownBossPhase = -1;
+  private shownBossKind = '';
   private shownLives = -1;
   private shownUpgrades = -1;
   private shownSpecialId: SpecialId | null = null;
@@ -175,6 +184,13 @@ export class Hud {
       this.wave.textContent = waveLabel(wave, WAVE_COUNT);
     }
 
+    const sector = waveSector(Math.min(run.wave, WAVE_COUNT - 1));
+    if (sector !== this.shownSector) {
+      this.shownSector = sector;
+      this.sector.textContent = String(sector);
+      this.sectorTag.textContent = `S${sector}`;
+    }
+
     const lives = player?.lives ?? 0;
     if (lives !== this.shownLives) {
       this.shownLives = lives;
@@ -255,11 +271,19 @@ export class Hud {
     // A boss with nothing left is dead (or about to be removed); hide the bar either way. A sliver
     // of health still shows as 1%.
     const shown = health > 0 ? Math.max(1, bossBarPercent(health)) : -1;
-    if (shown === this.shownBoss) return;
+    const phase = boss?.phase ?? -1;
+    const kind = boss?.kind ?? '';
+    if (shown === this.shownBoss && phase === this.shownBossPhase && kind === this.shownBossKind) return;
     this.shownBoss = shown;
+    this.shownBossPhase = phase;
+    this.shownBossKind = kind;
     this.boss.hidden = shown < 0;
     if (shown < 0 || !boss) return;
+    this.boss.dataset.kind = boss.kind;
     this.bossName.textContent = BOSS_NAMES[boss.kind].toUpperCase();
+    const phaseTag = bossPhaseLabel(boss.kind, boss.phase);
+    this.bossPhase.textContent = phaseTag ?? '';
+    this.bossPhase.hidden = phaseTag === null;
     this.bossFill.style.width = `${shown}%`;
     this.bossBar.setAttribute('aria-valuenow', String(shown));
   }

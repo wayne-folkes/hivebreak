@@ -457,7 +457,7 @@ kbd {
 
 .record-row {
   display: grid;
-  grid-template-columns: 1.7em 1fr 2.2em 2.4em 3.2em;
+  grid-template-columns: 1.5em 1fr 4.4em 2.5em 3em;
   align-items: center;
   column-gap: 8px;
   padding: 7px 8px;
@@ -953,6 +953,24 @@ kbd {
   }
 }
 
+/* Sector: a small tag on phones, its own stat in the side panels. */
+.hud-sector-tag {
+  margin-left: 5px;
+  color: var(--danger);
+}
+
+.hud-sector-stat {
+  display: none;
+}
+
+.hud[data-mode='side'] .hud-sector-tag {
+  display: none;
+}
+
+.hud[data-mode='side'] .hud-sector-stat {
+  display: grid;
+}
+
 /* Boss bar and toast ---------------------------------------------------------------------- */
 
 .hud-boss {
@@ -969,11 +987,48 @@ kbd {
   color: var(--hive);
 }
 
+.hud-boss-title {
+  display: grid;
+  gap: 2px;
+}
+
+.hud-boss-phase {
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+/* With room, the phase sits beside the name: "HIVE MIND · PHASE 2". */
+.hud[data-mode='side'] .hud-boss-title {
+  display: block;
+}
+
+.hud[data-mode='side'] .hud-boss-phase {
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.hud[data-mode='side'] .hud-boss-phase::before {
+  content: ' · ';
+}
+
 .hud-boss-bar {
   display: block;
   height: 8px;
   border: 1px solid var(--hive);
   background: #1a0a20;
+}
+
+.hud-boss[data-kind='hiveMind'] .hud-boss-name {
+  color: var(--danger);
+}
+
+.hud-boss[data-kind='hiveMind'] .hud-boss-bar {
+  border-color: var(--danger);
+}
+
+.hud-boss[data-kind='hiveMind'] .hud-boss-fill {
+  background: var(--danger);
 }
 
 .hud-boss-fill {
@@ -1048,10 +1103,6 @@ kbd {
 .hud[data-mode='overlay'] .hud-high,
 .hud[data-mode='overlay'] .hud-upgrades {
   display: none;
-}
-
-.hud[data-mode='overlay'] .hud-chips {
-  justify-items: end;
 }
 
 /* The boss bar fills the gap between the two columns. */
@@ -1170,6 +1221,7 @@ kbd {
 
 .hud[data-mode='side'] .hud-chips {
   gap: 6px;
+  justify-items: end;
 }
 
 .hud[data-mode='side'] .hud-chip {
@@ -1212,6 +1264,44 @@ kbd {
   animation: banner-fade var(--banner-seconds, 1.5s) ease-out forwards;
 }
 
+.sector-banner {
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  background: radial-gradient(ellipse at center, rgb(60 8 24 / 0.55), transparent 70%);
+}
+
+.sector-banner-title {
+  font-family: var(--font-display);
+  font-size: calc(var(--banner-size, 40px) * 0.8);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  text-shadow:
+    0 3px 0 #8f1f2a,
+    0 0 28px rgb(255 90 90 / 0.7);
+  animation: banner-fade var(--banner-seconds, 2.4s) ease-out forwards;
+}
+
+.sector-banner-sub {
+  font-family: var(--font-display);
+  font-size: calc(var(--banner-size, 40px) * 0.34);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--danger);
+  text-shadow: 0 0 10px rgb(255 90 90 / 0.5);
+  animation: banner-fade var(--banner-seconds, 2.4s) ease-out forwards;
+}
+
+.sector-banner-wave {
+  margin-top: 6px;
+  font-family: var(--font-display);
+  font-size: calc(var(--banner-size, 40px) * 0.3);
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  animation: banner-fade var(--banner-seconds, 2.4s) ease-out forwards;
+}
+
 @keyframes banner-fade {
   0% {
     opacity: 0;
@@ -1234,7 +1324,10 @@ kbd {
     animation: none;
   }
 
-  .banner-text {
+  .banner-text,
+  .sector-banner-title,
+  .sector-banner-sub,
+  .sector-banner-wave {
     animation-name: banner-fade-still;
   }
 

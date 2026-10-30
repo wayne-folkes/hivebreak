@@ -192,10 +192,15 @@ export function hitBunker(
  * minis, the lowest formation rows) with `alienBox(alien)`. Returns whether anything changed.
  */
 export function erodeByBox(bunkers: readonly Bunker[], box: Box): boolean {
-  const left = box.x - box.halfWidth;
-  const right = box.x + box.halfWidth;
-  const bottom = box.y - box.halfHeight;
-  const top = box.y + box.halfHeight;
+  return erodeByRect(bunkers, box.x, box.y, box.halfWidth, box.halfHeight);
+}
+
+/** `erodeByBox` taking the box as numbers (centre and half sizes), so a caller in a hot loop allocates nothing. */
+export function erodeByRect(bunkers: readonly Bunker[], x: number, y: number, halfWidth: number, halfHeight: number): boolean {
+  const left = x - halfWidth;
+  const right = x + halfWidth;
+  const bottom = y - halfHeight;
+  const top = y + halfHeight;
   let any = false;
   for (let b = 0; b < bunkers.length; b++) {
     const bunker = bunkers[b];

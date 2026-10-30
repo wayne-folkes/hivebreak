@@ -153,4 +153,39 @@ describe('Effects', () => {
     fx.update(2);
     expect(visibleCount(scene)).toBe(0);
   });
+
+  it('has crumbs, a split burst, shards flying out from a centre and a beam flare, all pooled and short-lived', () => {
+    const scene = new Scene();
+    const fx = new Effects(scene);
+    const pool = scene.children[0].children.length;
+    fx.debris(0, 0);
+    fx.splitBurst(0, 0);
+    fx.shatter(20, 20, 0, 0);
+    fx.beamFlare(0, 0);
+    expect(visibleCount(scene)).toBeGreaterThan(20);
+    expect(scene.children[0].children.length).toBe(pool);
+    fx.update(2);
+    expect(visibleCount(scene)).toBe(0);
+  });
+
+  it('flings shatter shards away from the centre they came from', () => {
+    const scene = new Scene();
+    const fx = new Effects(scene);
+    fx.shatter(30, 0, 0, 0);
+    fx.update(0.1);
+    const group = scene.children[0];
+    const shards = group.children.filter((c) => (c as Mesh).visible && c.position.x !== 0);
+    expect(shards.length).toBeGreaterThanOrEqual(10);
+    for (const s of shards.slice(0, 10)) expect(s.position.x).toBeGreaterThan(30);
+  });
+
+  it('plays the red death too, ending in a big burst and settling', () => {
+    const scene = new Scene();
+    const fx = new Effects(scene);
+    fx.bigExplosion(0, 64, 34, 34, true);
+    for (let i = 0; i < 62; i++) fx.update(0.02);
+    expect(visibleCount(scene)).toBeGreaterThan(30);
+    for (let i = 0; i < 200; i++) fx.update(0.02);
+    expect(visibleCount(scene)).toBe(0);
+  });
 });

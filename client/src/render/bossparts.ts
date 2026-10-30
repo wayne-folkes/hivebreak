@@ -3,10 +3,15 @@ import type { BossPart } from '../game/types';
 // Maps the boss's parts (from the sim, in the order its layout creates them) to the named nodes
 // of the Brood Mother model, and holds the little bits of timing the view uses on them.
 
-/** The model node a part is drawn as: `plate_0`..`plate_3` left to right, `core`, `bay_L`, `bay_R`. */
+/**
+ * The model node a part is drawn as: `plate_0`..`plate_3` left to right, `core`, `bay_L`, `bay_R`
+ * for the Brood Mother; `seg_0`..`seg_7` and `core` for the Hive Mind.
+ */
 export function bossPartNames(parts: readonly BossPart[]): string[] {
   let plates = 0;
+  let segments = 0;
   return parts.map((p) => {
+    if (p.kind === 'segment') return `seg_${segments++}`;
     if (p.kind === 'plate') return `plate_${plates++}`;
     if (p.kind === 'bay') return p.dx < 0 ? 'bay_L' : 'bay_R';
     return 'core';
@@ -33,4 +38,16 @@ export function launchWarning(launchTimer: number, active: boolean): number {
 /** The core's pulse: a gentle throb in phase 1 and a fast, deep one in phase 2. Scale factor around 1. */
 export function corePulse(phase: number, time: number): number {
   return phase >= 2 ? 1 + 0.2 * Math.sin(time * 11) + 0.06 * Math.sin(time * 4) : 1 + 0.07 * Math.sin(time * 3);
+}
+
+/** The Hive Mind's core pulse: a slow throb in phase 1, faster and deeper in phase 2, a frantic one in phase 3. */
+export function hiveCorePulse(phase: number, time: number): number {
+  if (phase >= 3) return 1 + 0.2 * Math.sin(time * 12) + 0.07 * Math.sin(time * 5);
+  if (phase === 2) return 1 + 0.12 * Math.sin(time * 7);
+  return 1 + 0.06 * Math.sin(time * 3);
+}
+
+/** The glow behind the core in phase 3: 0 before it, then a size that swells and shrinks. */
+export function hiveGlowScale(phase: number, time: number): number {
+  return phase >= 3 ? 1 + 0.25 * Math.sin(time * 9) : 0;
 }

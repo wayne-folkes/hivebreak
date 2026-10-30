@@ -1,8 +1,9 @@
 import type { Fit } from '../game/playfield';
 import type { RunRecord } from '../game/records';
 import type { SourceKind } from '../game/controls';
-import type { ActivePowerUp, BossKind, PowerUpKind, Rarity, SpecialId, SynergyId, UpgradeId } from '../game/types';
+import type { ActivePowerUp, BossKind, PowerUpKind, Rarity, Sector, SpecialId, SynergyId, UpgradeId } from '../game/types';
 import { synergyDef } from '../game/synergies';
+import { WAVES, WAVE_COUNT } from '../game/waves';
 import { upgradeDef } from '../game/upgrades';
 
 // The small pure helpers the menus and HUD share: text formatting, the upgrade-pick guard, the
@@ -66,12 +67,12 @@ export interface RecordRowText {
   date: string;
 }
 
-/** One line of the Records list. `index` is the record's place in the list, 0 for the best. */
-export function recordRowText(index: number, record: RunRecord): RecordRowText {
+/** One line of the Records list. `index` is the record's place in the list, 0 for the best. Waves read "W5/10". */
+export function recordRowText(index: number, record: RunRecord, totalWaves = WAVE_COUNT): RecordRowText {
   return {
     rank: String(index + 1),
     score: formatScore(record.score),
-    wave: `W${record.wave}`,
+    wave: `W${record.wave}/${totalWaves}`,
     combo: comboLabel(record.bestCombo),
     result: record.won ? 'WON' : 'LOST',
     date: formatDate(record.date),
@@ -220,4 +221,39 @@ export function pickTags(rarity: Rarity, completes: SynergyId | null): PickTags 
 export function synergyToast(id: SynergyId): { text: string; sub: string } {
   const def = synergyDef(id);
   return { text: `SYNERGY: ${def.name.toUpperCase()}`, sub: def.description };
+}
+
+// Sectors and the boss bar --------------------------------------------------------------------
+
+/** The sector a wave belongs to (`wave` is the run's 0-based index); the last sector past the end. */
+export function waveSector(wave: number): Sector {
+  const def = WAVES[Math.min(Math.max(0, Math.floor(wave)), WAVES.length - 1)];
+  return def ? def.sector : 1;
+}
+
+/** Subtitles under a sector's banner. */
+export const SECTOR_SUBTITLES: Record<Sector, string> = {
+  1: 'The outer hive',
+  2: 'Deeper into the hive',
+};
+
+/**
+ * The banner for a sector starting, or null for sector 1: the run opens with the plain wave
+ * banner, so only going deeper gets a banner of its own.
+ */
+export function sectorBanner(sector: Sector): { title: string; sub: string } | null {
+  if (sector <= 1) return null;
+  return { title: `SECTOR ${sector}`, sub: SECTOR_SUBTITLES[sector] };
+}
+
+/** The boss bar's phase tag, "PHASE 2": only the Hive Mind has one worth showing; the Brood Mother gets null. */
+export function bossPhaseLabel(kind: BossKind, phase: number): string | null {
+  return kind === 'hiveMind' ? `PHASE ${Math.max(1, Math.floor(phase))}` : null;
+}
+
+/** The boss bar's whole caption, "HIVE MIND · PHASE 2" (the Brood Mother is just its name). */
+export function bossBarLabel(kind: BossKind, phase: number): string {
+  const name = BOSS_NAMES[kind].toUpperCase();
+  const tag = bossPhaseLabel(kind, phase);
+  return tag ? `${name} · ${tag}` : name;
 }

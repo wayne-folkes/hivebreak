@@ -81,10 +81,18 @@ export function admitVoice(ends: readonly number[], now: number, length: number)
   return [...live, now + length];
 }
 
+/** Whether a sound may play, given when the last one of its cue did and the gap it needs (seconds). */
+export function cueReady(lastAt: number, now: number, gap: number): boolean {
+  return now - lastAt >= gap;
+}
+
 /** Whether a player's shot may sound, given when the last one did (seconds). */
 export function playerFireReady(lastAt: number, now: number): boolean {
-  return now - lastAt >= PLAYER_FIRE_GAP;
+  return cueReady(lastAt, now, PLAYER_FIRE_GAP);
 }
+
+/** Shortest gap (seconds) between two sounds of a frequent cue; a sound inside the gap is dropped. */
+export const CUE_GAP: Partial<Record<RunEvent['type'], number>> = { bunkerHit: 0.08, bossBeam: 0.25 };
 
 /** One note or noise burst in a cue. Times are seconds, relative to the cue's start. */
 export type Part =
@@ -149,13 +157,38 @@ export function partsFor(event: RunEvent): Part[] {
     case 'upgradePicked':
       return [tone(1319, 0.3, 'triangle', 0.14), tone(1976, 0.28, 'triangle', 0.08, undefined, 0.05)];
     case 'sectorStart':
+      // The wave-start arpeggio in a deeper minor key, with a low drone under it.
+      return [...arpeggio([262, 311, 392], 0.12, 'square', 0.12, 2), tone(131, 0.6, 'sine', 0.15)];
     case 'bunkerHit':
+      // A small gritty crumble. It's frequent, so it stays quiet.
+      return [
+        { kind: 'noise', from: 2200, to: 500, dur: 0.12, filter: 'bandpass', q: 3, vol: 0.08 },
+        tone(180, 0.08, 'square', 0.03, 90),
+      ];
     case 'alienSplit':
+      // A wet pop that splits into two blips.
+      return [
+        { kind: 'noise', from: 600, to: 150, dur: 0.05, filter: 'lowpass', q: 1, vol: 0.1 },
+        tone(260, 0.07, 'sine', 0.12, 620),
+        tone(1320, 0.06, 'square', 0.05, 990, 0.07),
+        tone(1760, 0.06, 'square', 0.05, 1320, 0.07),
+      ];
     case 'formationSplit':
+      // A rising two-tone.
+      return arpeggio([440, 660], 0.07, 'square', 0.08, 1);
     case 'formationRegroup':
+      // The falling counterpart of the split.
+      return arpeggio([660, 440], 0.07, 'square', 0.08, 1);
     case 'bossBeam':
-      // Slice 2b events get their sounds in the 2b sound step.
-      return [];
+      if (event.state === 'warn') {
+        // A charge whine that climbs for about a second.
+        return [tone(180, 1, 'sawtooth', 0.05, 900)];
+      }
+      // A harsh buzzing zap.
+      return [
+        tone(900, 0.25, 'square', 0.08, 120),
+        { kind: 'noise', from: 3000, to: 300, dur: 0.25, filter: 'bandpass', q: 2, vol: 0.1 },
+      ];
     case 'won':
       return arpeggio([523, 659, 784, 1047], 0.12, 'square', 0.14, 3.3);
     case 'lost':
@@ -284,6 +317,8 @@ export class Sound {
   private readonly voices = new Map<string, number[]>();
   /** When a player's shot last made a sound, in AudioContext seconds. */
   private lastFireAt = -Infinity;
+  /** When a frequent cue (see CUE_GAP) last made a sound, in AudioContext seconds. */
+  private readonly lastPlayedAt = new Map<RunEvent['type'], number>();
 
   constructor(settings: SoundSettings = DEFAULT_SOUND_SETTINGS) {
     this.on = settings.enabled;
@@ -332,7 +367,12 @@ export class Sound {
         if (!playerFireReady(this.lastFireAt, this.now())) continue;
         if (this.play(event.type, partsFor(event))) this.lastFireAt = this.now();
       } else {
-        this.play(event.type, partsFor(event));
+        const gap = CUE_GAP[event.type];
+        if (gap === undefined) {
+          this.play(event.type, partsFor(event));
+        } else if (cueReady(this.lastPlayedAt.get(event.type) ?? -Infinity, this.now(), gap)) {
+          if (this.play(event.type, partsFor(event))) this.lastPlayedAt.set(event.type, this.now());
+        }
       }
     }
   }

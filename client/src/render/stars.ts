@@ -2,15 +2,20 @@ import {
   BufferAttribute,
   BufferGeometry,
   Color,
+  DataTexture,
   Mesh,
   MeshBasicMaterial,
   OrthographicCamera,
   PlaneGeometry,
+  NearestFilter,
   Points,
   PointsMaterial,
+  RGBAFormat,
   Scene,
+  SRGBColorSpace,
 } from 'three';
 import { FIELD_HEIGHT, FIELD_WIDTH } from '../game/playfield';
+import { buildNebula } from './nebula';
 
 // The starfield: single-pixel stars in three layers that drift down at different speeds, which
 // reads as depth. It has its own flat (untilted) camera and is drawn first, behind everything,
@@ -24,16 +29,20 @@ interface Layer {
   color: number;
   /** Chance that a star in this layer twinkles white now and then. */
   twinkle: number;
+  /** The colour in sector 2's red sky. */
+  warm: number;
 }
 
 const LAYERS: readonly Layer[] = [
-  { count: 44, speed: 5, color: 0x342d66, twinkle: 0 },
-  { count: 28, speed: 11, color: 0x5b52a0, twinkle: 0.1 },
-  { count: 14, speed: 22, color: 0x8f86c9, twinkle: 0.3 },
+  { count: 44, speed: 5, color: 0x342d66, twinkle: 0, warm: 0x6b2a3a },
+  { count: 28, speed: 11, color: 0x5b52a0, twinkle: 0.1, warm: 0xa8503f },
+  { count: 14, speed: 22, color: 0x8f86c9, twinkle: 0.3, warm: 0xd9826b },
 ];
 
 /** The sky colour. Also the first palette colour. */
 const SKY = 0x07040f;
+/** Sector 2's sky: a touch of red in the black. */
+export const SKY_RED = 0x12040a;
 
 export class Starfield {
   readonly scene = new Scene();
@@ -41,6 +50,7 @@ export class Starfield {
   private readonly positions: Float32Array;
   private readonly colors: Float32Array;
   private readonly baseColors: Float32Array;
+  private readonly warmColors: Float32Array;
   private readonly column: Int16Array;
   private readonly startRow: Float32Array;
   private readonly speed: Float32Array;
@@ -52,8 +62,12 @@ export class Starfield {
   private readonly skyMaterial: MeshBasicMaterial;
   private readonly skyColor = new Color(SKY);
   private readonly tintColor = new Color();
-  private readonly skyTarget = new Color();
+  private readonly skyRed = new Color(SKY_RED);
   private tintAmount = 0;
+  private sectorBlend = 0;
+  private readonly nebula: Mesh;
+  private readonly skyBase = new Color(SKY);
+  private tintSky = new Color(SKY);
 
   constructor() {
     this.camera.position.z = 5;
@@ -61,10 +75,24 @@ export class Starfield {
     const sky = new Mesh(new PlaneGeometry(FIELD_WIDTH, FIELD_HEIGHT), this.skyMaterial);
     sky.position.z = -5;
     this.scene.add(sky);
+    // Sector 2's nebula: a pixel-quantised texture over the sky, faded in by `setSector`.
+    const texture = new DataTexture(buildNebula(), FIELD_WIDTH, FIELD_HEIGHT, RGBAFormat);
+    texture.magFilter = texture.minFilter = NearestFilter;
+    texture.colorSpace = SRGBColorSpace;
+    texture.generateMipmaps = false;
+    texture.needsUpdate = true;
+    this.nebula = new Mesh(
+      new PlaneGeometry(FIELD_WIDTH, FIELD_HEIGHT),
+      new MeshBasicMaterial({ map: texture, transparent: true, opacity: 0, depthWrite: false }),
+    );
+    this.nebula.position.z = -4.5;
+    this.nebula.visible = false;
+    this.scene.add(this.nebula);
     this.total = LAYERS.reduce((n, l) => n + l.count, 0);
     this.positions = new Float32Array(this.total * 3);
     this.colors = new Float32Array(this.total * 3);
     this.baseColors = new Float32Array(this.total * 3);
+    this.warmColors = new Float32Array(this.total * 3);
     this.column = new Int16Array(this.total);
     this.startRow = new Float32Array(this.total);
     this.speed = new Float32Array(this.total);
@@ -75,6 +103,7 @@ export class Starfield {
     let seed = 7;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     const c = new Color();
+    const warm = new Color();
     let i = 0;
     for (const layer of LAYERS) {
       c.setHex(layer.color);
@@ -86,6 +115,7 @@ export class Starfield {
         this.twinkles[i] = rnd() < layer.twinkle ? 1 : 0;
         this.baseColors.set([c.r, c.g, c.b], i * 3);
         this.colors.set([c.r, c.g, c.b], i * 3);
+        this.warmColors.set(warm.setHex(layer.warm).toArray(), i * 3);
       }
     }
     this.geometry.setAttribute('position', new BufferAttribute(this.positions, 3));
@@ -105,7 +135,25 @@ export class Starfield {
   setTint(sky: number, stars: number, amount: number): void {
     this.tintColor.setHex(stars);
     this.tintAmount = Math.min(1, Math.max(0, amount));
-    this.skyMaterial.color.copy(this.skyColor).lerp(this.skyTarget.setHex(sky), this.tintAmount);
+    this.tintSky.setHex(sky);
+    this.applySky();
+  }
+
+  private applySky(): void {
+    this.skyMaterial.color.copy(this.skyBase).lerp(this.tintSky, this.tintAmount);
+  }
+
+  /**
+   * Blends the whole sky between sector 1 (0) and sector 2 (1): the sky takes on a red cast, the
+   * nebula fades in and the stars turn warm.
+   */
+  setSector(blend: number): void {
+    this.sectorBlend = Math.min(1, Math.max(0, blend));
+    this.skyBase.copy(this.skyColor).lerp(this.skyRed, this.sectorBlend);
+    this.applySky();
+    const material = this.nebula.material as MeshBasicMaterial;
+    material.opacity = this.sectorBlend;
+    this.nebula.visible = this.sectorBlend > 0.01;
   }
 
   /** Moves the stars to where they are `time` seconds into the run. */
@@ -119,9 +167,10 @@ export class Starfield {
       pos[i * 3] = this.column[i] - FIELD_WIDTH / 2 + 0.5;
       pos[i * 3 + 1] = FIELD_HEIGHT / 2 - row - 0.5;
       const on = this.twinkles[i] === 1 && Math.sin(time * 4 + this.phase[i]) > 0.92;
-      const r = on ? this.white.r : this.baseColors[i * 3];
-      const g = on ? this.white.g : this.baseColors[i * 3 + 1];
-      const b = on ? this.white.b : this.baseColors[i * 3 + 2];
+      const k = this.sectorBlend;
+      const r = on ? this.white.r : this.baseColors[i * 3] + (this.warmColors[i * 3] - this.baseColors[i * 3]) * k;
+      const g = on ? this.white.g : this.baseColors[i * 3 + 1] + (this.warmColors[i * 3 + 1] - this.baseColors[i * 3 + 1]) * k;
+      const b = on ? this.white.b : this.baseColors[i * 3 + 2] + (this.warmColors[i * 3 + 2] - this.baseColors[i * 3 + 2]) * k;
       col[i * 3] = r + (this.tintColor.r - r) * tint;
       col[i * 3 + 1] = g + (this.tintColor.g - g) * tint;
       col[i * 3 + 2] = b + (this.tintColor.b - b) * tint;

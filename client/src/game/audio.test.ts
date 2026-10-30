@@ -79,9 +79,6 @@ describe('attackTime', () => {
  * One example of every event type. Keyed by type, so a new event type is a type error here until
  * it has a sample, and the sound test then covers it.
  */
-/** Slice 2b events still waiting for their sounds (the 2b sound step empties this). */
-const SOUND_PENDING = new Set<RunEvent['type']>(['sectorStart', 'bunkerHit', 'alienSplit', 'formationSplit', 'formationRegroup', 'bossBeam']);
-
 const EVENTS: Record<RunEvent['type'], RunEvent> = {
   specialChosen: { type: 'specialChosen', playerId: 0, special: 'pulseBomb' },
   waveStart: { type: 'waveStart', wave: 0 },
@@ -132,10 +129,14 @@ function firstFreq(parts: readonly Part[]): number {
   return first?.kind === 'tone' ? first.freq : 0;
 }
 
+/** The pitches (Hz) of a cue's tones, in the order they play. */
+function toneFreqs(parts: readonly Part[]): number[] {
+  return parts.flatMap((p) => (p.kind === 'tone' ? [p.freq] : []));
+}
+
 describe('partsFor', () => {
   it('gives every event a short sound with real notes', () => {
     for (const event of Object.values(EVENTS)) {
-      if (SOUND_PENDING.has(event.type)) continue;
       const parts = partsFor(event);
       expect(parts.length, event.type).toBeGreaterThan(0);
       for (const part of parts) expect(part.dur, event.type).toBeGreaterThan(0);
@@ -383,6 +384,63 @@ describe('voice limit', () => {
       const before = ctx.sources;
       sound.handle(Array.from({ length: 10 }, () => event));
       expect(ctx.sources - before, event.type).toBe(MAX_VOICES * partsFor(event).length);
+    }
+  });
+});
+
+describe('slice 2b sounds', () => {
+  it('starts a sector on a deeper note than the wave start', () => {
+    expect(firstFreq(partsFor(EVENTS.sectorStart))).toBeLessThan(firstFreq(partsFor(EVENTS.waveStart)));
+  });
+
+  it('rises for the formation split and falls for the regroup', () => {
+    const split = toneFreqs(partsFor(EVENTS.formationSplit));
+    const regroup = toneFreqs(partsFor(EVENTS.formationRegroup));
+    expect(split[1]).toBeGreaterThan(split[0]);
+    expect(regroup[1]).toBeLessThan(regroup[0]);
+  });
+
+  it('keeps the bunker crumble quieter than a kill', () => {
+    expect(loudest(partsFor(EVENTS.bunkerHit))).toBeLessThan(loudest(partsFor(EVENTS.alienKilled)));
+  });
+
+  it('makes the boss charge a rising whine of about a second', () => {
+    const warn = partsFor(EVENTS.bossBeam);
+    expect(soundLength(warn)).toBeGreaterThan(0.8);
+    expect(soundLength(warn)).toBeLessThanOrEqual(1.6);
+    const charge = warn[0];
+    expect(charge.kind === 'tone' && (charge.to ?? 0) > charge.freq).toBe(true);
+  });
+
+  it('gives the boss zap its own sound, not the charge', () => {
+    const fire = partsFor({ type: 'bossBeam', state: 'fire', angle: 0 });
+    expect(JSON.stringify(fire)).not.toBe(JSON.stringify(partsFor(EVENTS.bossBeam)));
+    expect(soundLength(fire)).toBeLessThan(0.5);
+  });
+});
+
+describe('rate limits', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('drops a frequent cue that comes again inside its gap', () => {
+    vi.stubGlobal('window', { AudioContext: FakeAudioContext });
+    const sound = new Sound();
+    sound.unlock();
+    const ctx = FakeAudioContext.last;
+    if (!ctx) throw new Error('no audio context was created');
+
+    for (const event of [EVENTS.bunkerHit, EVENTS.bossBeam]) {
+      const before = ctx.sources;
+      // Three at the same moment: the second and third fall inside the gap, so only the first plays.
+      sound.handle([event, event, event]);
+      expect(ctx.sources - before, event.type).toBe(partsFor(event).length);
+
+      // A second later the gap is up, so the next one plays again.
+      ctx.currentTime += 1;
+      sound.handle([event]);
+      expect(ctx.sources - before, event.type).toBe(2 * partsFor(event).length);
     }
   });
 });

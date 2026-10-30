@@ -14,6 +14,10 @@ export const PALETTE: readonly number[] = [
   // Green and true purple, with a darker shade of each, so the Helper and Slow pickups keep their
   // colours (the HUD chips use 0x4fff9b and 0x9b7bff) instead of snapping to cyan and lavender.
   0x4fff9b, 0x1f9e63, 0x9b7bff, 0x5b3fd0,
+  // Sector 2 (appended, so nothing above moves): the red sky and nebula levels, the Splitter and
+  // Hive Mind reds, beam red, the warm stars, and the bunkers' green-teal (also the Carrier's hull).
+  0x12040a, 0x2a0812, 0x4a0f24, 0x6e1830, 0x8e2a3c, 0xc0392b, 0x9e2a1e, 0xd04a64,
+  0xff5a5a, 0xc41e8e, 0x6b2a3a, 0xa8503f, 0xd9826b, 0x3fd6a0, 0x1f7a66, 0x7af0c8,
 ];
 
 /** Channel weights for colour distance: green counts most, blue least. */

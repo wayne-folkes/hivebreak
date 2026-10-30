@@ -16,7 +16,7 @@ import {
 } from './boss';
 import type { BossHit } from './boss';
 import type { BeamContact } from './hivemind';
-import { BUNKER_BOTTOM_Y, BUNKER_HEIGHT, createBunkers, erodeByBox, erodeColumn, hitBunker } from './bunkers';
+import { BUNKER_BOTTOM_Y, BUNKER_HEIGHT, createBunkers, erodeByRect, erodeColumn, hitBunker } from './bunkers';
 import { firstAlienHit, overlaps, shotBox, SHOT_HALF_HEIGHT } from './collision';
 import { hasInvaded, pickDivePair, pickShooter, rollEvent, slotPosition, spawnFormation, stepFormation } from './formation';
 import { FIELD_HEIGHT, FIELD_WIDTH } from './playfield';
@@ -178,13 +178,18 @@ function startWave(run: RunState): void {
  */
 export function stepRun(run: RunState, inputs: readonly ShipInput[], dt: number): RunEvent[] {
   const events: RunEvent[] = [];
+  // Shared scratch space is only emptied at the end of a step; a step that threw must not leak into the next run.
+  spawnQueue.length = 0;
+  idScratch.clear();
+  missedScratch.clear();
+  contactScratch.length = 0;
   // A zero step changes nothing, and would announce the wave twice.
   if (dt <= 0) return events;
   if (run.phase === 'waveIntro' && run.phaseTime === 0) {
-    events.push({ type: 'waveStart', wave: run.wave });
     // A sector starts with the run's first wave (the clock hasn't run yet) and when the sector changes.
     const sector = WAVES[run.wave].sector;
     if (run.time === 0 || WAVES[run.wave - 1]?.sector !== sector) events.push({ type: 'sectorStart', sector });
+    events.push({ type: 'waveStart', wave: run.wave });
   }
   run.phaseTime += dt;
 
@@ -485,7 +490,8 @@ function erodeBunkersByAliens(run: RunState): void {
   if (run.bunkers.length === 0) return;
   const top = BUNKER_BOTTOM_Y + BUNKER_HEIGHT;
   for (const a of run.aliens) {
-    if (a.y - ALIEN_SPECS[a.kind].halfHeight < top) erodeByBox(run.bunkers, alienBox(a));
+    const spec = ALIEN_SPECS[a.kind];
+    if (a.y - spec.halfHeight < top) erodeByRect(run.bunkers, a.x, a.y, spec.halfWidth, spec.halfHeight);
   }
 }
 

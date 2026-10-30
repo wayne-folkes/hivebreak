@@ -1,12 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { createBoss } from '../game/boss';
-import { LAUNCH_WARNING_SECONDS, bayGlowName, bossPartNames, corePulse, launchWarning } from './bossparts';
+import { HIVE_PARTS } from '../game/hivemind';
+import { LAUNCH_WARNING_SECONDS, bayGlowName, bossPartNames, corePulse, hiveCorePulse, hiveGlowScale, launchWarning } from './bossparts';
 
 describe('bossPartNames', () => {
   it('maps the Brood Mother layout onto the model nodes', () => {
     let id = 1;
     const boss = createBoss('broodMother', () => id++);
     expect(bossPartNames(boss.parts)).toEqual(['plate_0', 'plate_1', 'plate_2', 'plate_3', 'core', 'bay_L', 'bay_R']);
+  });
+
+  it('maps the Hive Mind layout: eight segments then the core', () => {
+    let id = 1;
+    const boss = createBoss('hiveMind', () => id++);
+    expect(boss.parts.length).toBe(HIVE_PARTS.length);
+    expect(bossPartNames(boss.parts)).toEqual(['seg_0', 'seg_1', 'seg_2', 'seg_3', 'seg_4', 'seg_5', 'seg_6', 'seg_7', 'core']);
   });
 
   it('finds the light strip under each bay', () => {
@@ -46,5 +54,28 @@ describe('corePulse', () => {
     expect(high1 - low1).toBeLessThan(high2 - low2);
     expect(low1).toBeGreaterThan(0.9);
     expect(low2).toBeGreaterThan(0.7);
+  });
+});
+
+describe('hive core', () => {
+  it('pulses harder phase by phase', () => {
+    const swing = (phase: number): number => {
+      let lo = 9;
+      let hi = 0;
+      for (let t = 0; t < 10; t += 0.01) {
+        const v = hiveCorePulse(phase, t);
+        lo = Math.min(lo, v);
+        hi = Math.max(hi, v);
+      }
+      return hi - lo;
+    };
+    expect(swing(1)).toBeLessThan(swing(2));
+    expect(swing(2)).toBeLessThan(swing(3));
+  });
+
+  it('only glows in phase 3', () => {
+    expect(hiveGlowScale(1, 1)).toBe(0);
+    expect(hiveGlowScale(2, 1)).toBe(0);
+    expect(hiveGlowScale(3, 1)).toBeGreaterThan(0.5);
   });
 });

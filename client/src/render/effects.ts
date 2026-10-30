@@ -31,6 +31,12 @@ export const SHIELD_SPARK: readonly number[] = [0xffffff, 0x9dfafd, 0x52ddeb];
 const PLATE_SHARDS = [0xc1c3eb, 0x9391b9, 0x604da8, 0xffffff];
 const CORE_SPARK = [0xff56da, 0xffffff, 0xff8a45];
 const DEATH_BURST = [0xffffff, 0xfff27a, 0xffd36a, 0xff8a45, 0xff56da, 0xac55f7];
+/** The Hive Mind's death: the same, but redder. */
+const HIVE_DEATH_BURST = [0xffffff, 0xffe164, 0xff8a45, 0xff5a5a, 0xc0392b, 0xff56da];
+/** Sector 2's reds: a Splitter's seam, the Hive Mind's ring segments, and a bunker's crumbs. */
+export const SPLIT_SPARK: readonly number[] = [0xff8a3d, 0xffe14f, 0xc0392b, 0xffffff];
+export const SEGMENT_SHARDS: readonly number[] = [0xd04a64, 0x8e2a3c, 0xff5a5a, 0xffffff];
+export const BUNKER_CRUMBS: readonly number[] = [0x3fd6a0, 0x1f7a66, 0x7af0c8];
 const COLORS = [
   ...new Set([
     ...FIRE,
@@ -42,6 +48,10 @@ const COLORS = [
     ...PLATE_SHARDS,
     ...CORE_SPARK,
     ...DEATH_BURST,
+    ...HIVE_DEATH_BURST,
+    ...SPLIT_SPARK,
+    ...SEGMENT_SHARDS,
+    ...BUNKER_CRUMBS,
   ]),
 ];
 
@@ -80,6 +90,7 @@ export class Effects {
   private readonly pendingY = new Float32Array(MAX_PENDING);
   private readonly pendingBig = new Uint8Array(MAX_PENDING);
   private pendingCursor = 0;
+  private deathRed = false;
 
   private readonly flashMesh: Mesh;
   private flashLeft = 0;
@@ -176,6 +187,46 @@ export class Effects {
     this.waves.start(x, y, 6, 26, 0.3, 2, POWER_UP_COLOR[kind]);
   }
 
+  /** A bunker was hit: a few green crumbs. */
+  debris(x: number, y: number): void {
+    this.emit(x, y, 5, BUNKER_CRUMBS, 40, 1.6, 0.4);
+  }
+
+  /** A Splitter broke in two: a flash of orange sparks from its seam and a quick ring. */
+  splitBurst(x: number, y: number): void {
+    this.emit(x, y, 10, SPLIT_SPARK, 70, 2.4, 0.4);
+    this.waves.start(x, y, 3, 14, 0.2, 2, 0xff8a3d);
+  }
+
+  /** A shard of something big flies off from (fromX, fromY) through (x, y): a ring segment shattering. */
+  shatter(x: number, y: number, fromX: number, fromY: number, colors: readonly number[] = SEGMENT_SHARDS): void {
+    const base = Math.atan2(y - fromY, x - fromX);
+    for (let n = 0; n < 10; n++) {
+      const i = this.cursor;
+      this.cursor = (this.cursor + 1) % MAX_PARTICLES;
+      const angle = base + (this.random() - 0.5) * 1.1;
+      const v = 50 + this.random() * 70;
+      this.px[i] = x;
+      this.py[i] = y;
+      this.vx[i] = Math.cos(angle) * v;
+      this.vy[i] = Math.sin(angle) * v;
+      this.spin[i] = (this.random() - 0.5) * 14;
+      this.size[i] = 3.6 * (0.6 + this.random() * 0.8);
+      this.age[i] = 0;
+      this.life[i] = 0.7 * (0.7 + this.random() * 0.3);
+      const m = this.meshes[i];
+      m.material = this.materials.get(colors[Math.floor(this.random() * colors.length)])!;
+      m.visible = true;
+    }
+    this.kick(SHAKE_SECONDS * 0.8, 2);
+  }
+
+  /** A Hive Mind beam begins to fire: a red ring from the core. */
+  beamFlare(x: number, y: number): void {
+    this.waves.start(x, y, 6, 30, 0.25, 2, 0xff5a5a);
+    this.emit(x, y, 8, HIVE_DEATH_BURST, 60, 2.4, 0.35);
+  }
+
   /** The ship was hit: a bigger burst and a shake. */
   shipHit(x: number, y: number): void {
     this.emit(x, y, 26, SHIP_BURST, 95, 3.2, 0.6);
@@ -236,19 +287,20 @@ export class Effects {
    * The boss dies: a string of bursts all over its body for `BOSS_DEATH_SECONDS`, then a huge
    * one, with a long shake and a white flash at the end. `halfWidth` is half its span.
    */
-  bigExplosion(x: number, y: number, halfWidth: number): void {
+  bigExplosion(x: number, y: number, halfWidth: number, halfHeight = 12, red = false): void {
+    this.deathRed = red;
     for (let n = 0; n < 16; n++) {
       const u = n / 16;
       this.queueBurst(
         x + (this.random() * 2 - 1) * halfWidth,
-        y + (this.random() * 2 - 1) * 12,
+        y + (this.random() * 2 - 1) * halfHeight,
         u * BOSS_DEATH_SECONDS * 0.9 + this.random() * 0.05,
         false,
       );
     }
     this.queueBurst(x, y, BOSS_DEATH_SECONDS, true);
     this.kick(BOSS_DEATH_SECONDS + 0.5, 3);
-    this.emit(x, y, 20, DEATH_BURST, 100, 3.4, 0.6);
+    this.emit(x, y, 20, red ? HIVE_DEATH_BURST : DEATH_BURST, 100, 3.4, 0.6);
   }
 
   private queueBurst(x: number, y: number, delay: number, big: boolean): void {
@@ -313,13 +365,14 @@ export class Effects {
       const x = this.pendingX[i];
       const y = this.pendingY[i];
       if (this.pendingBig[i] === 1) {
-        this.emit(x, y, 44, DEATH_BURST, 150, 4.6, 0.8);
+        this.emit(x, y, 44, this.deathRed ? HIVE_DEATH_BURST : DEATH_BURST, 150, 4.6, 0.8);
         this.emit(x, y, 24, FIRE, 90, 3.6, 0.7);
         this.waves.start(x, y, 8, 130, 0.5, 4, 0xffffff);
-        this.waveFlash(0xffffff, 0.4, 0.3);
+        if (this.deathRed) this.waves.start(x, y, 4, 90, 0.6, 3, 0xff5a5a);
+        this.waveFlash(this.deathRed ? 0xffb0a0 : 0xffffff, 0.4, 0.3);
       } else {
         this.emit(x, y, 11, FIRE, 80, 4.4, 0.6);
-        this.emit(x, y, 5, DEATH_BURST, 60, 3.2, 0.55);
+        this.emit(x, y, 5, this.deathRed ? HIVE_DEATH_BURST : DEATH_BURST, 60, 3.2, 0.55);
       }
     }
     this.waves.update(dt);

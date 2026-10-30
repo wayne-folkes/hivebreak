@@ -27,7 +27,10 @@ export type ModelName =
   | 'warden'
   | 'diver'
   | 'carrier'
+  | 'splitter'
+  | 'mini'
   | 'brood_mother'
+  | 'hive_mind'
   | 'helper'
   | 'pickup_spread'
   | 'pickup_laser'
@@ -42,7 +45,10 @@ const FILES: Record<string, readonly ModelName[]> = {
   warden: ['warden'],
   diver: ['diver'],
   carrier: ['carrier'],
+  splitter: ['splitter'],
+  mini: ['mini'],
   brood_mother: ['brood_mother'],
+  hive_mind: ['hive_mind'],
   helper: ['helper'],
   pickups: ['pickup_spread', 'pickup_laser', 'pickup_slow', 'pickup_helper'],
   shots: ['shot_player', 'shot_alien'],
