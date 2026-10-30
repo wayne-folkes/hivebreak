@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "models": "blender -b --factory-startup --python ../art/blender/build.py"
+    "models": "blender -b --factory-startup --python ../art/blender/build.py",
+    "icons": "blender -b --factory-startup --python ../art/blender/icons.py"
   },
   "dependencies": {
     "@fontsource/silkscreen": "^5.3.0",

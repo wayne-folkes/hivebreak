@@ -24,6 +24,13 @@ That runs `blender -b --factory-startup --python ../art/blender/build.py`, which
 Run the check alone with `blender -b --factory-startup --python art/blender/check.py`.
 The previews use Blender's studio lighting, so colours look a little greyer than in game.
 
+## Ship icons
+
+`npm run icons` (from `client/`; `icons.py`) renders the four ships (Breaker = `player`, Interceptor,
+Lancer, Bastion) front view, 32x32, transparent, flat-lit (true material colours), no anti-aliasing and
+hard 0/1 alpha, into `client/public/ships/<id>.png`. All share one scale (1.25 px per unit). The UI shows
+them at 3x with `image-rendering: pixelated`. It is separate from `npm run models`.
+
 ## Conventions
 
 - 1 Blender unit = 1 art pixel. Origin at the model's visual centre (bounding-box centre).
