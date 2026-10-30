@@ -62,7 +62,7 @@ before pushing.
    - **Sonnet, new content:** the three ships' stats and fire patterns, Missile Swarm and Gravity
      Well, the four upgrades and two synergies, wired into the run and the offer (only unlocked
      items are offered).
-   - **Sonnet, models:** Interceptor, Lancer and Bulwark ships; a missile; the Gravity Well's core.
+   - **Sonnet, models:** Interceptor, Lancer and Bastion ships; a missile; the Gravity Well's core.
 7. **Second round in parallel:** renderer (ships, missiles, the well's pull), UI (ship choice card,
    unlocks screen, the end-of-run "UNLOCKED" moment, locked items shown as next goals, export and
    import in Settings), sound (unlock fanfare, the new Specials).
@@ -75,7 +75,9 @@ before pushing.
 | Breaker | Balanced, 3 lives | Start |
 | Interceptor | 35% faster, fires 15% faster, 2 lives | Reach sector 2 |
 | Lancer | Twin piercing shot, fires 35% slower | Defeat the Brood Mother |
-| Bulwark | A free shield every wave, 15% slower | Destroy 300 aliens in total |
+| Bastion | A free shield every wave, 15% slower | Destroy 300 aliens in total |
+
+The Bastion was drafted as the Bulwark; renamed because the Bulwark synergy already has that name.
 
 | Special | Effect | Unlocked by |
 |---|---|---|
@@ -98,11 +100,13 @@ Starting upgrades: twin shot, rapid fire, extra life, piercing, shield pulse, th
 guard, magnet, homing. Unlocked by milestones: ricochet, bomb on kill, overcharge, wingman, slow
 field, double tap, and the four new ones.
 
-Draft milestones (each unlocks one item): clear wave 3; reach an x8 combo; unlock any synergy;
-catch 10 power-ups in one run; fire your Special 5 times in one run; clear a wave without breaking
-your combo; beat the Brood Mother without losing a life; reach sector 2; defeat the Brood Mother;
-reach the Hive Mind; win a run; win with Time Stop; win with two different ships; destroy 300
-aliens in total; finish 10 runs.
+Milestones (each unlocks one item; the table lives in `client/src/game/progress.ts`): clear wave 3
+(Ricochet); clear a wave without breaking your combo (Bomb on kill); unlock a synergy (Chain Spark);
+catch 10 power-ups in one run (Scavenger); fire your Special 5 times in one run (Time Stop); reach
+an x8 combo (Overcharge); reach sector 2 (Interceptor); defeat the Brood Mother (Lancer); beat the
+Brood Mother without losing a life (Double tap); fire 20 Specials in total (Overclock); destroy 300
+aliens in total (Bastion); reach the Hive Mind (Missile Swarm); finish 10 runs (Last Stand); win a
+run (Gravity Well); win with Time Stop (Slow field); win with two different ships (Wingman).
 
 ## Open for later
 

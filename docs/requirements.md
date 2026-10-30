@@ -108,7 +108,7 @@ slices but shapes the design now.
   rest of today's content and the new content come from milestones. Synergies appear once both
   halves are unlocked.
 - **New content:** three ships picked before a run alongside the Special (Interceptor: fast, two
-  lives; Lancer: piercing twin shot, slower fire; Bulwark: starts with a shield each wave, slower),
+  lives; Lancer: piercing twin shot, slower fire; Bastion: starts with a shield each wave, slower),
   two Specials (Missile Swarm, Gravity Well), four upgrades and two synergies, about 15 milestones.
 - **Saving:** progress lives in the browser (localStorage), like the records. Settings offers an
   export/import code as a backup.
