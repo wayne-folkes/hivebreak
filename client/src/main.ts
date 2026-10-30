@@ -2,6 +2,8 @@ import { inject, pageview } from '@vercel/analytics';
 import { injectSpeedInsights } from '@vercel/speed-insights';
 import './style.css';
 import { autopilot } from './app/autopilot';
+import { duckFor, musicState, stingerFor } from './app/director';
+import type { Mode } from './app/director';
 import { safeStorage } from './app/storage';
 import { Sound, loadMusicSettings, loadSoundSettings, saveMusicSettings, saveSoundSettings } from './game/audio';
 import { Controls } from './game/controls';
@@ -36,7 +38,10 @@ import type { MenuCard, RunResult } from './ui';
 
 // The game: the loop that steps the simulation and draws it, the input sources, sound, storage
 // and the flow between screens (title, Special choice, run, upgrade pick, pause, game over). The title plays an
-// autopilot demo run behind it, silently.
+// autopilot demo run behind it, silently. Music follows the screen and the run: every frame the
+// director (app/director.ts) says which track, how intense, and so on, and the real run's events
+// become stingers and ducks. The music attaches to the sound effects' audio context on the same
+// gesture that unlocks it.
 
 inject();
 injectSpeedInsights();
@@ -78,8 +83,13 @@ const controls = new Controls([keyboard, gamepad, touch]);
 
 // Browsers only start audio from a real gesture; a touch's pointerdown isn't one, its end is.
 // Asking again is harmless.
+// The music plays through the same audio context; attaching again with the same context is harmless.
+function unlockAudio(): void {
+  sound.unlock();
+  if (sound.context) music.attach(sound.context);
+}
 for (const type of ['keydown', 'pointerup', 'touchend', 'click']) {
-  window.addEventListener(type, () => sound.unlock(), { capture: true, passive: true });
+  window.addEventListener(type, unlockAudio, { capture: true, passive: true });
 }
 
 function saveSound(): void {
@@ -147,8 +157,6 @@ function clearStack(): void {
 }
 
 // Run state ----------------------------------------------------------------------------------
-
-type Mode = 'title' | 'special' | 'playing' | 'pick' | 'over';
 
 /**
  * `title`: the demo plays behind the title and its menus. `special`: a real run waiting on the
@@ -475,6 +483,27 @@ function reactTo(events: readonly RunEvent[]): void {
   }
 }
 
+/** The real run's stingers and ducks. Stingers go first so an ending one finds the track still playing. */
+function scoreEvents(events: readonly RunEvent[]): void {
+  for (const e of events) {
+    const stinger = stingerFor(e);
+    if (stinger) music.stinger(stinger);
+    const duck = duckFor(e);
+    if (duck) music.duck(duck.seconds, duck.depth);
+  }
+}
+
+/** Steers the music from the screen and the run, every frame; each call is a no-op when nothing changed. */
+function conductMusic(): void {
+  const state = musicState(mode, run);
+  music.play(state.track);
+  music.setIntensity(state.intensity);
+  music.setDanger(state.danger);
+  music.setBossPhase(state.bossPhase);
+  music.setTimeScale(state.timeScale);
+  music.setPaused(paused && mode === 'playing');
+}
+
 let last = performance.now();
 
 function frame(now: number): void {
@@ -486,7 +515,7 @@ function frame(now: number): void {
   controls.poll();
   // Gamepad buttons don't count as the interaction browsers need to start audio, but a key or tap
   // earlier will have; keep asking while a pad is in use.
-  if (controls.lastUsed === 'gamepad' && controls.used()) sound.unlock();
+  if (controls.lastUsed === 'gamepad' && controls.used()) unlockAudio();
   handleInput();
   // Special is read like any action, and only from a live run: cards never see it, so it can't
   // double as a menu button.
@@ -524,6 +553,7 @@ function frame(now: number): void {
   } else {
     reactTo(events);
     sound.handle(events);
+    scoreEvents(events);
     if (mode === 'playing' && !paused) {
       if (run.phase === 'upgradePick') openPick();
       else if ((run.phase === 'won' || run.phase === 'lost') && run.phaseTime >= END_DELAY) finishRun();
@@ -532,6 +562,9 @@ function frame(now: number): void {
     const player = run.players[0];
     touch.setSpecial(player.special === null ? null : player.specialCharge);
   }
+
+  // The demo behind the title has no stingers, but the title track follows the mode below.
+  conductMusic();
 
   // Paused, the picture and its effects stand still.
   view.render(run, events, idle ? 1 : accumulator / STEP, idle ? 0 : frameDt);
