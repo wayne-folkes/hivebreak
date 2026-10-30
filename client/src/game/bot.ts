@@ -13,6 +13,10 @@ import type { RunState, ShipInput, UpgradeId } from './types';
 //   2a folded into run.ts (Brood Mother wave 5, Pulse Bomb chosen, pressed when ready): 0/30 with 3 lives,
 //   3/30 with 5. The bot never dodges, and the boss fight costs it 3-39 lives, so the boss is the
 //   wall (see the 2a fold-in report for the tuning suggestion).
+//   2b, all ten waves and both bosses (boss hp as retuned to plates 8 / core 80), real bunkers:
+//   4/30 with 3 lives, 12/30 with 5. Seeds that die with 3 lives: 6 in wave 1 (the bot sits under
+//   the bunkers, where its own shots are spent, so the first wave drags on), 13 to the Brood
+//   Mother, 1 in wave 4, 1 in sector 2 (wave 6), 5 to the Hive Mind; 9 of 30 reach wave 10.
 
 const DT = 1 / 120;
 const MAX_STEPS = 120 * 60 * 10;
@@ -24,7 +28,9 @@ export const BOT_PRIORITY: readonly UpgradeId[] = [
 
 /**
  * Moves under the nearest alien, or with none left (a boss wave) under the nearest standing
- * plate, then the core, and holds fire. Presses the Special as soon as the meter is full.
+ * plate, then the core (the Hive Mind's core, once its ring is the only thing left), and holds
+ * fire. Presses the Special as soon as the meter is full. Never dodges, and ignores the bunkers:
+ * its shots dig through them and it sometimes sits under their cover.
  */
 export function botInput(run: RunState): ShipInput {
   const ship = run.players[0];

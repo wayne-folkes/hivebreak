@@ -1,6 +1,8 @@
-import { ALIEN_SPECS, alienBox, damageAlien, startDive, stepAlien } from './aliens';
+import { ALIEN_SPECS, alienBox, damageAlien, splitAlien, startDive, startPairedDive, stepAlien } from './aliens';
 import {
   BOSS_POINTS,
+  beamBunkerContacts,
+  beamHitsBox,
   bossDefeated,
   bossEntering,
   createBoss,
@@ -13,11 +15,14 @@ import {
   stepFreeAlien,
 } from './boss';
 import type { BossHit } from './boss';
+import type { BeamContact } from './hivemind';
+import { BUNKER_BOTTOM_Y, BUNKER_HEIGHT, createBunkers, erodeByBox, erodeColumn, hitBunker } from './bunkers';
 import { firstAlienHit, overlaps, shotBox, SHOT_HALF_HEIGHT } from './collision';
-import { hasInvaded, pickShooter, rollEvent, slotPosition, spawnFormation, stepFormation } from './formation';
+import { hasInvaded, pickDivePair, pickShooter, rollEvent, slotPosition, spawnFormation, stepFormation } from './formation';
 import { FIELD_HEIGHT, FIELD_WIDTH } from './playfield';
 import {
   activatePowerUp,
+  BEAM_HALF_WIDTH,
   applyRunEffect,
   computeBeam,
   enemyTimeScale,
@@ -39,7 +44,7 @@ import type { Target } from './shots';
 import { stepShot } from './shots';
 import { CHARGE_PER_BOSS_PART, chargeSpecial, fireSpecial, killCharge, reflectShots, tickBurst } from './special';
 import { BURST_DAMAGE, BURST_RADIUS, hasSynergy, killBursts, unlockSynergies } from './synergies';
-import type { Alien, Box, Pickup, PlayerState, RunEvent, RunPhase, RunState, ShipInput, Shot, ShotKind, SpecialId } from './types';
+import type { Alien, Box, Pickup, PlayerState, RunEvent, RunPhase, RunState, ShipInput, Shot, ShotKind, SpecialId, WaveDef } from './types';
 import { NO_INPUT } from './types';
 import { applyUpgrade, offerUpgrades } from './upgrades';
 import { WAVE_COUNT, WAVES, waveColumns } from './waves';
@@ -56,10 +61,14 @@ import { WAVE_COUNT, WAVES, waveColumns } from './waves';
 //   4. firing: the laser beam, or the volley (with the spread power-up), wingmen, helper drone
 //   5. enemies, on scaled time (frozen, slowed or stunned): formation, aliens, boss, shots they fire
 //   6. shots fly; the ones that left the field are dropped and missed volleys counted
-//   7. Shield Burst reflects; enemy shots and crashing aliens hit the ships
-//   8. player shots hit aliens, then the boss
+//   7. Shield Burst reflects; enemy shots meet the bunkers, then the ships; aliens crash into
+//      ships; the Hive Mind's firing beams hit ships (and burn bunkers)
+//   8. player shots meet the bunkers, then hit aliens, then the boss
 //   9. pickups fall and are caught
 //  10. the wave ends (cleared, boss defeated) or the run is lost
+//
+// Ten waves in two sectors; each sector gets fresh bunkers. A killed Splitter queues two minis,
+// which join the aliens once the pass that killed it is over.
 
 export { WAVE_COUNT } from './waves';
 
@@ -77,6 +86,11 @@ export const PLAYER_START_SPACING = 40;
 export const CORE_BLOCK_FLARE_SECONDS = 0.3;
 /** Player shots are dropped once they are this far past the side walls, art pixels. */
 export const SHOT_SIDE_MARGIN = 4;
+/** A piercing shot tunnelling through a bunker reports a `bunkerHit` at most this often, seconds. */
+export const BUNKER_HIT_EVENT_SECONDS = 0.1;
+/** A Hive Mind beam burns the bunker it meets this often, seconds, and this wide, art pixels. */
+export const BEAM_BURN_SECONDS = 0.1;
+export const BEAM_BURN_WIDTH = 4;
 
 /**
  * Starts a run waiting in the Special choice, at wave 0 or, for testing, at `firstWave` (an
@@ -133,12 +147,14 @@ export function chooseSpecial(run: RunState, special: SpecialId, playerId = 0): 
 }
 
 /**
- * Puts the current wave in place: a formation, or the boss of a boss wave (above the field, ready
+ * Puts the current wave in place: bunkers if the sector is new, a formation, or the boss of a boss wave (above the field, ready
  * to descend). Clears what belongs to the last wave (shots, pickups, beams, and the freeze, slow
  * and stun clocks; power-ups carry over), refills shields and combo guards, and starts the intro.
  */
 function startWave(run: RunState): void {
   const def = WAVES[run.wave];
+  // Fresh bunkers for the run's first wave and whenever the sector changes; otherwise they carry on.
+  if (run.bunkers.length === 0 || WAVES[run.wave - 1]?.sector !== def.sector) run.bunkers = createBunkers(() => run.nextId++);
   const spawned = spawnFormation(def, () => run.nextId++);
   run.aliens = spawned.aliens;
   run.formation = spawned.formation;
@@ -164,7 +180,12 @@ export function stepRun(run: RunState, inputs: readonly ShipInput[], dt: number)
   const events: RunEvent[] = [];
   // A zero step changes nothing, and would announce the wave twice.
   if (dt <= 0) return events;
-  if (run.phase === 'waveIntro' && run.phaseTime === 0) events.push({ type: 'waveStart', wave: run.wave });
+  if (run.phase === 'waveIntro' && run.phaseTime === 0) {
+    events.push({ type: 'waveStart', wave: run.wave });
+    // A sector starts with the run's first wave (the clock hasn't run yet) and when the sector changes.
+    const sector = WAVES[run.wave].sector;
+    if (run.time === 0 || WAVES[run.wave - 1]?.sector !== sector) events.push({ type: 'sectorStart', sector });
+  }
   run.phaseTime += dt;
 
   if (run.phase === 'waveIntro') {
@@ -222,19 +243,22 @@ function stepPlaying(run: RunState, inputs: readonly ShipInput[], dt: number, ev
   // boss counts its own stun down.
   const edt = dt * enemyTimeScale(run);
   const moveDt = run.stun > 0 ? 0 : edt;
-  stepAliens(run, def.boss === undefined, moveDt, dt);
+  stepAliens(run, def.boss === undefined, moveDt, dt, events);
+  erodeBunkersByAliens(run);
   stepBossBy(run, edt, dt, events);
   if (moveDt > 0 && !def.boss) {
     alienFire(run, def.fireRate, moveDt, events);
-    startDives(run, def.diveRate, moveDt, events);
+    startDives(run, def, moveDt, events);
   }
 
   // 6. Shots.
   moveShots(run, dt, edt, events);
 
-  // 7. Reflection, then enemy shots and crashing aliens against the ships.
+  // 7. Reflection, then enemy shots and crashing aliens against the bunkers and ships, and the
+  // Hive Mind's beams.
   events.push(...reflectShots(run));
   resolveHitsOnPlayers(run, events);
+  stepBossBeams(run, dt, events);
 
   // 8. Player shots against aliens, then the boss.
   resolvePlayerShots(run, events);
@@ -277,6 +301,7 @@ function useSpecial(run: RunState, player: PlayerState, events: RunEvent[]): voi
     else events.push({ type: 'alienHit', alienId: hit.alien.id, kind: hit.alien.kind, x: hit.alien.x, y: hit.alien.y });
   }
   removeDead(run);
+  flushSpawns(run);
   if (run.boss && result.bossDamage > 0) {
     for (const hit of damageBossFixed(run.boss, result.bossDamage)) bossPartDamaged(run, player, hit, false, events);
   }
@@ -319,9 +344,13 @@ function fireShips(run: RunState, inputs: readonly ShipInput[], dt: number, even
 
 /** One ship's laser for this step: adds its beam and applies a damage tick to what it stops at. */
 function fireLaser(run: RunState, player: PlayerState, dt: number, events: RunEvent[]): void {
-  const { beam, target } = computeBeam(player, run.aliens, run.boss, run.bunkers);
+  const { beam, target, bunkerY } = computeBeam(player, run.aliens, run.boss, run.bunkers);
   run.beams.push(beam);
-  if (!target) return;
+  if (!target) {
+    // A bunker stops the beam: on a damage tick it burns a notch in it.
+    if (bunkerY !== null && laserDamage(player) > 0) erodeColumn(run.bunkers, beam.x, bunkerY, BEAM_HALF_WIDTH * 2);
+    return;
+  }
   if (target.blocked) {
     // The shielded core stops the beam: no damage, but the shield flares, a few times a second.
     if (Math.floor(run.time / CORE_BLOCK_FLARE_SECONDS) !== Math.floor((run.time - dt) / CORE_BLOCK_FLARE_SECONDS)) {
@@ -339,12 +368,22 @@ function fireLaser(run: RunState, player: PlayerState, dt: number, events: RunEv
     if (killed) killAlien(run, alien, player, { charge: true, burst: true, kind: null }, events);
     else events.push({ type: 'alienHit', alienId: alien.id, kind: alien.kind, x: alien.x, y: alien.y });
     removeDead(run);
+    flushSpawns(run);
   } else if (target.part && run.boss) {
     bossPartDamaged(run, player, damageBossPart(target.part, damage), true, events);
   }
 }
 
 // Kills -----------------------------------------------------------------------------------------
+
+/** Minis from Splitters killed in the current pass, added to `run.aliens` by flushSpawns. */
+const spawnQueue: Alien[] = [];
+
+function flushSpawns(run: RunState): void {
+  if (spawnQueue.length === 0) return;
+  run.aliens.push(...spawnQueue);
+  spawnQueue.length = 0;
+}
 
 interface KillOptions {
   /** Charges the killer's Special meter. */
@@ -362,6 +401,11 @@ interface KillOptions {
 function killAlien(run: RunState, alien: Alien, killer: PlayerState | null, options: KillOptions, events: RunEvent[]): void {
   const points = awardKill(run, alien);
   events.push({ type: 'alienKilled', alienId: alien.id, kind: alien.kind, x: alien.x, y: alien.y, points, combo: run.combo });
+  if (alien.kind === 'splitter') {
+    // Its minis wait in the queue until the pass that killed it is over, so bursts and bombs can't kill them.
+    events.push({ type: 'alienSplit', alienId: alien.id, x: alien.x, y: alien.y });
+    spawnQueue.push(...splitAlien(alien, () => run.nextId++));
+  }
   const drop = rollDrop(alien.kind, run.rng);
   if (drop) {
     const pickup = spawnPickup(drop, alien.x, alien.y, run.nextId++);
@@ -409,7 +453,7 @@ function bossPartDamaged(run: RunState, killer: PlayerState | null, hit: BossHit
  * and diving aliens follow their slots and paths, launched Drones fly free and are dropped when
  * they leave the field. `realDt` keeps hit-flashes fading while the enemies are frozen.
  */
-function stepAliens(run: RunState, formationWave: boolean, dt: number, realDt: number): void {
+function stepAliens(run: RunState, formationWave: boolean, dt: number, realDt: number, events: RunEvent[]): void {
   if (dt <= 0) {
     for (const a of run.aliens) a.flash = Math.max(0, a.flash - realDt);
     return;
@@ -417,7 +461,9 @@ function stepAliens(run: RunState, formationWave: boolean, dt: number, realDt: n
   const def = WAVES[run.wave];
   let cols = 0;
   if (formationWave) {
-    stepFormation(run.formation, run.aliens, def, dt);
+    const change = stepFormation(run.formation, run.aliens, def, dt);
+    if (change === 'split') events.push({ type: 'formationSplit' });
+    else if (change === 'regroup') events.push({ type: 'formationRegroup' });
     cols = waveColumns(def);
   }
   const aliens = run.aliens;
@@ -432,6 +478,15 @@ function stepAliens(run: RunState, formationWave: boolean, dt: number, realDt: n
     aliens[kept++] = a;
   }
   aliens.length = kept;
+}
+
+/** Aliens low enough to touch the bunkers (divers, minis, Drones, the lowest rows) chew them away. */
+function erodeBunkersByAliens(run: RunState): void {
+  if (run.bunkers.length === 0) return;
+  const top = BUNKER_BOTTOM_Y + BUNKER_HEIGHT;
+  for (const a of run.aliens) {
+    if (a.y - ALIEN_SPECS[a.kind].halfHeight < top) erodeByBox(run.bunkers, alienBox(a));
+  }
 }
 
 /**
@@ -452,6 +507,28 @@ function stepBossBy(run: RunState, dt: number, realDt: number, events: RunEvent[
     run.shots.push(shot);
   }
   events.push(...out.events);
+  // Ring segments the Hive Mind shatters in phase 3 fall for nothing.
+  for (const part of out.shattered) {
+    const box = partBox(boss, part);
+    events.push({ type: 'bossPartDestroyed', partId: part.id, part: part.kind, x: box.x, y: box.y, points: 0 });
+  }
+}
+
+const contactScratch: BeamContact[] = [];
+
+/**
+ * The Hive Mind's firing beams: each hurts a ship it reaches (bunkers shelter ships and are
+ * burned a notch about every BEAM_BURN_SECONDS). Beams hold still while time is frozen, so they
+ * do nothing then.
+ */
+function stepBossBeams(run: RunState, dt: number, events: RunEvent[]): void {
+  const boss = run.boss;
+  if (!boss || !boss.beams || boss.beams.length === 0 || run.freeze > 0) return;
+  for (const p of run.players) {
+    if (isAlive(p) && beamHitsBox(boss, shipBox(p), run.bunkers)) damagePlayer(p, events);
+  }
+  if (Math.floor(run.time / BEAM_BURN_SECONDS) === Math.floor((run.time - dt) / BEAM_BURN_SECONDS)) return;
+  for (const c of beamBunkerContacts(boss, run.bunkers, contactScratch)) erodeColumn(run.bunkers, c.x, c.y, BEAM_BURN_WIDTH);
 }
 
 /** Scales an enemy shot's speed by the stats of the ship it's nearest to (the slow field). */
@@ -497,9 +574,22 @@ function alienFire(run: RunState, rate: number, dt: number, events: RunEvent[]):
   events.push({ type: 'alienFired', x: shooter.x, y });
 }
 
-/** Now and then a random diver in the formation swoops at where the nearest player is. */
-function startDives(run: RunState, rate: number, dt: number, events: RunEvent[]): void {
-  if (!rollEvent(rate, dt, run.rng)) return;
+/**
+ * Now and then a random diver in the formation swoops at where the nearest player is; on a
+ * 'pairedDives' wave two neighbouring divers go together when there is such a pair.
+ */
+function startDives(run: RunState, def: WaveDef, dt: number, events: RunEvent[]): void {
+  if (!rollEvent(def.diveRate, dt, run.rng)) return;
+  if (def.behaviours?.includes('pairedDives')) {
+    const pair = pickDivePair(run.aliens, run.rng, run.formation.split);
+    if (pair) {
+      const [left, right] = pair;
+      const target = nearestPlayer(run.players, (left.x + right.x) / 2);
+      startPairedDive(left, right, target ? target.x : (left.x + right.x) / 2);
+      events.push({ type: 'diveStart', alienId: left.id }, { type: 'diveStart', alienId: right.id });
+      return;
+    }
+  }
   const divers = run.aliens.filter((a) => a.kind === 'diver' && a.mode === 'formation');
   if (divers.length === 0) return;
   const diver = run.rng.pick(divers);
@@ -599,10 +689,19 @@ function shipTouching(run: RunState, box: Box, vulnerable: boolean): PlayerState
   return null;
 }
 
-/** Alien shots and crashing aliens (divers, and Drones the boss launched) against the ships. */
+/** Alien shots against the bunkers and ships, and crashing aliens (divers, minis, boss Drones) against the ships. */
 function resolveHitsOnPlayers(run: RunState, events: RunEvent[]): void {
   for (const shot of run.shots) {
     if (shot.owner !== 'alien') continue;
+    // The bunkers stand between the enemies and the ship: a shot that bites one is spent.
+    if (run.bunkers.length > 0) {
+      const bite = hitBunker(run.bunkers, shotBox(shot), 'above');
+      if (bite) {
+        idScratch.add(shot.id);
+        events.push({ type: 'bunkerHit', bunkerId: bite.bunker.id, x: bite.x, y: bite.y });
+        continue;
+      }
+    }
     const victim = shipTouching(run, shotBox(shot), false);
     if (!victim) continue;
     idScratch.add(shot.id);
@@ -644,11 +743,29 @@ function landVolley(run: RunState, shot: Shot, raiseCombo: boolean): void {
 /**
  * Player shots against aliens, then against the boss: hits, kills, combo and points. A piercing
  * shot carries on past what it hit; any other is spent. A shot the boss's shielded core stops is
- * spent without damage (a `coreBlocked` event lets the shield flare). Dead aliens are removed.
+ * spent without damage (a `coreBlocked` event lets the shield flare). Dead aliens are removed, and
+ * a killed Splitter's minis join.
  */
 function resolvePlayerShots(run: RunState, events: RunEvent[]): void {
   for (const shot of run.shots) {
     if (shot.owner !== 'player') continue;
+    if (run.bunkers.length > 0) {
+      // Lance and overcharge shots tunnel through and fly on; any other shot is spent on the bunker,
+      // which is neither a hit nor a miss for the combo.
+      const pierce = shot.kind === 'lance' || shot.kind === 'overcharge';
+      const bite = hitBunker(run.bunkers, shotBox(shot), 'below', pierce);
+      if (bite) {
+        if (!pierce || shot.bunkerHitAt === undefined || run.time - shot.bunkerHitAt >= BUNKER_HIT_EVENT_SECONDS) {
+          shot.bunkerHitAt = run.time;
+          events.push({ type: 'bunkerHit', bunkerId: bite.bunker.id, x: bite.x, y: bite.y });
+        }
+        if (!pierce) {
+          landVolley(run, shot, false);
+          idScratch.add(shot.id);
+          continue;
+        }
+      }
+    }
     const alien = firstAlienHit(shot, run.aliens);
     if (alien) {
       hitAlien(run, shot, alien, events);
@@ -686,6 +803,7 @@ function resolvePlayerShots(run: RunState, events: RunEvent[]): void {
   }
   removeSpentShots(run);
   removeDead(run);
+  flushSpawns(run);
 }
 
 function hitAlien(run: RunState, shot: Shot, alien: Alien, events: RunEvent[]): void {

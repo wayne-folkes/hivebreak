@@ -10,6 +10,9 @@ import { FIELD_WIDTH } from './playfield';
 import { NO_INPUT } from './types';
 import { botInput, botPick } from './bot';
 import { BOSS_POINTS, BOSS_Y, bossEntering } from './boss';
+import { BUNKER_BOTTOM_Y, BUNKER_HEIGHT, bunkerSolidCount, erodeColumn } from './bunkers';
+import { upgradeDef } from './upgrades';
+import { SPLIT_APART_SECONDS, SPLIT_JOINED_SECONDS } from './formation';
 import { activatePowerUp, POWER_UP_SECONDS } from './powerups';
 import { PULSE_ALIEN_DAMAGE, PULSE_BOSS_DAMAGE, TIME_STOP_SECONDS, CHARGE_PER_BOSS_PART, killCharge } from './special';
 import { FIELD_HEIGHT } from './playfield';
@@ -20,9 +23,11 @@ import type { RunEvent, RunState, ShipInput, SpecialId } from './types';
 const DT = 1 / 120;
 
 /** A new run with the Special chosen, in wave 0's intro. */
-function startedRun(seed: number, special: SpecialId = 'pulseBomb', players = 1): RunState {
+function startedRun(seed: number, special: SpecialId = 'pulseBomb', players = 1, bunkers = false): RunState {
   const run = createRun(seed, players);
   for (let i = 0; i < players; i++) chooseSpecial(run, special, i);
+  // Most tests want a clear field; the bunker tests ask for the real ones.
+  if (!bunkers) run.bunkers = [];
   return run;
 }
 const IDLE: readonly ShipInput[] = [NO_INPUT];
@@ -49,7 +54,7 @@ function aimAt(run: RunState, alien: Alien) {
 
 /** Plays a whole run with the bot. Returns the run and how many steps it took. */
 function playWithBot(seed: number, lives: number, maxSteps: number) {
-  const run = startedRun(seed);
+  const run = startedRun(seed, 'pulseBomb', 1, true);
   run.players[0].lives = lives;
   const events: RunEvent[] = [];
   let n = 0;
@@ -333,15 +338,22 @@ describe('pickUpgrade', () => {
 });
 
 describe('a whole run', () => {
-  it('is won by a bot with spare lives: it clears waves 1-4 and defeats the Brood Mother', () => {
+  it('is won by a bot with spare lives: it clears all ten waves and defeats both bosses', () => {
     const { run, steps: n, events } = playWithBot(1, 99, 120 * 60 * 10);
     expect(run.phase).toBe('won');
     expect(run.wave).toBe(WAVE_COUNT - 1);
     expect(events.filter((e) => e.type === 'waveClear')).toHaveLength(WAVE_COUNT);
     expect(events.filter((e) => e.type === 'upgradePicked')).toHaveLength(WAVE_COUNT - 1);
-    expect(events.filter((e) => e.type === 'bossKilled')).toEqual([expect.objectContaining({ kind: 'broodMother', points: BOSS_POINTS.core })]);
+    expect(events.filter((e) => e.type === 'bossKilled')).toEqual([
+      expect.objectContaining({ kind: 'broodMother', points: BOSS_POINTS.core }),
+      expect.objectContaining({ kind: 'hiveMind', points: BOSS_POINTS.core }),
+    ]);
     expect(events.filter((e) => e.type === 'bossPartDestroyed' && e.part === 'plate')).toHaveLength(4);
-    expect(events.filter((e) => e.type === 'bossPhase')).toEqual([{ type: 'bossPhase', phase: 2 }]);
+    expect(events.filter((e) => e.type === 'sectorStart')).toEqual([
+      { type: 'sectorStart', sector: 1 },
+      { type: 'sectorStart', sector: 2 },
+    ]);
+    expect(events.filter((e) => e.type === 'bossPhase')).toEqual([2, 2, 3].map((phase) => ({ type: 'bossPhase', phase })));
     expect(run.aliens.filter((a) => a.mode === 'free')).toEqual([]);
     expect(n).toBeLessThan(120 * 60 * 10);
     expect(run.score).toBeGreaterThan(0);
@@ -407,6 +419,7 @@ function bossFight(special: SpecialId = 'pulseBomb'): RunState {
   run.offer = ['extraLife'];
   run.wave = 3;
   pickUpgrade(run, 0);
+  run.bunkers = [];
   startPlaying(run);
   for (let i = 0; i < 100 && bossEntering(run.boss!); i++) steps(run, 1);
   expect(bossEntering(run.boss!)).toBe(false);
@@ -937,7 +950,7 @@ describe('the boss wave', () => {
     expect(run.players[0].specialCharge).toBeCloseTo(CHARGE_PER_BOSS_PART, 9);
   });
 
-  it('ends in a win when the core falls: bossKilled at the core points, Drones removed', () => {
+  it('leads to an upgrade pick, with a rare on offer, when the Brood Mother falls: the run goes on', () => {
     const run = bossFight();
     const boss = run.boss!;
     boss.stun = 100;
@@ -952,10 +965,14 @@ describe('the boss wave', () => {
     expect(ofType(events, 'bossKilled')).toEqual([expect.objectContaining({ kind: 'broodMother', points: BOSS_POINTS.core })]);
     expect(run.score - before).toBe(BOSS_POINTS.core);
     expect(events).toContainEqual({ type: 'waveClear', wave: 4 });
-    expect(has(events, 'won')).toBe(true);
+    expect(has(events, 'won')).toBe(false);
     expect(ofType(events, 'bossPartDestroyed').some((e) => e.part === 'core')).toBe(false);
-    expect(run.phase).toBe('won');
+    expect(run.phase).toBe('upgradePick');
+    expect(run.offer).toHaveLength(3);
+    expect(upgradeDef(run.offer[2]).rarity).toBe('rare');
     expect(run.aliens).toEqual([]);
+    pickUpgrade(run, 0);
+    expect(run.wave).toBe(5);
   });
 
   it('keeps the boss out of reach while it descends', () => {
@@ -976,3 +993,383 @@ function createAlienAt(run: RunState, x: number, y: number): Alien {
   const alien: Alien = { id: run.nextId++, kind: 'drone', hp: 1, col: -1, row: -1, x, y, mode: 'free', modeTime: 0, flash: 0, vx: 0, vy: 0 };
   return alien;
 }
+
+
+// Slice 2b ----------------------------------------------------------------------------------------
+
+/** A run starting at the given wave index, in the Special choice done, optionally with its real bunkers. */
+function waveRun(wave: number, bunkers = false, seed = 1): RunState {
+  const run = createRun(seed, 1, wave);
+  chooseSpecial(run, 'pulseBomb');
+  if (!bunkers) run.bunkers = [];
+  return run;
+}
+
+/** The Hive Mind fight, playing, with the boss landed and its own attacks held off. */
+function hiveFight(bunkers = false): RunState {
+  const run = waveRun(9, bunkers);
+  run.players[0].lives = 99;
+  startPlaying(run);
+  const boss = run.boss!;
+  boss.fireTimer = 1e9;
+  boss.launchTimer = 1e9;
+  boss.beamTimer = 1e9;
+  for (let i = 0; i < 400 && bossEntering(boss); i++) steps(run, 1);
+  expect(bossEntering(boss)).toBe(false);
+  return run;
+}
+
+const solid = (run: RunState) => run.bunkers.map(bunkerSolidCount);
+/** The x of the third bunker's solid left edge column: a good place for a shot to bite. */
+const BUNKER_3_X = 15;
+
+describe('sectors and bunkers', () => {
+  it('announces the sector and builds bunkers at waves 1 and 6 only, and keeps them between', () => {
+    const run = createRun(1);
+    expect(run.bunkers).toHaveLength(4);
+    chooseSpecial(run, 'pulseBomb');
+    const announced: Array<[number, number]> = [];
+    const versions = (r: RunState) => r.bunkers.map((b) => `${b.id}:${b.version}`).join();
+    let ids = run.bunkers.map((b) => b.id).join();
+    const rebuilt: number[] = [];
+    for (let wave = 0; wave < WAVE_COUNT; wave++) {
+      if (wave > 0) {
+        run.phase = 'upgradePick';
+        run.offer = ['extraLife'];
+        pickUpgrade(run, 0);
+        // Chew a bunker so persistence shows: a rebuilt set would be whole again.
+        if (wave === 2) erodeColumn(run.bunkers, 15, BUNKER_BOTTOM_Y + 5, 4);
+      }
+      const nowIds = run.bunkers.map((b) => b.id).join();
+      if (nowIds !== ids) rebuilt.push(wave);
+      ids = nowIds;
+      for (const e of steps(run, 2)) if (e.type === 'sectorStart') announced.push([wave, e.sector]);
+      expect(run.phase).toBe('waveIntro');
+    }
+    expect(announced).toEqual([[0, 1], [5, 2]]);
+    expect(rebuilt).toEqual([5]);
+    expect(run.bunkers.every((b) => b.version === 0)).toBe(true);
+    // Persistence in sector 1: the chewed bunker stays chewed through waves 3, 4 and the boss wave.
+    const again = createRun(2);
+    chooseSpecial(again, 'pulseBomb');
+    erodeColumn(again.bunkers, 15, BUNKER_BOTTOM_Y + 5, 4);
+    const chewed = versions(again);
+    again.phase = 'upgradePick';
+    again.offer = ['extraLife'];
+    pickUpgrade(again, 0);
+    expect(versions(again)).toBe(chewed);
+  });
+
+  it('starts bunkers for a run that begins in sector 2', () => {
+    const run = createRun(1, 1, 7);
+    expect(run.bunkers).toHaveLength(4);
+    chooseSpecial(run, 'pulseBomb');
+    expect(steps(run, 1)).toContainEqual({ type: 'sectorStart', sector: 2 });
+  });
+
+  it('spends an enemy shot on a bunker with a bunkerHit, and the ship beneath is not hurt', () => {
+    const run = startedRun(1, 'pulseBomb', 1, true);
+    startPlaying(run);
+    run.players[0].x = 23;
+    const bunker = run.bunkers[2];
+    const before = bunkerSolidCount(bunker);
+    run.shots.push(enemyShot(900, 23, BUNKER_BOTTOM_Y + BUNKER_HEIGHT + 2));
+    const events = steps(run, 2);
+    expect(ofType(events, 'bunkerHit')).toEqual([expect.objectContaining({ bunkerId: bunker.id })]);
+    expect(run.shots.find((s) => s.id === 900)).toBeUndefined();
+    expect(bunkerSolidCount(bunker)).toBeLessThan(before);
+    expect(run.players[0].lives).toBe(3);
+  });
+
+  it('lets an enemy shot through a hole in a bunker', () => {
+    const run = startedRun(1, 'pulseBomb', 1, true);
+    startPlaying(run);
+    run.bunkers[2].mask.fill(0);
+    run.players[0].x = 23;
+    run.shots.push(enemyShot(900, 23, BUNKER_BOTTOM_Y + BUNKER_HEIGHT + 2));
+    const events = steps(run, 40);
+    expect(has(events, 'bunkerHit')).toBe(false);
+    expect(has(events, 'playerHit')).toBe(true);
+  });
+
+  it('spends a player shot on a bunker, neither a hit nor a miss for the combo', () => {
+    const run = startedRun(1, 'pulseBomb', 1, true);
+    startPlaying(run);
+    run.combo = 3;
+    const bunker = run.bunkers[2];
+    const top = FIELD_HEIGHT / 2 + 3;
+    run.shots.push(
+      playerShot(900, BUNKER_3_X, BUNKER_BOTTOM_Y - 2, { volley: 700 }),
+      playerShot(901, -50, top, { volley: 700 }), // its sibling leaves through the top
+    );
+    const events = steps(run, 3);
+    expect(ofType(events, 'bunkerHit')).toEqual([expect.objectContaining({ bunkerId: bunker.id })]);
+    expect(run.shots.find((s) => s.id === 900)).toBeUndefined();
+    expect(has(events, 'comboBroken') || has(events, 'comboGuarded')).toBe(false);
+    expect(run.combo).toBe(3); // no hit, so no rise either
+  });
+
+  it('lets lance and overcharge shots tunnel on, reporting bunkerHit only now and then, but stops piercing shots', () => {
+    const run = startedRun(1, 'pulseBomb', 1, true);
+    startPlaying(run);
+    const bunker = run.bunkers[2];
+    const before = bunkerSolidCount(bunker);
+    run.shots.push(
+      playerShot(900, BUNKER_3_X, BUNKER_BOTTOM_Y - 2, { kind: 'lance', pierceLeft: 99, vy: 30, volley: VOLLEY_HIT }),
+      playerShot(901, 28, BUNKER_BOTTOM_Y - 2, { pierceLeft: 2, vy: 30, volley: VOLLEY_HIT }),
+    );
+    const events = steps(run, 20); // 1/6 of a second of slow tunnelling
+    expect(bunkerSolidCount(bunker)).toBeLessThan(before - 10);
+    const lance = run.shots.find((s) => s.id === 900)!;
+    expect(lance.pierceLeft).toBe(99);
+    expect(lance.y).toBeGreaterThan(BUNKER_BOTTOM_Y - 2);
+    expect(ofType(events, 'bunkerHit').length).toBeGreaterThanOrEqual(2);
+    expect(ofType(events, 'bunkerHit').length).toBeLessThanOrEqual(4); // one lance, one stopped shot: not one per step
+    // The ordinary piercing shot was spent on the bunker and kept its pierce unspent.
+    expect(run.shots.find((s) => s.id === 901)).toBeUndefined();
+  });
+
+  it('erodes a bunker an alien flies through', () => {
+    const run = startedRun(1, 'pulseBomb', 1, true);
+    startPlaying(run);
+    run.freeze = 100; // hold everything still
+    const bunker = run.bunkers[1];
+    const before = bunkerSolidCount(bunker);
+    const mini = createAlienAt(run, bunker.x + 10, bunker.y + 5);
+    run.aliens.push(mini);
+    steps(run, 1);
+    expect(bunkerSolidCount(bunker)).toBeLessThan(before);
+    // High formation aliens leave the bunkers alone.
+    const whole = solid(run);
+    run.aliens = run.aliens.filter((a) => a.mode !== 'free');
+    steps(run, 5);
+    expect(solid(run)).toEqual(whole);
+  });
+
+  it('stops the laser at a bunker and burns it on damage ticks, hurting no alien', () => {
+    const run = startedRun(1, 'pulseBomb', 1, true);
+    startPlaying(run);
+    const p = run.players[0];
+    p.x = BUNKER_3_X;
+    activatePowerUp(p, 'laser');
+    const bunker = run.bunkers[2];
+    const hp = run.aliens.map((a) => a.hp);
+    const before = bunkerSolidCount(bunker);
+    steps(run, 30, HOLD_FIRE);
+    expect(run.beams[0].topY).toBeLessThan(BUNKER_BOTTOM_Y + BUNKER_HEIGHT);
+    expect(run.beams[0].topY).toBeGreaterThanOrEqual(BUNKER_BOTTOM_Y);
+    expect(bunkerSolidCount(bunker)).toBeLessThan(before);
+    expect(run.aliens.map((a) => a.hp)).toEqual(hp);
+  });
+});
+
+describe('the Splitter', () => {
+  function splitterRun(): { run: RunState; splitter: Alien } {
+    const run = waveRun(5);
+    startPlaying(run);
+    run.freeze = 100;
+    const splitter = run.aliens.find((a) => a.kind === 'splitter')!;
+    splitter.hp = 1;
+    run.aliens = [splitter, run.aliens.find((a) => a.kind === 'drone' && a.row === 3 && a.col === 5)!];
+    run.players[0].x = splitter.x;
+    return { run, splitter };
+  }
+
+  it('breaks into two minis when shot, which join after the pass and are not killed by its own burst', () => {
+    const { run, splitter } = splitterRun();
+    run.players[0].stats.bombOnKill = 1;
+    const events: RunEvent[] = [];
+    for (let i = 0; i < 300 && !has(events, 'alienKilled'); i++) events.push(...stepRun(run, HOLD_FIRE, DT));
+    expect(ofType(events, 'alienSplit')).toEqual([{ type: 'alienSplit', alienId: splitter.id, x: splitter.x, y: splitter.y }]);
+    expect(ofType(events, 'blast')).toHaveLength(1);
+    const minis = run.aliens.filter((a) => a.kind === 'mini');
+    expect(minis).toHaveLength(2);
+    expect(minis.every((m) => m.mode === 'free' && m.hp === 1)).toBe(true);
+    expect(minis[0].vx! * minis[1].vx!).toBeLessThan(0);
+    expect(run.aliens.some((a) => a.id === splitter.id)).toBe(false);
+  });
+
+  it('splits when a Pulse Bomb kills it, and the minis survive that bomb', () => {
+    const { run, splitter } = splitterRun();
+    run.players[0].specialCharge = 1;
+    const events = stepRun(run, PRESS_SPECIAL, DT);
+    expect(ofType(events, 'alienSplit')).toHaveLength(1);
+    expect(run.aliens.filter((a) => a.kind === 'mini')).toHaveLength(2);
+    expect(run.aliens.some((a) => a.id === splitter.id)).toBe(false);
+  });
+
+  it('splits when the laser kills it', () => {
+    const { run } = splitterRun();
+    activatePowerUp(run.players[0], 'laser');
+    const events = steps(run, 20, HOLD_FIRE);
+    expect(ofType(events, 'alienSplit')).toHaveLength(1);
+  });
+
+  it('does not split on a crash into the ship (no kill, no minis)', () => {
+    const run = waveRun(5);
+    startPlaying(run);
+    const splitter = run.aliens.find((a) => a.kind === 'splitter')!;
+    splitter.mode = 'diving';
+    splitter.x = run.players[0].x;
+    splitter.y = SHIP_Y;
+    splitter.dive = { fromX: splitter.x, fromY: splitter.y, toX: splitter.x };
+    splitter.modeTime = 0.1;
+    const events = steps(run, 1);
+    expect(has(events, 'playerHit')).toBe(true);
+    expect(has(events, 'alienSplit')).toBe(false);
+    expect(run.aliens.some((a) => a.kind === 'mini')).toBe(false);
+  });
+
+  it('keeps the wave going while minis live and clears it once they and the rest are gone', () => {
+    const { run } = splitterRun();
+    run.aliens = run.aliens.filter((a) => a.kind === 'splitter');
+    run.players[0].stats.damage = 5;
+    const events: RunEvent[] = [];
+    for (let i = 0; i < 300 && !has(events, 'alienKilled'); i++) events.push(...stepRun(run, HOLD_FIRE, DT));
+    expect(run.phase).toBe('playing');
+    expect(run.aliens).toHaveLength(2);
+  });
+});
+
+describe('formation behaviours', () => {
+  it('reports the split and the regroup', () => {
+    const run = waveRun(6);
+    run.players[0].lives = 99;
+    startPlaying(run);
+    const events = steps(run, Math.ceil((SPLIT_JOINED_SECONDS + SPLIT_APART_SECONDS + 1) / DT));
+    const names = events.filter((e) => e.type === 'formationSplit' || e.type === 'formationRegroup').map((e) => e.type);
+    expect(names).toEqual(['formationSplit', 'formationRegroup']);
+    expect(run.phase).toBe('playing');
+  });
+
+  it('sends two neighbouring divers dive together on a paired-dives wave', () => {
+    const saved = WAVES[7].diveRate;
+    (WAVES[7] as { diveRate: number }).diveRate = 1e6;
+    try {
+      const run = waveRun(7);
+      startPlaying(run);
+      const events = steps(run, 1);
+      const starts = ofType(events, 'diveStart');
+      expect(starts).toHaveLength(2);
+      const [a, b] = starts.map((e) => run.aliens.find((x) => x.id === e.alienId)!);
+      expect([a.mode, b.mode]).toEqual(['diving', 'diving']);
+      expect(a.row).toBe(b.row);
+      expect(Math.abs(a.col - b.col)).toBe(1);
+      expect(a.modeTime).toBe(b.modeTime);
+    } finally {
+      (WAVES[7] as { diveRate: number }).diveRate = saved;
+    }
+  });
+
+  it('falls back to a single dive when no pair of divers is left', () => {
+    const saved = WAVES[7].diveRate;
+    (WAVES[7] as { diveRate: number }).diveRate = 1e6;
+    try {
+      const run = waveRun(7);
+      startPlaying(run);
+      const diver = run.aliens.find((a) => a.kind === 'diver')!;
+      run.aliens = run.aliens.filter((a) => a.kind !== 'diver' || a === diver);
+      const events = steps(run, 1);
+      expect(ofType(events, 'diveStart')).toEqual([{ type: 'diveStart', alienId: diver.id }]);
+    } finally {
+      (WAVES[7] as { diveRate: number }).diveRate = saved;
+    }
+  });
+});
+
+describe('the Hive Mind', () => {
+  const fireBeam = (run: RunState, x: number, seconds = 5) => {
+    const boss = run.boss!;
+    boss.x = x;
+    run.players[0].x = x;
+    boss.beams = [{ angle: -Math.PI / 2, sweep: 0, state: 'fire', timeLeft: seconds }];
+  };
+
+  it('is a boss wave with no formation that descends during the intro', () => {
+    const run = waveRun(9);
+    expect(run.aliens).toEqual([]);
+    expect(run.boss?.kind).toBe('hiveMind');
+    const y0 = run.boss!.y;
+    steps(run, 30);
+    expect(run.boss!.y).toBeLessThan(y0);
+  });
+
+  it('hurts a ship caught in a firing beam, and not one in a warning beam', () => {
+    const run = hiveFight();
+    fireBeam(run, 0);
+    run.boss!.beams![0].state = 'warn';
+    expect(has(steps(run, 5), 'playerHit')).toBe(false);
+    run.boss!.beams![0].state = 'fire';
+    const events = steps(run, 2);
+    expect(has(events, 'playerHit')).toBe(true);
+    expect(run.players[0].lives).toBe(98);
+  });
+
+  it('shelters a ship under a bunker and burns the bunker where the beam meets it', () => {
+    const run = hiveFight(true);
+    const bunker = run.bunkers[2];
+    const before = bunkerSolidCount(bunker);
+    fireBeam(run, BUNKER_3_X);
+    const events = steps(run, 30);
+    expect(has(events, 'playerHit')).toBe(false);
+    expect(bunkerSolidCount(bunker)).toBeLessThan(before);
+  });
+
+  it('does not hurt a ship while time is frozen', () => {
+    const run = hiveFight();
+    fireBeam(run, 0);
+    run.freeze = 100;
+    expect(has(steps(run, 10), 'playerHit')).toBe(false);
+  });
+
+  it('passes bossBeam events through and shatters the ring in phase 3 with part events worth nothing', () => {
+    const run = hiveFight();
+    const boss = run.boss!;
+    const core = boss.parts.find((p) => p.kind === 'core')!;
+    core.hp = 60; // below a third: phases 2 then 3, one per step
+    boss.beamTimer = 0;
+    const before = run.score;
+    const events = steps(run, 4);
+    expect(ofType(events, 'bossPhase').map((e) => e.phase)).toEqual([2, 3]);
+    const shattered = ofType(events, 'bossPartDestroyed').filter((e) => e.part === 'segment');
+    expect(shattered).toHaveLength(8);
+    expect(shattered.every((e) => e.points === 0)).toBe(true);
+    expect(run.score).toBe(before);
+    expect(ofType(events, 'bossBeam').length).toBeGreaterThan(0);
+  });
+
+  it('ends the run in a win when the core falls after wave 10, removing the Divers it launched', () => {
+    const run = hiveFight();
+    const boss = run.boss!;
+    for (const part of boss.parts) if (part.kind !== 'core') part.hp = 0;
+    const core = boss.parts.find((p) => p.kind === 'core')!;
+    core.hp = 1;
+    run.aliens.push({ ...createAlienAt(run, 40, 30), kind: 'diver' });
+    const before = run.score;
+    run.shots.push(playerShot(900, boss.x, boss.y - 12, { volley: 700 }));
+    const events = steps(run, 3);
+    expect(ofType(events, 'bossKilled')).toEqual([expect.objectContaining({ kind: 'hiveMind', points: BOSS_POINTS.core })]);
+    expect(events).toContainEqual({ type: 'waveClear', wave: 9 });
+    expect(has(events, 'won')).toBe(true);
+    expect(run.phase).toBe('won');
+    expect(run.score - before).toBe(BOSS_POINTS.core);
+    expect(run.aliens).toEqual([]);
+  });
+
+  it('lets a shot through a gap in the ring to the core, and stops others on a segment', () => {
+    const run = hiveFight();
+    const boss = run.boss!;
+    const core = boss.parts.find((p) => p.kind === 'core')!;
+    // Segment 6 sits straight below at ring angle 0; turned half a step, a gap is straight below.
+    boss.ringAngle = Math.PI / 8;
+    run.shots.push(playerShot(900, boss.x, boss.y - 14, { volley: 700 }));
+    steps(run, 2);
+    expect(core.hp).toBeLessThan(core.maxHp);
+    boss.ringAngle = 0;
+    const hp = core.hp;
+    run.shots.push(playerShot(901, boss.x, boss.y - 26, { volley: 701 }));
+    steps(run, 2);
+    expect(core.hp).toBe(hp);
+    expect(boss.parts.some((p) => p.kind === 'segment' && p.hp < p.maxHp)).toBe(true);
+  });
+});

@@ -173,6 +173,8 @@ export interface Shot {
   hits: number;
   /** Wall bounces so far (absent = none), so the Seekers synergy boosts a shot only once. */
   bounces?: number;
+  /** Run time of this shot's last `bunkerHit` event, so a piercing shot tunnelling a bunker reports it only now and then. */
+  bunkerHitAt?: number;
   /**
    * The volley this shot was fired in (shots fired together share it). A volley is a miss, and
    * breaks the combo, only when every shot in it has left the field with 0 hits.
