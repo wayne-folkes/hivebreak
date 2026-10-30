@@ -15,7 +15,8 @@ npm run models
 That runs `blender -b --factory-startup --python ../art/blender/build.py`, which for each model:
 
 1. builds it (`player.py`, `drone.py`, `warden.py`, `diver.py`, `shots.py`, `carrier.py`, `brood_mother.py`,
-   `pickups.py`, `helper.py`, `splitter.py`, `mini.py`, `hive_mind.py`, each with `build()`; a module may set `PREVIEW = {size, spacing}`),
+   `pickups.py`, `helper.py`, `splitter.py`, `mini.py`, `hive_mind.py`, `interceptor.py`, `lancer.py`,
+   `bastion.py`, `missile.py`, `well.py`, each with `build()`; a module may set `PREVIEW = {size, spacing}`),
 2. exports `client/public/models/<name>.glb`,
 3. renders `art/previews/<name>.png` (256x256, orthographic front view, Workbench), and
 4. at the end, `check.py` re-imports every `.glb` and prints its size and triangle count.
@@ -54,6 +55,11 @@ The previews use Blender's studio lighting, so colours look a little greyer than
 | `splitter.glb` | `splitter` | `half_L`, `half_R`, `seam`, `eye_L`, `eye_R` | 16 x 12.9 |
 | `mini.glb` | `mini` | `body`, `eye`, `leg_0`, `leg_1` | 8.8 x 7.5 |
 | `hive_mind.glb` | `hive_mind` | `core`, `core_eye`, `seg_0`..`seg_7`, `spike_0`..`spike_5` | 72.7 x 84 |
+| `interceptor.glb` | `interceptor` | `hull`, `wing_L/R`, `tip_L/R`, `cockpit`, `flame_L/R` (two overlapping cones read as one long flame) | 18.2 x 23 |
+| `lancer.glb` | `lancer` | `hull` (rear block, spine and twin prongs), `wing_L/R`, `tip_L/R`, `muzzle_L/R`, `cockpit`, `flame_L/R` | 17 x 22.3 |
+| `bastion.glb` | `bastion` | `hull`, `wing_L/R` (armour pods), `tip_L/R` (emitter housings), `emitter_L/R` (glow), `cockpit`, `flame_L/R` | 19.4 x 18.2 |
+| `missile.glb` | `missile` | `body`, `fins`, `exhaust` (`glow2`, pivot at the nozzle) | 3 x 7 |
+| `well.glb` | `well` | `shell`, `core` (`glow`), `ring`, `ring2` (pivots at the centre, spin about the screen axis) | 17.6 x 17.3 |
 | `shots.glb` | `shot_player`, `shot_alien` | `bolt`, `diamond` | 1.6 x 7, 4 x 4.8 |
 
 ## Slice 2a models
@@ -113,6 +119,16 @@ The previews use Blender's studio lighting, so colours look a little greyer than
 
   Each segment carries an inlay strip and a small orange vent at its centre angle (the weak-point
   cue).
+
+## Slice 3b models (ships, missile, well)
+
+The three ships reuse the Breaker's rig (`wing_L/R`, `flame_L/R`, same origin convention, hull-centred
+so the flames hang below). Palettes: Interceptor `hull` #ffe9f6, `accent` #ff4fd8, `accent2` #8b3fd9,
+`dark` #5a2c6e, `glow` #4ff0ff, `glow2` #ffd36a; Lancer `hull` #c9c2e8, `accent` #6b56c2, `accent2`
+#2bb6d9, `dark` #2c2450, `glow` #9ffbff, `glow2` #ffd36a; Bastion `hull` #9aa7c8, `accent` #3d4a7a,
+`accent2` #ffb04f, `dark` #1f2644, `glow` #4fff9b (emitters), `glow2` #ffd36a. Missile: `hull`,
+`accent`, `dark`, `glow2` #ffb04f. Well: `dark` #2a0f52, `accent` #6b3fd0 (`ring`), `glow` #b79bff
+(`core`), `glow2` #ff4fd8 (`ring2`). `ring` and `ring2` are broken arcs so a spin shows.
 
 ## Files
 

@@ -1,5 +1,8 @@
 import type { BossKind, RunEvent, RunState, ShipId, SpecialId, UpgradeId } from './types';
 import type { StorageLike } from './records';
+import { SHIP_IDS } from './ships';
+import { SPECIAL_IDS } from './special';
+import { UPGRADES } from './upgrades';
 import { WAVES } from './waves';
 
 // Unlocks: what a player has earned across runs. A new player starts with a trimmed pool (the
@@ -245,28 +248,42 @@ export function emptyProgress(): Progress {
   return { version: 1, milestones: [], totals: { runs: 0, kills: 0, specials: 0, winningShips: [] } };
 }
 
-// --- TODO (progression worker) -----------------------------------------------------------------
+// --- Unlock queries ----------------------------------------------------------------------------
+
+function sameUnlock(a: Unlock, b: Unlock): boolean {
+  return a.kind === b.kind && a.id === b.id;
+}
 
 /** Whether this is unlocked: in the starting pool, or the reward of a milestone met. */
-export function isUnlocked(_progress: Progress, _unlock: Unlock): boolean {
-  return true;
+export function isUnlocked(progress: Progress, unlock: Unlock): boolean {
+  const starting: readonly string[] =
+    unlock.kind === 'ship' ? STARTING_SHIPS : unlock.kind === 'special' ? STARTING_SPECIALS : STARTING_UPGRADES;
+  if (starting.includes(unlock.id)) return true;
+  return MILESTONES.some((m) => sameUnlock(m.reward, unlock) && progress.milestones.includes(m.id));
 }
 
 /** Unlocked ships, Specials and upgrades, each in its catalogue order (SHIP_IDS, SPECIAL_IDS, UPGRADES). */
-export function unlockedShips(_progress: Progress): ShipId[] {
-  return ['breaker'];
+export function unlockedShips(progress: Progress): ShipId[] {
+  return SHIP_IDS.filter((id) => isUnlocked(progress, { kind: 'ship', id }));
 }
-export function unlockedSpecials(_progress: Progress): SpecialId[] {
-  return [...STARTING_SPECIALS];
+export function unlockedSpecials(progress: Progress): SpecialId[] {
+  return SPECIAL_IDS.filter((id) => isUnlocked(progress, { kind: 'special', id }));
 }
-export function unlockedUpgrades(_progress: Progress): UpgradeId[] {
-  return [...STARTING_UPGRADES];
+export function unlockedUpgrades(progress: Progress): UpgradeId[] {
+  return UPGRADES.map((u) => u.id).filter((id) => isUnlocked(progress, { kind: 'upgrade', id }));
 }
 
 /** The milestone that unlocks this, if any (null for the starting pool). */
-export function milestoneFor(_unlock: Unlock): MilestoneDef | null {
-  return null;
+export function milestoneFor(unlock: Unlock): MilestoneDef | null {
+  return MILESTONES.find((m) => sameUnlock(m.reward, unlock)) ?? null;
 }
+
+/** The next milestones to aim for: the first `count` not yet met, in MILESTONES order. */
+export function nextGoals(progress: Progress, count = 3): MilestoneDef[] {
+  return MILESTONES.filter((m) => !progress.milestones.includes(m.id)).slice(0, Math.max(0, count));
+}
+
+// --- Recording a run ---------------------------------------------------------------------------
 
 /** A fresh summary for a run about to start. */
 export function newSummary(ship: ShipId, special: SpecialId): RunSummary {
@@ -289,38 +306,207 @@ export function newSummary(ship: ShipId, special: SpecialId): RunSummary {
 }
 
 /**
+ * What has happened since the current wave started. The summary type has no room for it, so it is
+ * kept beside the summary (and goes away with it).
+ */
+interface WaveWatch {
+  comboBroken: boolean;
+  lifeLost: boolean;
+}
+const watches = new WeakMap<RunSummary, WaveWatch>();
+
+function watchFor(summary: RunSummary): WaveWatch {
+  let w = watches.get(summary);
+  if (!w) {
+    w = { comboBroken: false, lifeLost: false };
+    watches.set(summary, w);
+  }
+  return w;
+}
+
+/**
  * Folds one step's events into the summary (the real run's events only, never the demo's). `run`
  * is the run after the step, for anything the events don't carry.
+ *
+ * Events are folded in order, and every player's events count (the game is single-player for now,
+ * so there is only one). A wave is "clean" when no comboBroken came between its waveStart and its
+ * waveClear; a boss is "flawless" when no playerHit (a life lost; a shield absorbing a hit is a
+ * shieldHit) came between its wave's waveStart and its bossKilled.
  */
-export function recordEvents(_summary: RunSummary, _events: readonly RunEvent[], _run: RunState): void {}
+export function recordEvents(summary: RunSummary, events: readonly RunEvent[], run: RunState): void {
+  const watch = watchFor(summary);
+  for (const e of events) {
+    switch (e.type) {
+      case 'waveStart':
+        summary.reachedWave = Math.max(summary.reachedWave, e.wave);
+        watch.comboBroken = false;
+        watch.lifeLost = false;
+        break;
+      case 'waveClear':
+        summary.wavesCleared += 1;
+        if (!watch.comboBroken) summary.cleanWaves += 1;
+        break;
+      case 'comboBroken':
+        watch.comboBroken = true;
+        break;
+      case 'playerHit':
+        watch.lifeLost = true;
+        break;
+      case 'bossKilled':
+        summary.bossesKilled.push(e.kind);
+        if (!watch.lifeLost) summary.flawlessBosses.push(e.kind);
+        break;
+      case 'alienKilled':
+        summary.kills += 1;
+        break;
+      case 'pickupCollected':
+        summary.pickups += 1;
+        break;
+      case 'specialFired':
+        summary.specials += 1;
+        break;
+      case 'synergyUnlocked':
+        summary.synergies += 1;
+        break;
+      case 'won':
+        summary.finished = true;
+        summary.won = true;
+        break;
+      case 'lost':
+        summary.finished = true;
+        break;
+      default:
+        break;
+    }
+  }
+  summary.bestCombo = Math.max(summary.bestCombo, run.bestCombo);
+}
 
 /**
  * Adds a run that has ended to the progress: totals first, then every milestone not yet met is
  * checked. Returns the new progress (the one passed in is not changed) and the milestones this
  * run met, in MILESTONES order. `summary.finished` says whether it counts as a finished run.
  */
-export function completeRun(progress: Progress, _summary: RunSummary): { progress: Progress; met: MilestoneDef[] } {
-  return { progress, met: [] };
+export function completeRun(progress: Progress, summary: RunSummary): { progress: Progress; met: MilestoneDef[] } {
+  const totals: Totals = {
+    runs: progress.totals.runs + (summary.finished ? 1 : 0),
+    kills: progress.totals.kills + summary.kills,
+    specials: progress.totals.specials + summary.specials,
+    winningShips: [...progress.totals.winningShips],
+  };
+  if (summary.won && !totals.winningShips.includes(summary.ship)) totals.winningShips.push(summary.ship);
+
+  const met = MILESTONES.filter((m) => !progress.milestones.includes(m.id) && m.check(summary, totals));
+  return {
+    progress: { version: 1, milestones: [...progress.milestones, ...met.map((m) => m.id)], totals },
+    met,
+  };
+}
+
+// --- Saving ------------------------------------------------------------------------------------
+
+const MILESTONE_IDS: ReadonlySet<string> = new Set(MILESTONES.map((m) => m.id));
+const SHIP_ID_SET: ReadonlySet<string> = new Set(SHIP_IDS);
+
+function count(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+/**
+ * The progress in unknown data, checked field by field, or null if it isn't progress at all (not
+ * an object, wrong version, no milestones list). Inside that, bad parts are repaired rather than
+ * fatal: unknown or repeated milestones and unknown or repeated ships are dropped, and a total
+ * that isn't a finite non-negative integer becomes 0. Shared by loadProgress and importCode.
+ */
+function parseProgress(data: unknown): Progress | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const d = data as Record<string, unknown>;
+  if (d.version !== 1 || !Array.isArray(d.milestones)) return null;
+
+  const milestones: MilestoneId[] = [];
+  for (const id of d.milestones) {
+    if (typeof id === 'string' && MILESTONE_IDS.has(id) && !milestones.includes(id as MilestoneId)) {
+      milestones.push(id as MilestoneId);
+    }
+  }
+
+  const t = typeof d.totals === 'object' && d.totals !== null ? (d.totals as Record<string, unknown>) : {};
+  const winningShips: ShipId[] = [];
+  if (Array.isArray(t.winningShips)) {
+    for (const id of t.winningShips) {
+      if (typeof id === 'string' && SHIP_ID_SET.has(id) && !winningShips.includes(id as ShipId)) winningShips.push(id as ShipId);
+    }
+  }
+  return { version: 1, milestones, totals: { runs: count(t.runs), kills: count(t.kills), specials: count(t.specials), winningShips } };
 }
 
 /** The saved progress; missing, corrupt or unreadable storage gives emptyProgress(). */
-export function loadProgress(_storage: StorageLike): Progress {
-  return emptyProgress();
+export function loadProgress(storage: StorageLike): Progress {
+  try {
+    const raw = storage.getItem(PROGRESS_KEY);
+    if (raw === null) return emptyProgress();
+    return parseProgress(JSON.parse(raw)) ?? emptyProgress();
+  } catch {
+    return emptyProgress();
+  }
 }
 
-export function saveProgress(_storage: StorageLike, _progress: Progress): void {}
+export function saveProgress(storage: StorageLike, progress: Progress): void {
+  try {
+    storage.setItem(PROGRESS_KEY, JSON.stringify(progress));
+  } catch {
+    // Storage full or blocked: this visit goes on without saving.
+  }
+}
 
-/** A short text code holding the progress, to copy somewhere safe: `HB1-` and then base64url. */
-export function exportCode(_progress: Progress): string {
-  return 'HB1-';
+// --- Export code -------------------------------------------------------------------------------
+
+const CODE_PREFIX = 'HB1-';
+
+function toBase64Url(text: string): string {
+  let binary = '';
+  for (const b of new TextEncoder().encode(text)) binary += String.fromCharCode(b);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function fromBase64Url(payload: string): string {
+  const b64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4));
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+}
+
+/** Four hex characters from an FNV-1a hash of the payload: enough to catch a mistyped code. */
+function checksum(payload: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < payload.length; i++) {
+    h ^= payload.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return (((h >>> 16) ^ h) & 0xffff).toString(16).padStart(4, '0');
+}
+
+/** A short text code holding the progress, to copy somewhere safe: `HB1-`, base64url, `-`, a 4-hex checksum. */
+export function exportCode(progress: Progress): string {
+  const clean = parseProgress(progress) ?? emptyProgress();
+  const payload = toBase64Url(JSON.stringify(clean));
+  return `${CODE_PREFIX}${payload}-${checksum(payload)}`;
 }
 
 /** The progress in a code from exportCode, or null if it isn't a valid code. Whitespace around it is ignored. */
-export function importCode(_code: string): Progress | null {
-  return null;
-}
-
-/** The next milestones to aim for: the first `count` not yet met, in MILESTONES order. */
-export function nextGoals(_progress: Progress, _count = 3): MilestoneDef[] {
-  return [];
+export function importCode(code: string): Progress | null {
+  try {
+    const text = code.trim();
+    if (!text.startsWith(CODE_PREFIX)) return null;
+    const rest = text.slice(CODE_PREFIX.length);
+    // base64url can contain '-', but the checksum is hex, so the last '-' is the separator.
+    const sep = rest.lastIndexOf('-');
+    if (sep < 1) return null;
+    const payload = rest.slice(0, sep);
+    const sum = rest.slice(sep + 1).toLowerCase();
+    if (!/^[A-Za-z0-9_-]+$/.test(payload) || !/^[0-9a-f]{4}$/.test(sum) || sum !== checksum(payload)) return null;
+    return parseProgress(JSON.parse(fromBase64Url(payload)));
+  } catch {
+    return null;
+  }
 }
