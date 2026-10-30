@@ -440,13 +440,6 @@ export interface SynergyDef {
   needs: readonly [UpgradeId, UpgradeId];
 }
 
-/**
- * - `chooseSpecial`: before wave 1, waiting for the player to pick a Special for the run.
- * - `waveIntro`: a short pause with the wave's banner before aliens move.
- * - `playing`: the wave is on.
- * - `upgradePick`: the wave is clear and the run waits for the player to pick an upgrade.
- * - `won`: the last wave is clear. `lost`: out of lives, or the formation reached the ship's row.
- */
 /** A Gravity Well's vortex: it pulls enemy shots and free aliens in and grinds them. */
 export interface GravityWell {
   x: number;
@@ -465,6 +458,13 @@ export interface RunOptions {
   upgrades?: readonly UpgradeId[];
 }
 
+/**
+ * - `chooseSpecial`: before wave 1, waiting for the player to pick a Special for the run.
+ * - `waveIntro`: a short pause with the wave's banner before aliens move.
+ * - `playing`: the wave is on.
+ * - `upgradePick`: the wave is clear and the run waits for the player to pick an upgrade.
+ * - `won`: the last wave is clear. `lost`: out of lives, or the formation reached the ship's row.
+ */
 export type RunPhase = 'chooseSpecial' | 'waveIntro' | 'playing' | 'upgradePick' | 'won' | 'lost';
 
 export interface RunState {

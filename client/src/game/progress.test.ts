@@ -391,6 +391,14 @@ describe('save and load', () => {
     expect(loadProgress(s)).toEqual(sample());
   });
 
+  it("doesn't overwrite a save from a newer version of the game", () => {
+    const newer = JSON.stringify({ version: 2, milestones: ['victor'], totals: {} });
+    const s = fakeStorage({ [PROGRESS_KEY]: newer });
+    expect(loadProgress(s)).toEqual(emptyProgress());
+    saveProgress(s, sample());
+    expect(s.data[PROGRESS_KEY]).toBe(newer);
+  });
+
   it('survives corrupt data', () => {
     for (const bad of ['not json', '[]', '42', 'null', '"x"', '{}', '']) {
       expect(loadProgress(fakeStorage({ [PROGRESS_KEY]: bad }))).toEqual(emptyProgress());

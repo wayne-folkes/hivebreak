@@ -441,6 +441,19 @@ function parseProgress(data: unknown): Progress | null {
 }
 
 /** The saved progress; missing, corrupt or unreadable storage gives emptyProgress(). */
+/** Whether a saved progress string is from a version newer than this game understands. */
+function newerSaveVersion(raw: string | null): boolean {
+  if (raw === null) return false;
+  try {
+    const saved: unknown = JSON.parse(raw);
+    if (typeof saved !== 'object' || saved === null) return false;
+    const version = (saved as { version?: unknown }).version;
+    return typeof version === 'number' && version > 1;
+  } catch {
+    return false;
+  }
+}
+
 export function loadProgress(storage: StorageLike): Progress {
   try {
     const raw = storage.getItem(PROGRESS_KEY);
@@ -451,8 +464,13 @@ export function loadProgress(storage: StorageLike): Progress {
   }
 }
 
+/**
+ * Saves the progress, unless storage already holds a save from a newer version of the game (a
+ * player who went back to an older build): that save is kept rather than overwritten.
+ */
 export function saveProgress(storage: StorageLike, progress: Progress): void {
   try {
+    if (newerSaveVersion(storage.getItem(PROGRESS_KEY))) return;
     storage.setItem(PROGRESS_KEY, JSON.stringify(progress));
   } catch {
     // Storage full or blocked: this visit goes on without saving.

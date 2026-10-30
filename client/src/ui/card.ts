@@ -63,9 +63,6 @@ export abstract class MenuCard {
           this.fieldSubmitted(input);
         }
       });
-      input.addEventListener('keyup', (e) => {
-        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') e.stopPropagation();
-      });
     }
   }
 

@@ -799,9 +799,9 @@ function landVolley(run: RunState, shot: Shot, raiseCombo: boolean): void {
 function resolvePlayerShots(run: RunState, events: RunEvent[]): void {
   for (const shot of run.shots) {
     if (shot.owner !== 'player') continue;
-    if (run.bunkers.length > 0) {
-      // Lance and overcharge shots tunnel through and fly on; any other shot is spent on the bunker,
-      // which is neither a hit nor a miss for the combo.
+    // Missiles fly over the bunkers. Lance and overcharge shots tunnel through and fly on; any
+    // other shot is spent on the bunker, which is neither a hit nor a miss for the combo.
+    if (run.bunkers.length > 0 && shot.kind !== 'missile') {
       const pierce = shot.kind === 'lance' || shot.kind === 'overcharge';
       const bite = hitBunker(run.bunkers, shotBox(shot), 'below', pierce);
       if (bite) {
@@ -865,7 +865,10 @@ function hitAlien(run: RunState, shot: Shot, alien: Alien, events: RunEvent[]): 
   let killed = false;
   for (let i = 0; i < hits && !killed; i++) killed = damageAlien(alien);
   // Points count at the combo before this hit raises it, so the first kill in a chain is x1.
-  if (killed) killAlien(run, alien, killer, { charge: true, burst: true, kind: shot.kind }, events);
+  // A missile's kills don't charge the meter or burst, like the other Specials' kills, so a swarm
+  // can't refill the meter that fired it.
+  const special = shot.kind === 'missile';
+  if (killed) killAlien(run, alien, killer, { charge: !special, burst: !special, kind: shot.kind }, events);
   else events.push({ type: 'alienHit', alienId: alien.id, kind: alien.kind, x: alien.x, y: alien.y });
   if (killer && killer.stats.chain > 0) chainSparks(run, alien, killer, events);
   landVolley(run, shot, true);
@@ -937,5 +940,11 @@ function clearWave(run: RunState, events: RunEvent[]): void {
     return;
   }
   run.offer = offerUpgrades(run.rng, run.players[0], OFFER_SIZE, { guaranteeRare: bossWave, pool: run.upgradePool });
+  // Nothing left to offer (every unlocked upgrade maxed): straight on to the next wave.
+  if (run.offer.length === 0) {
+    run.wave++;
+    startWave(run);
+    return;
+  }
   setPhase(run, 'upgradePick');
 }

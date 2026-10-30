@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createAlien } from './aliens';
 import { bossEntering } from './boss';
-import { BUNKER_BOTTOM_Y } from './bunkers';
 import { SHIP_TOP, SHIP_Y } from './player';
 import { POWER_UP_SECONDS } from './powerups';
 import { WAVE_INTRO_SECONDS, chooseSpecial, createRun, pickUpgrade, stepRun } from './run';
@@ -422,6 +421,36 @@ describe('Missile Swarm', () => {
     expect(run.combo).toBe(1);
   });
 
+  it("a missile's kill doesn't charge the meter, so a swarm can't refill itself", () => {
+    const run = arena('missileSwarm');
+    alien(run, 'drone', 0, 100);
+    run.shots.push(playerShot(9201, 0, 100, { kind: 'missile', damage: 2, volley: VOLLEY_HIT }));
+    const events = steps(run, 1);
+    expect(ofType(events, 'alienKilled')).toHaveLength(1);
+    expect(run.players[0].specialCharge).toBe(0);
+  });
+
+  it('missiles fly over the bunkers without biting them', () => {
+    const run = createRun(1, 1, 0);
+    chooseSpecial(run, 'missileSwarm');
+    steps(run, Math.ceil(WAVE_INTRO_SECONDS / DT) + 1);
+    const bunker = run.bunkers[0];
+    const cells = bunker.mask.reduce((n, c) => n + c, 0);
+    run.shots.push(playerShot(9202, bunker.x + bunker.width / 2, bunker.y - 2, { kind: 'missile', damage: 2, volley: VOLLEY_HIT, vy: 180 }));
+    const events = steps(run, 20);
+    expect(ofType(events, 'bunkerHit')).toHaveLength(0);
+    expect(bunker.mask.reduce((n, c) => n + c, 0)).toBe(cells);
+  });
+
+  it('goes straight to the next wave when the pool has nothing left to offer', () => {
+    const run = arena('pulseBomb', { upgrades: [] });
+    run.aliens = [];
+    const events = steps(run, 2);
+    expect(ofType(events, 'waveClear')).toHaveLength(1);
+    expect(run.wave).toBe(1);
+    expect(run.phase).not.toBe('upgradePick');
+  });
+
   it('a normal shot still takes only one hit point from a warden', () => {
     const run = arena();
     const w = alien(run, 'warden', 0, 100);
@@ -466,20 +495,6 @@ describe('Missile Swarm', () => {
     const lost = parts.map((p) => p.maxHp - p.hp);
     expect(lost.reduce((a, b) => a + b, 0)).toBeGreaterThan(0);
     for (const n of lost) expect(n % 2).toBe(0);
-  });
-
-  it('are spent by a bunker like any player shot', () => {
-    const run = createRun(1);
-    chooseSpecial(run, 'missileSwarm');
-    steps(run, Math.ceil(WAVE_INTRO_SECONDS / DT) + 1);
-    run.aliens = [];
-    anchor(run);
-    run.stun = 1e6;
-    const bunker = run.bunkers[0];
-    run.shots = [playerShot(9300, bunker.x + bunker.width / 2, BUNKER_BOTTOM_Y - 3, { kind: 'missile', damage: 2, vy: 180, volley: VOLLEY_HIT })];
-    const events = steps(run, 3);
-    expect(ofType(events, 'bunkerHit').length).toBeGreaterThan(0);
-    expect(run.shots.find((s) => s.id === 9300)).toBeUndefined();
   });
 });
 

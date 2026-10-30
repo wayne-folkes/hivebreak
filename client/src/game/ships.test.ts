@@ -33,7 +33,7 @@ describe('SHIPS', () => {
     });
   });
 
-  it('the Lancer fires two piercing shots side by side, 35% slower', () => {
+  it('the Lancer fires two piercing shots side by side, 60% slower', () => {
     const def = shipDef('lancer');
     expect(def.lives).toBe(3);
     expect(def.stats).toEqual({
@@ -41,7 +41,7 @@ describe('SHIPS', () => {
       shotsPerVolley: 2,
       spreadAngle: 0,
       pierce: 1,
-      fireInterval: BASE_STATS.fireInterval * 1.35,
+      fireInterval: BASE_STATS.fireInterval * 1.6,
     });
   });
 
@@ -80,7 +80,7 @@ describe('createPlayer with a ship', () => {
     expect(shots.every((s) => s.vx === 0 && s.pierceLeft === 1)).toBe(true);
     expect(shots[0].x).toBeLessThan(10);
     expect(shots[1].x).toBeGreaterThan(10);
-    expect(p.cooldown).toBeCloseTo(BASE_STATS.fireInterval * 1.35, 9);
+    expect(p.cooldown).toBeCloseTo(BASE_STATS.fireInterval * 1.6, 9);
   });
 });
 

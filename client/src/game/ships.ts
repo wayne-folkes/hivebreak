@@ -40,7 +40,7 @@ export const INTERCEPTOR_LIVES = 2;
 /** Lancer: shots per volley, pierce, and the fire interval factor (slower). */
 export const LANCER_SHOTS = 2;
 export const LANCER_PIERCE = 1;
-export const LANCER_INTERVAL_FACTOR = 1.35;
+export const LANCER_INTERVAL_FACTOR = 1.6;
 /** Bastion: a free shield each wave, and the speed factor (slower). */
 export const BASTION_SHIELD = 1;
 export const BASTION_SPEED_FACTOR = 0.85;
