@@ -101,7 +101,12 @@ export function playerFireReady(lastAt: number, now: number): boolean {
 }
 
 /** Shortest gap (seconds) between two sounds of a frequent cue; a sound inside the gap is dropped. */
-export const CUE_GAP: Partial<Record<RunEvent['type'], number>> = { bunkerHit: 0.08, bossBeam: 0.25 };
+export const CUE_GAP: Partial<Record<RunEvent['type'], number>> = {
+  bunkerHit: 0.08,
+  bossBeam: 0.25,
+  chainSpark: 0.05,
+  wellConsumed: 0.06,
+};
 
 /** One note or noise burst in a cue. Times are seconds, relative to the cue's start. */
 export type Part =
@@ -133,11 +138,18 @@ export function partsFor(event: RunEvent): Part[] {
   switch (event.type) {
     case 'waveStart':
       return arpeggio([523, 659, 784], 0.09, 'square', 0.12, 2);
-    // PLACEHOLDERS until the sound worker writes them.
     case 'chainSpark':
-      return [tone(2400, 0.05, 'square', 0.05, 1200)];
+      // A crackly zap: a short high burst that drops quickly. It's frequent, so it stays quiet.
+      return [
+        { kind: 'noise', from: 5000, to: 1500, dur: 0.05, filter: 'bandpass', q: 2, vol: 0.05 },
+        tone(2400, 0.05, 'square', 0.04, 1000),
+      ];
     case 'wellConsumed':
-      return [tone(300, 0.08, 'sine', 0.06, 120)];
+      // A soft thup that falls in pitch, as the shot drops into the well.
+      return [
+        tone(320, 0.09, 'sine', 0.07, 110),
+        { kind: 'noise', from: 500, to: 120, dur: 0.05, filter: 'lowpass', q: 0.7, vol: 0.03 },
+      ];
     case 'playerFired': {
       // Quiet, since it repeats a lot.
       const pitch = playerFirePitch(event.shots);
@@ -300,17 +312,31 @@ function specialParts(special: SpecialId): Part[] {
     case 'timeStop':
       // The pitch falls away, like a tape slowing to a stop.
       return [tone(660, 0.6, 'sawtooth', 0.08, 40)];
-    // PLACEHOLDERS until the sound worker writes them.
-    case 'missileSwarm':
-      return [tone(880, 0.3, 'square', 0.08, 1760)];
+    case 'missileSwarm': {
+      // A rising whoosh, with six launch blips over its first half, each one a little higher.
+      const blips = Array.from(
+        { length: 6 },
+        (_, i): Part => tone(600 + i * 80, 0.035, 'square', 0.05, 900 + i * 80, i * 0.04),
+      );
+      return [{ kind: 'noise', from: 400, to: 3000, dur: 0.5, filter: 'bandpass', q: 1.2, vol: 0.12 }, ...blips];
+    }
     case 'gravityWell':
-      return [tone(220, 0.6, 'sine', 0.2, 55)];
+      // A deep hum that sinks, with a filtered-noise sweep that swirls up and then back down.
+      return [
+        tone(180, 0.8, 'triangle', 0.18, 45),
+        tone(90, 0.8, 'sine', 0.12, 40),
+        { kind: 'noise', from: 250, to: 1400, dur: 0.4, filter: 'bandpass', q: 3, vol: 0.12 },
+        { kind: 'noise', from: 1400, to: 250, dur: 0.4, filter: 'bandpass', q: 3, vol: 0.12, delay: 0.4 },
+      ];
   }
 }
 
-export type UiSound = 'move' | 'confirm' | 'back';
+export type UiSound = 'move' | 'confirm' | 'back' | 'unlock';
 
-/** The menu sounds: a tick for moving, a rising pair for confirming, a falling pair for going back. */
+/**
+ * The menu sounds: a tick for moving, a rising pair for confirming, a falling pair for going back,
+ * and a bright fanfare for an unlock.
+ */
 export function uiParts(name: UiSound): Part[] {
   switch (name) {
     case 'move':
@@ -319,6 +345,14 @@ export function uiParts(name: UiSound): Part[] {
       return arpeggio([880, 1320], 0.06, 'square', 0.1, 2);
     case 'back':
       return [tone(440, 0.09, 'square', 0.1, 330)];
+    case 'unlock':
+      // A rising major arpeggio that ends on a held chord.
+      return [
+        ...arpeggio([523, 659, 784], 0.08, 'square', 0.1),
+        tone(1047, 0.56, 'square', 0.08, undefined, 0.24),
+        tone(1319, 0.56, 'square', 0.07, undefined, 0.24),
+        tone(1568, 0.56, 'square', 0.06, undefined, 0.24),
+      ];
   }
 }
 

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  CUE_GAP,
   DEFAULT_MUSIC_SETTINGS,
   DEFAULT_SOUND_SETTINGS,
   MAX_VOICES,
@@ -517,6 +518,65 @@ describe('slice 2b sounds', () => {
   });
 });
 
+describe('3b sounds', () => {
+  it('keeps the chain spark short and quieter than an alien hit, since it is frequent', () => {
+    const spark = partsFor(EVENTS.chainSpark);
+    expect(soundLength(spark)).toBeLessThan(0.1);
+    expect(loudest(spark)).toBeLessThan(loudest(partsFor(EVENTS.alienHit)));
+  });
+
+  it('makes the well thup fall in pitch', () => {
+    const thup = partsFor(EVENTS.wellConsumed)[0];
+    expect(thup.kind === 'tone' && (thup.to ?? 0) < thup.freq).toBe(true);
+  });
+
+  it('gives the chain spark and the well thup a rate limit', () => {
+    expect(CUE_GAP.chainSpark).toBeCloseTo(0.05);
+    expect(CUE_GAP.wellConsumed).toBeCloseTo(0.06);
+  });
+
+  it('makes the missile swarm a rising whoosh with a burst of staggered launch blips', () => {
+    const parts = partsFor({ type: 'specialFired', playerId: 0, special: 'missileSwarm', x: 0, y: 0 });
+    const whoosh = parts[0];
+    expect(whoosh.kind === 'noise' && whoosh.to > whoosh.from).toBe(true);
+
+    const blips = parts.filter((p) => p.kind === 'tone');
+    expect(blips.length).toBeGreaterThanOrEqual(4);
+    expect(blips.length).toBeLessThanOrEqual(8);
+    const starts = blips.map((p) => p.delay ?? 0);
+    for (let i = 1; i < starts.length; i++) {
+      expect(starts[i] - starts[i - 1]).toBeCloseTo(0.04, 5);
+    }
+  });
+
+  it('makes the gravity well a deep hum that sinks, about 0.8 s long, over a noise sweep', () => {
+    const parts = partsFor({ type: 'specialFired', playerId: 0, special: 'gravityWell', x: 0, y: 0 });
+    expect(soundLength(parts)).toBeGreaterThan(0.7);
+    expect(soundLength(parts)).toBeLessThan(0.9);
+    const hum = parts[0];
+    expect(hum.kind === 'tone' && hum.freq < 250 && (hum.to ?? 0) < hum.freq).toBe(true);
+    expect(parts.some((p) => p.kind === 'noise')).toBe(true);
+  });
+
+  it('gives every Special a sound of its own', () => {
+    const specials = ['pulseBomb', 'shieldBurst', 'timeStop', 'missileSwarm', 'gravityWell'] as const;
+    const sounds = specials.map((special) =>
+      JSON.stringify(partsFor({ type: 'specialFired', playerId: 0, special, x: 0, y: 0 })),
+    );
+    expect(new Set(sounds).size).toBe(specials.length);
+  });
+
+  it('plays the unlock fanfare as a rising arpeggio, about 0.8 s long', () => {
+    const parts = uiParts('unlock');
+    for (const part of parts) expect(part.dur).toBeGreaterThan(0);
+    expect(soundLength(parts)).toBeGreaterThan(0.7);
+    expect(soundLength(parts)).toBeLessThan(0.9);
+    const notes = toneFreqs(parts);
+    expect(notes[1]).toBeGreaterThan(notes[0]);
+    expect(notes[2]).toBeGreaterThan(notes[1]);
+  });
+});
+
 describe('rate limits', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -529,7 +589,7 @@ describe('rate limits', () => {
     const ctx = FakeAudioContext.last;
     if (!ctx) throw new Error('no audio context was created');
 
-    for (const event of [EVENTS.bunkerHit, EVENTS.bossBeam]) {
+    for (const event of [EVENTS.bunkerHit, EVENTS.bossBeam, EVENTS.chainSpark, EVENTS.wellConsumed]) {
       const before = ctx.sources;
       // Three at the same moment: the second and third fall inside the gap, so only the first plays.
       sound.handle([event, event, event]);
