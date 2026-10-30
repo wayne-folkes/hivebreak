@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Hivebreak link preview</title>
+    <!-- Source for client/public/og.png (1200x630). Regenerate with design/render.sh. -->
+    <style>
+      @font-face {
+        font-family: 'Silkscreen';
+        src: url('../node_modules/@fontsource/silkscreen/files/silkscreen-latin-400-normal.woff2') format('woff2');
+        font-weight: 400;
+      }
+      @font-face {
+        font-family: 'Silkscreen';
+        src: url('../node_modules/@fontsource/silkscreen/files/silkscreen-latin-700-normal.woff2') format('woff2');
+        font-weight: 700;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        background: #05030f;
+      }
+
+      .card {
+        position: relative;
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        background:
+          radial-gradient(ellipse 55% 70% at 78% 50%, rgb(176 76 255 / 0.22) 0%, transparent 70%),
+          radial-gradient(ellipse 50% 60% at 15% 85%, rgb(255 79 216 / 0.12) 0%, transparent 70%),
+          #05030f;
+      }
+
+      #stars {
+        position: absolute;
+        inset: 0;
+        image-rendering: pixelated;
+      }
+
+      .copy {
+        position: absolute;
+        left: 72px;
+        top: 0;
+        bottom: 0;
+        width: 600px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 26px;
+      }
+
+      .logo {
+        margin: 0;
+        font-family: 'Silkscreen', monospace;
+        font-weight: 700;
+        font-size: 70px;
+        line-height: 1;
+        letter-spacing: 0.02em;
+        color: #f5f3ff;
+        text-shadow: 6px 6px 0 #2a0f52;
+        white-space: nowrap;
+      }
+
+      .logo span {
+        color: #ff4fd8;
+      }
+
+      .tagline {
+        margin: 0;
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        font-size: 40px;
+        font-weight: 700;
+        line-height: 1.25;
+        color: #e4defc;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .chip {
+        padding: 8px 16px;
+        border: 2px solid #3a2f6b;
+        border-radius: 6px;
+        font-family: 'Silkscreen', monospace;
+        font-size: 20px;
+        color: #c9c0f2;
+        background: rgb(22 17 40 / 0.85);
+      }
+
+      .url {
+        font-family: 'Silkscreen', monospace;
+        font-size: 26px;
+        color: #4ff0ff;
+      }
+
+      .screen {
+        position: absolute;
+        right: 84px;
+        top: 35px;
+        padding: 10px;
+        border: 3px solid #3a2f6b;
+        border-radius: 22px;
+        background: #000;
+        box-shadow: 0 0 60px rgb(176 76 255 / 0.35);
+      }
+
+      #game {
+        display: block;
+        width: 360px;
+        height: 540px;
+        image-rendering: pixelated;
+        border-radius: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <canvas id="stars" width="300" height="158"></canvas>
+      <div class="copy">
+        <h1 class="logo">HIVE<span>BREAK</span></h1>
+        <p class="tagline">Break the alien hive, one wave at a time.</p>
+        <div class="chips">
+          <span class="chip">Pixel art</span>
+          <span class="chip">Pick an upgrade every wave</span>
+          <span class="chip">Touch · pad · keys</span>
+        </div>
+        <div class="url">hivebreak.folkes.dev</div>
+      </div>
+      <div class="screen"><canvas id="game" width="180" height="270"></canvas></div>
+    </div>
+    <script>
+      // Background stars at a quarter of the card's resolution, so each is a chunky pixel.
+      const stars = document.getElementById('stars').getContext('2d');
+      let seed = 11;
+      const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      for (let i = 0; i < 140; i++) {
+        stars.fillStyle = rnd() < 0.15 ? '#ffffff' : rnd() < 0.5 ? '#8f86c9' : '#463e7a';
+        stars.fillRect(Math.floor(rnd() * 300), Math.floor(rnd() * 158), 1, 1);
+      }
+
+      // gameplay.png is a 1000x1800 capture of the game at 5 screen pixels per art pixel, with the
+      // playfield starting 50 px from the left. Sampling it back down to 180x320 recovers the
+      // exact art pixels; the card then shows rows 36-306 at 2x.
+      const img = new Image();
+      img.onload = () => {
+        const art = document.createElement('canvas');
+        art.width = 180;
+        art.height = 320;
+        const a = art.getContext('2d');
+        a.imageSmoothingEnabled = false;
+        a.drawImage(img, 50, 0, 900, 1600, 0, 0, 180, 320);
+        const g = document.getElementById('game').getContext('2d');
+        g.imageSmoothingEnabled = false;
+        g.drawImage(art, 0, 36, 180, 270, 0, 0, 180, 270);
+        document.body.dataset.ready = 'yes';
+      };
+      img.src = 'gameplay.png';
+    </script>
+  </body>
+</html>

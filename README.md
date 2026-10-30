@@ -59,6 +59,8 @@ PATH). The exported `.glb` files are committed, so you only need Blender to chan
 - `client/src/main.ts` and `client/src/app/`: the game loop and screen flow.
 - `art/blender/`: Blender Python scripts for the models; `art/previews/` has a render of each.
 - `client/public/models/`: the exported `.glb` models.
+- `client/design/`: sources for the favicon and the link-preview image; `render.sh` regenerates the
+  PNGs in `client/public/` with headless Chrome.
 - `docs/`: requirements and the slice plans.
 
 ## Licence
