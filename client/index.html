@@ -44,6 +44,14 @@
     <!-- In-run display. Hud (ui/hud.ts) sizes #hud-field to the playfield and picks the layout. -->
     <div id="hud" class="hud" data-mode="overlay" hidden>
       <div id="hud-field" class="hud-field">
+        <div id="hud-boss" class="hud-boss" hidden>
+          <span id="hud-boss-name" class="hud-boss-name">BROOD MOTHER</span>
+          <span class="hud-boss-bar" role="progressbar" id="hud-boss-bar" aria-label="Boss health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span id="hud-boss-fill" class="hud-boss-fill"></span></span>
+        </div>
+        <div id="hud-toast" class="hud-toast" role="status" aria-live="polite" hidden>
+          <span id="hud-toast-text" class="hud-toast-text"></span>
+          <span id="hud-toast-sub" class="hud-toast-sub"></span>
+        </div>
         <div class="hud-col hud-col-left">
           <div class="hud-stat">
             <span class="hud-label">Score</span>
@@ -52,6 +60,12 @@
           <div id="hud-combo-stat" class="hud-stat hud-combo is-off">
             <span class="hud-label">Combo</span>
             <span id="hud-combo" class="hud-value">x1</span>
+          </div>
+          <div id="hud-special" class="hud-stat hud-special" data-state="charging" hidden>
+            <span class="hud-label hud-special-tag">Special</span>
+            <span id="hud-special-name" class="hud-special-name">PULSE</span>
+            <span id="hud-special-cells" class="hud-cells" role="img" aria-label="Special charging"><i></i><i></i><i></i><i></i><i></i></span>
+            <span id="hud-special-hint" class="hud-hint"></span>
           </div>
           <div class="hud-stat hud-high">
             <span class="hud-label">High</span>
@@ -70,6 +84,10 @@
           <div class="hud-stat hud-upgrades">
             <span class="hud-label">Upgrades</span>
             <ul id="hud-upgrades" class="hud-upgrade-list"></ul>
+          </div>
+          <div id="hud-powerups-stat" class="hud-stat hud-powerups" hidden>
+            <span class="hud-label hud-powerups-tag">Power-ups</span>
+            <ul id="hud-powerups" class="hud-chips"></ul>
           </div>
         </div>
         <button id="hud-mute" class="hud-mute" type="button" tabindex="-1" aria-label="Mute sound" aria-pressed="false">🔊</button>
@@ -106,10 +124,35 @@
       <div class="panel" role="dialog" aria-labelledby="howto-heading">
         <h2 id="howto-heading" class="heading">How to play</h2>
         <p class="text">
-          Clear five waves of the hive to win. After each wave you pick one of three upgrades, and
-          they stack for the rest of the run, so no two runs build the same way. Every hit in a row
-          raises your combo multiplier, up to x8; a shot that misses resets it, so aim rather than
-          spray. Lose your last life, or let the formation reach your row, and the run is over.
+          Clear five waves of the hive to win; the fifth ends in a boss. After each wave you pick one
+          of three upgrades, and they stack for the rest of the run, so no two runs build the same
+          way. Every hit in a row raises your combo multiplier, up to x8; a shot that misses resets
+          it, so aim rather than spray. Lose your last life, or let the formation reach your row, and
+          the run is over.
+        </p>
+        <h3 class="subheading">Your Special</h3>
+        <p class="text">
+          Before wave 1 you pick one Special for the run: Pulse Bomb, Shield Burst or Time Stop. Kills
+          and boss parts fill its five-cell meter, faster at a high combo. When it reads READY, fire
+          it for a burst moment: a shockwave that wipes the field, three untouchable seconds, or a
+          freeze on everything but you. Then the meter starts again.
+        </p>
+        <h3 class="subheading">Power-ups</h3>
+        <p class="text">
+          Aliens sometimes drop a glowing pickup, and Carriers always do. Catch it with your ship for
+          a few seconds of Spread shot, Laser, Time slow or a Helper drone. A timer chip shows how
+          long is left; catching the same kind again resets its clock.
+        </p>
+        <h3 class="subheading">Rare upgrades</h3>
+        <p class="text">
+          Some picks are rare: a gold border and a stronger effect, like a Wingman drone. One rare is
+          guaranteed on the pick after a boss, and they can turn up in other offers too.
+        </p>
+        <h3 class="subheading">Synergies</h3>
+        <p class="text">
+          Hold the right pair of upgrades and they combine into something stronger. A card that would
+          complete a pair says so, for example "completes LANCE", and a banner announces the moment
+          it clicks.
         </p>
         <h3 class="subheading">Keyboard</h3>
         <dl class="keys">
@@ -117,6 +160,8 @@
           <dd><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd></dd>
           <dt>Fire</dt>
           <dd><kbd>Space</kbd> <kbd>Z</kbd> or <kbd>↑</kbd>, hold to auto-fire</dd>
+          <dt>Special</dt>
+          <dd><kbd>X</kbd> or <kbd>Shift</kbd>, when the meter is full</dd>
           <dt>Pause</dt>
           <dd><kbd>Esc</kbd> or <kbd>P</kbd></dd>
           <dt>Mute</dt>
@@ -130,6 +175,8 @@
           <dd>Left stick or d-pad</dd>
           <dt>Fire</dt>
           <dd><kbd>A</kbd> (Cross) or <kbd>RT</kbd>, hold to auto-fire</dd>
+          <dt>Special</dt>
+          <dd><kbd>B</kbd> (Circle) or <kbd>LT</kbd>, when the meter is full</dd>
           <dt>Pause</dt>
           <dd><kbd>Start</kbd></dd>
           <dt>Menus</dt>
@@ -141,6 +188,8 @@
           <dd>Drag anywhere in the lower part of the screen. The ship moves by how far your thumb moves, so it is never hidden under it.</dd>
           <dt>Fire</dt>
           <dd>Automatic while a thumb is down</dd>
+          <dt>Special</dt>
+          <dd>The Special button under the field, at the bottom right, when the meter is full</dd>
           <dt>Pause</dt>
           <dd>The ⏸ button in the corner</dd>
           <dt>Menus</dt>
@@ -198,6 +247,30 @@
       </div>
     </div>
 
+    <div id="special" class="menu" hidden>
+      <div class="panel panel-wide" role="dialog" aria-labelledby="special-heading">
+        <h2 id="special-heading" class="heading heading-center">
+          <span>CHOOSE YOUR SPECIAL</span><span class="pick-sep" aria-hidden="true"> · </span><span class="pick-ask">FOR THIS RUN</span>
+        </h2>
+        <div class="pick-cards">
+          <button id="special-0" class="pick-card special-card" type="button">
+            <span id="special-0-name" class="pick-name"></span>
+            <span id="special-0-what" class="pick-what"></span>
+          </button>
+          <button id="special-1" class="pick-card special-card" type="button">
+            <span id="special-1-name" class="pick-name"></span>
+            <span id="special-1-what" class="pick-what"></span>
+          </button>
+          <button id="special-2" class="pick-card special-card" type="button">
+            <span id="special-2-name" class="pick-name"></span>
+            <span id="special-2-what" class="pick-what"></span>
+          </button>
+        </div>
+        <p class="hint">kills fill the meter · fire with <kbd>X</kbd> · <kbd>B</kbd> / <kbd>LT</kbd> · touch button</p>
+        <p class="hint">tap a card · d-pad + A · arrows + Enter</p>
+      </div>
+    </div>
+
     <div id="pick" class="menu" hidden>
       <div class="panel panel-wide" role="dialog" aria-labelledby="pick-heading">
         <h2 id="pick-heading" class="heading heading-center">
@@ -207,17 +280,17 @@
           <button id="pick-0" class="pick-card" type="button">
             <span id="pick-0-name" class="pick-name"></span>
             <span id="pick-0-what" class="pick-what"></span>
-            <span class="pick-meta"><span id="pick-0-rarity" class="pick-rarity"></span><span id="pick-0-stacks" class="pick-stacks"></span></span>
+            <span class="pick-meta"><span class="pick-tags"><span id="pick-0-rarity" class="pick-rarity"></span><span id="pick-0-synergy" class="pick-synergy"></span></span><span id="pick-0-stacks" class="pick-stacks"></span></span>
           </button>
           <button id="pick-1" class="pick-card" type="button">
             <span id="pick-1-name" class="pick-name"></span>
             <span id="pick-1-what" class="pick-what"></span>
-            <span class="pick-meta"><span id="pick-1-rarity" class="pick-rarity"></span><span id="pick-1-stacks" class="pick-stacks"></span></span>
+            <span class="pick-meta"><span class="pick-tags"><span id="pick-1-rarity" class="pick-rarity"></span><span id="pick-1-synergy" class="pick-synergy"></span></span><span id="pick-1-stacks" class="pick-stacks"></span></span>
           </button>
           <button id="pick-2" class="pick-card" type="button">
             <span id="pick-2-name" class="pick-name"></span>
             <span id="pick-2-what" class="pick-what"></span>
-            <span class="pick-meta"><span id="pick-2-rarity" class="pick-rarity"></span><span id="pick-2-stacks" class="pick-stacks"></span></span>
+            <span class="pick-meta"><span class="pick-tags"><span id="pick-2-rarity" class="pick-rarity"></span><span id="pick-2-synergy" class="pick-synergy"></span></span><span id="pick-2-stacks" class="pick-stacks"></span></span>
           </button>
         </div>
         <p class="hint">tap a card · d-pad + A · arrows + Enter</p>

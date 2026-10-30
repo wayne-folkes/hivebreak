@@ -2,6 +2,7 @@ import {
   BackSide,
   Box3,
   BufferGeometry,
+  Color,
   DataTexture,
   Float32BufferAttribute,
   Group,
@@ -20,15 +21,38 @@ import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 // look for the glowing parts, and a dark outline built as an inverted hull (a slightly fattened
 // copy of each part, drawn back faces only, so it peeks out around the edge).
 
-export type ModelName = 'player' | 'drone' | 'warden' | 'diver' | 'shot_player' | 'shot_alien';
+export type ModelName =
+  | 'player'
+  | 'drone'
+  | 'warden'
+  | 'diver'
+  | 'carrier'
+  | 'brood_mother'
+  | 'helper'
+  | 'pickup_spread'
+  | 'pickup_laser'
+  | 'pickup_slow'
+  | 'pickup_helper'
+  | 'shot_player'
+  | 'shot_alien';
 
 const FILES: Record<string, readonly ModelName[]> = {
   player: ['player'],
   drone: ['drone'],
   warden: ['warden'],
   diver: ['diver'],
+  carrier: ['carrier'],
+  brood_mother: ['brood_mother'],
+  helper: ['helper'],
+  pickups: ['pickup_spread', 'pickup_laser', 'pickup_slow', 'pickup_helper'],
   shots: ['shot_player', 'shot_alien'],
 };
+
+/** How a model is coloured: its own colours, a cool blue-shift (the slow field), or washed out and icy (Time Stop). */
+export const LOOK_NORMAL = 0;
+export const LOOK_SLOW = 1;
+export const LOOK_FROZEN = 2;
+export type Look = typeof LOOK_NORMAL | typeof LOOK_SLOW | typeof LOOK_FROZEN;
 
 /** Outline thickness in art pixels (world units). */
 const OUTLINE_THICKNESS = 0.8;
@@ -38,6 +62,25 @@ const TOON_STEPS = [74, 158, 255];
 
 const outlineMaterial = new MeshBasicMaterial({ color: OUTLINE_COLOR, side: BackSide });
 const flashMaterial = new MeshBasicMaterial({ color: 0xffffff });
+/** What a destroyed boss part is drawn as: a dark, dead hulk. */
+const wreckMaterial = new MeshBasicMaterial({ color: 0x1b1530 });
+
+const COOL = new Color(0x4f8bff);
+const ICE = new Color(0x8fb4ff);
+
+/** A material's three looks (normal, slow, frozen), found by the material the Blender file gave a mesh. */
+const looksOf = new WeakMap<Material, readonly Material[]>();
+
+/** The slow field's cool look of a colour: pulled toward blue and a little darker. */
+export function coolColor(source: Color, out: Color): Color {
+  return out.copy(source).lerp(COOL, 0.45).multiplyScalar(0.92);
+}
+
+/** Time Stop's look of a colour: most of the colour drained out and an icy blue-grey left. */
+export function frozenColor(source: Color, out: Color): Color {
+  const grey = source.r * 0.2126 + source.g * 0.7152 + source.b * 0.0722;
+  return out.setRGB(grey, grey, grey).lerp(ICE, 0.35).multiplyScalar(0.9);
+}
 
 function toonGradient(): DataTexture {
   const tex = new DataTexture(new Uint8Array(TOON_STEPS), TOON_STEPS.length, 1, RedFormat);
@@ -89,6 +132,15 @@ function stylize(root: Object3D): void {
       swapped.set(source, material);
     }
     mesh.material = material;
+    if (!looksOf.has(material)) {
+      const make = (colour: Color): Material =>
+        glows ? new MeshBasicMaterial({ color: colour }) : new MeshToonMaterial({ color: colour, gradientMap });
+      looksOf.set(material, [
+        material,
+        make(coolColor(source.color, new Color())),
+        make(frozenColor(source.color, new Color())),
+      ]);
+    }
     if (!glows) {
       const outline = new Mesh(outlineGeometry(mesh.geometry), outlineMaterial);
       outline.name = 'outline';
@@ -104,27 +156,82 @@ export class Model {
   /** Named parts of the model (`leg_0`, `wing_L`, ...), pivoting about their own origin. */
   readonly parts: Record<string, Object3D> = {};
   private readonly meshes: Mesh[] = [];
-  private readonly materials: Material[] = [];
-  private flashing = false;
+  private readonly looks: (readonly Material[])[] = [];
+  private readonly flashed: boolean[] = [];
+  private readonly wrecked: boolean[] = [];
+  private readonly partMeshes = new Map<string, number[]>();
+  private look: Look = LOOK_NORMAL;
 
   constructor(template: Object3D) {
     this.body = template.clone(true);
     this.holder.add(this.body);
+    const index = new Map<Object3D, number>();
     this.body.traverse((o) => {
       if (o.name && o !== this.body && o.name !== 'outline') this.parts[o.name] = o;
       const mesh = o as Mesh;
       if (mesh.isMesh && o.name !== 'outline') {
+        index.set(o, this.meshes.length);
         this.meshes.push(mesh);
-        this.materials.push(mesh.material as Material);
+        this.looks.push(looksOf.get(mesh.material as Material) ?? [mesh.material as Material]);
+        this.flashed.push(false);
+        this.wrecked.push(false);
       }
     });
+    for (const name of Object.keys(this.parts)) {
+      const ids: number[] = [];
+      this.parts[name].traverse((o) => {
+        const i = index.get(o);
+        if (i !== undefined) ids.push(i);
+      });
+      if (ids.length > 0) this.partMeshes.set(name, ids);
+    }
+  }
+
+  private apply(i: number): void {
+    const looks = this.looks[i];
+    this.meshes[i].material = this.flashed[i] ? flashMaterial : this.wrecked[i] ? wreckMaterial : (looks[this.look] ?? looks[0]);
+  }
+
+  private applyAll(): void {
+    for (let i = 0; i < this.meshes.length; i++) this.apply(i);
   }
 
   /** Draws the model all white (the hit flash) or back to its own colours. */
   setFlash(on: boolean): void {
-    if (on === this.flashing) return;
-    this.flashing = on;
-    for (let i = 0; i < this.meshes.length; i++) this.meshes[i].material = on ? flashMaterial : this.materials[i];
+    for (let i = 0; i < this.meshes.length; i++) {
+      if (this.flashed[i] === on) continue;
+      this.flashed[i] = on;
+      this.apply(i);
+    }
+  }
+
+  /** Flashes one named part (and anything under it) white, leaving the rest alone. */
+  setPartFlash(name: string, on: boolean): void {
+    const ids = this.partMeshes.get(name);
+    if (!ids) return;
+    for (const i of ids) {
+      if (this.flashed[i] === on) continue;
+      this.flashed[i] = on;
+      this.apply(i);
+    }
+  }
+
+  /** Draws one named part as a dark wreck (a destroyed boss part), or back to normal. */
+  setPartWreck(name: string, on: boolean): void {
+    const ids = this.partMeshes.get(name);
+    if (!ids) return;
+    for (const i of ids) {
+      if (this.wrecked[i] === on) continue;
+      this.wrecked[i] = on;
+      this.apply(i);
+    }
+  }
+
+  /** Recolours the whole model: its own colours, the slow field's cool blue, or Time Stop's icy grey. */
+  setLook(look: Look): void {
+    if (look === this.look) return;
+    this.look = look;
+    this.applyAll();
   }
 }
 

@@ -87,6 +87,65 @@ body {
 }
 
 /*
+ * The Special button, for the second thumb. Bottom right, in the strip under the field when there
+ * is one (TouchControls.layout sets the size and offsets). The meter fills it from the bottom.
+ */
+.touch-special {
+  --charge: 0%;
+  position: absolute;
+  right: max(var(--special-right, 16px), env(safe-area-inset-right));
+  bottom: max(var(--special-bottom, 16px), env(safe-area-inset-bottom));
+  display: grid;
+  place-items: center;
+  width: var(--special-size, 72px);
+  height: var(--special-size, 72px);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: linear-gradient(to top, rgb(79 240 255 / 0.4) var(--charge), var(--touch-bg) var(--charge));
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  box-shadow: inset 0 0 0 2px var(--touch-line);
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-special[data-state='ready'] {
+  background: rgb(79 240 255 / 0.4);
+  color: #fff;
+  box-shadow:
+    inset 0 0 0 3px var(--pilot),
+    0 0 18px rgb(79 240 255 / 0.7);
+  animation: special-glow 1.1s ease-in-out infinite alternate;
+}
+
+.touch-special.is-pressed {
+  transform: scale(0.94);
+}
+
+.touch-special[data-state='ready'].is-pressed {
+  background: rgb(79 240 255 / 0.7);
+}
+
+@keyframes special-glow {
+  from {
+    box-shadow:
+      inset 0 0 0 3px var(--pilot),
+      0 0 8px rgb(79 240 255 / 0.4);
+  }
+  to {
+    box-shadow:
+      inset 0 0 0 3px var(--pilot),
+      0 0 20px rgb(79 240 255 / 0.85);
+  }
+}
+
+/*
  * Menus and HUD. Pixel display face for the logo, headings, numbers and card names; a plain
  * system face for sentences. Dark only: the hive is magenta, the pilot cyan, engines warm.
  */
@@ -101,6 +160,11 @@ body {
   --pilot: #4ff0ff;
   --warm: #ffb04f;
   --danger: #ff6b6b;
+  --rare: #ffe14f;
+  --pu-spread: #ffb04f;
+  --pu-laser: #4ff0ff;
+  --pu-slow: #9b7bff;
+  --pu-helper: #4fff9b;
   --scrim: rgb(5 3 15 / 0.82);
   --font-display: 'Silkscreen', ui-monospace, 'SF Mono', Menlo, monospace;
   --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -311,6 +375,11 @@ kbd {
   outline-offset: 3px;
 }
 
+/* Two hint lines in a row sit closer together. */
+.hint + .hint {
+  margin-top: 6px;
+}
+
 @media (hover: hover) {
   .btn:hover {
     filter: brightness(1.12);
@@ -353,7 +422,7 @@ kbd {
 
 .keys {
   display: grid;
-  grid-template-columns: 4.5em minmax(0, 1fr);
+  grid-template-columns: 5.4em minmax(0, 1fr);
   gap: 6px 12px;
   margin: 0;
   font-size: 15px;
@@ -455,11 +524,24 @@ kbd {
   -webkit-tap-highlight-color: transparent;
 }
 
+.pick-card[data-rarity='rare'] {
+  border-color: var(--rare);
+  box-shadow: 0 0 10px rgb(255 225 79 / 0.3);
+}
+
 .pick-card:focus-visible,
 .pick-card.is-menu-focus {
   border-color: var(--pilot);
   box-shadow: 0 0 0 2px rgb(79 240 255 / 0.25);
   outline: none;
+}
+
+/* A focused rare keeps a little gold, so it still reads as rare. */
+.pick-card[data-rarity='rare']:focus-visible,
+.pick-card[data-rarity='rare'].is-menu-focus {
+  box-shadow:
+    0 0 0 2px rgb(79 240 255 / 0.25),
+    0 0 12px rgb(255 225 79 / 0.4);
 }
 
 .pick-name {
@@ -489,6 +571,25 @@ kbd {
 
 .pick-rarity[data-rarity='uncommon'] {
   color: var(--warm);
+}
+
+.pick-rarity[data-rarity='rare'] {
+  color: var(--rare);
+}
+
+.pick-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+
+.pick-synergy {
+  color: var(--pilot);
+}
+
+/* The Special choice reuses the pick cards, without the rarity line. */
+.special-card {
+  grid-template-rows: auto 1fr;
 }
 
 .pick-stacks {
@@ -528,6 +629,11 @@ kbd {
     grid-template-rows: auto 1fr auto;
     min-height: 170px;
     padding: 16px;
+  }
+
+  .special-card {
+    grid-template-rows: auto 1fr;
+    min-height: 150px;
   }
 
   .pick-name {
@@ -720,6 +826,212 @@ kbd {
   background: rgb(255 79 216 / 0.4);
 }
 
+/* Special meter ------------------------------------------------------------------------- */
+
+.hud-special {
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.hud-special-tag {
+  display: none;
+}
+
+.hud-special-name {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  color: var(--pilot);
+}
+
+.hud-cells {
+  display: flex;
+  gap: 2px;
+}
+
+.hud-cells i {
+  --fill: 0%;
+  display: block;
+  width: 10px;
+  height: 6px;
+  background: linear-gradient(90deg, var(--pilot) var(--fill), rgb(79 240 255 / 0.18) var(--fill));
+  box-shadow: inset 0 0 0 1px rgb(79 240 255 / 0.35);
+}
+
+.hud-hint {
+  display: none;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hud-special[data-state='ready'] .hud-special-name {
+  color: #fff;
+  text-shadow:
+    0 0 6px var(--pilot),
+    0 0 14px var(--pilot);
+  animation: special-ready 0.9s ease-in-out infinite alternate;
+}
+
+.hud-special[data-state='ready'] .hud-cells {
+  filter: drop-shadow(0 0 4px var(--pilot));
+}
+
+.hud-special[data-state='ready'] .hud-hint {
+  display: block;
+  color: var(--ink);
+}
+
+@keyframes special-ready {
+  from {
+    opacity: 0.75;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Power-up chips ------------------------------------------------------------------------- */
+
+.hud-powerups {
+  margin-top: 4px;
+}
+
+.hud-powerups-tag {
+  display: none;
+}
+
+.hud-chips {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hud-chip {
+  --chip: var(--ink);
+  width: fit-content;
+  padding: 1px 5px;
+  border: 1px solid var(--chip);
+  border-radius: 3px;
+  background: rgb(12 9 24 / 0.8);
+  color: var(--chip);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.hud-chip[data-kind='spread'] {
+  --chip: var(--pu-spread);
+}
+
+.hud-chip[data-kind='laser'] {
+  --chip: var(--pu-laser);
+}
+
+.hud-chip[data-kind='slow'] {
+  --chip: var(--pu-slow);
+}
+
+.hud-chip[data-kind='helper'] {
+  --chip: var(--pu-helper);
+}
+
+.hud-chip.is-low {
+  animation: chip-blink 0.5s steps(2, jump-none) infinite alternate;
+}
+
+@keyframes chip-blink {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+
+/* Boss bar and toast ---------------------------------------------------------------------- */
+
+.hud-boss {
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top));
+  display: grid;
+  gap: 3px;
+  text-align: center;
+}
+
+.hud-boss-name {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--hive);
+}
+
+.hud-boss-bar {
+  display: block;
+  height: 8px;
+  border: 1px solid var(--hive);
+  background: #1a0a20;
+}
+
+.hud-boss-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--hive);
+  transition: width 0.15s linear;
+}
+
+.hud-toast {
+  position: absolute;
+  top: 30%;
+  left: 6%;
+  right: 6%;
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  text-align: center;
+  animation: toast-in var(--toast-seconds, 2.6s) ease-out forwards;
+}
+
+.hud-toast-text {
+  padding: 4px 10px;
+  border: 2px solid var(--pilot);
+  border-radius: 3px;
+  background: rgb(12 9 24 / 0.82);
+  color: var(--pilot);
+  font-size: clamp(13px, 4.6vw, 20px);
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 10px rgb(79 240 255 / 0.5);
+}
+
+.hud-toast-sub {
+  max-width: 28em;
+  font-family: var(--font-body);
+  font-size: clamp(12px, 3.6vw, 15px);
+  line-height: 1.3;
+  color: var(--ink);
+}
+
+@keyframes toast-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  10% {
+    opacity: 1;
+    transform: none;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* Overlay: the top of the field, with the pause button's corner of the screen left clear. */
 .hud[data-mode='overlay'] .hud-col-left {
   top: max(8px, env(safe-area-inset-top));
@@ -736,6 +1048,16 @@ kbd {
 .hud[data-mode='overlay'] .hud-high,
 .hud[data-mode='overlay'] .hud-upgrades {
   display: none;
+}
+
+.hud[data-mode='overlay'] .hud-chips {
+  justify-items: end;
+}
+
+/* The boss bar fills the gap between the two columns. */
+.hud[data-mode='overlay'] .hud-boss {
+  left: 86px;
+  right: calc(var(--hud-inset, 0px) + 44px + 8px + 66px);
 }
 
 .hud[data-mode='overlay'] .hud-mute {
@@ -764,6 +1086,10 @@ kbd {
   justify-items: end;
 }
 
+.hud[data-mode='side'] .hud-col-left .hud-cells {
+  justify-content: flex-end;
+}
+
 .hud[data-mode='side'] .hud-col-right {
   left: 100%;
 }
@@ -787,6 +1113,72 @@ kbd {
 
 .hud[data-mode='side'] .hud-upgrade-list {
   font-size: 13px;
+}
+
+.hud[data-mode='side'] .hud-boss {
+  left: 10%;
+  right: 10%;
+  top: 14px;
+}
+
+.hud[data-mode='side'] .hud-boss-name {
+  font-size: 12px;
+}
+
+.hud[data-mode='side'] .hud-boss-bar {
+  height: 10px;
+}
+
+.hud[data-mode='side'] .hud-special {
+  gap: 6px;
+  margin-top: 0;
+}
+
+.hud[data-mode='side'] .hud-special-tag {
+  display: block;
+}
+
+.hud[data-mode='side'] .hud-special-name {
+  font-size: clamp(14px, 1.6vw, 20px);
+}
+
+.hud[data-mode='side'] .hud-cells {
+  gap: 3px;
+}
+
+.hud[data-mode='side'] .hud-cells i {
+  width: 16px;
+  height: 9px;
+}
+
+.hud[data-mode='side'] .hud-hint {
+  display: block;
+  font-size: 11px;
+}
+
+.hud[data-mode='side'] .hud-special[data-state='charging'] .hud-hint {
+  color: var(--muted);
+}
+
+.hud[data-mode='side'] .hud-powerups {
+  margin-top: 0;
+}
+
+.hud[data-mode='side'] .hud-powerups-tag {
+  display: block;
+}
+
+.hud[data-mode='side'] .hud-chips {
+  gap: 6px;
+}
+
+.hud[data-mode='side'] .hud-chip {
+  padding: 2px 8px;
+  font-size: 13px;
+}
+
+.hud[data-mode='side'] .hud-toast {
+  top: 24%;
 }
 
 .hud[data-mode='side'] .hud-mute {
@@ -858,5 +1250,25 @@ kbd {
 
   .btn:active {
     transform: none;
+  }
+
+  .touch-special[data-state='ready'],
+  .hud-special[data-state='ready'] .hud-special-name,
+  .hud-chip.is-low {
+    animation: none;
+  }
+
+  .hud-toast {
+    animation-name: toast-still;
+  }
+
+  @keyframes toast-still {
+    0%,
+    80% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
   }
 }

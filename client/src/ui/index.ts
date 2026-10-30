@@ -5,11 +5,13 @@ import '@fontsource/silkscreen/700.css';
 
 export { Banner } from './banner';
 export { byId, MenuCard } from './card';
+export { bossDownHeading, waveClearHeading } from './format';
 export { GameOverCard, type GameOverActions, type RunResult } from './gameover';
 export { Hud } from './hud';
 export { HowToCard } from './howto';
 export { PauseCard, type PauseActions } from './pause';
 export { RecordsCard } from './records';
+export { SpecialCard } from './special';
 export { SettingsCard, type SettingsOptions } from './settings';
 export { TitleCard, type TitleActions } from './title';
-export { UpgradeCard } from './upgrade';
+export { UpgradeCard, type UpgradeShowOptions } from './upgrade';

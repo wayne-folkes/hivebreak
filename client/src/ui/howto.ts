@@ -1,6 +1,7 @@
 import { byId, MenuCard } from './card';
 
-// How to play: the controls for each device and a short paragraph on waves, upgrades and combo.
+// How to play: the controls for each device and a short paragraph each on waves and combo, the Special,
+// power-ups, rare upgrades and synergies.
 // It's static text in index.html, so the card only wires up Back.
 //
 // main.ts: `new HowToCard(onBack)`; `show()`; `handle(controls)` each frame while on top.

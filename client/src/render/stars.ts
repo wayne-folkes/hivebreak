@@ -49,10 +49,16 @@ export class Starfield {
   private readonly total: number;
   private readonly geometry = new BufferGeometry();
   private readonly white = new Color(0xc1c3eb);
+  private readonly skyMaterial: MeshBasicMaterial;
+  private readonly skyColor = new Color(SKY);
+  private readonly tintColor = new Color();
+  private readonly skyTarget = new Color();
+  private tintAmount = 0;
 
   constructor() {
     this.camera.position.z = 5;
-    const sky = new Mesh(new PlaneGeometry(FIELD_WIDTH, FIELD_HEIGHT), new MeshBasicMaterial({ color: SKY, depthWrite: false }));
+    this.skyMaterial = new MeshBasicMaterial({ color: SKY, depthWrite: false });
+    const sky = new Mesh(new PlaneGeometry(FIELD_WIDTH, FIELD_HEIGHT), this.skyMaterial);
     sky.position.z = -5;
     this.scene.add(sky);
     this.total = LAYERS.reduce((n, l) => n + l.count, 0);
@@ -90,19 +96,35 @@ export class Starfield {
     this.update(0);
   }
 
+  /**
+   * Washes the sky toward `sky` and the stars toward `stars`: 0 leaves them as they are, 1 is
+   * fully tinted. The slow field and Time Stop use it for a subtle screen tint behind everything.
+   * The palette pass snaps the sky to a palette colour, so pick `sky` from the palette (and a
+   * dark one: a bright sky would flood the screen).
+   */
+  setTint(sky: number, stars: number, amount: number): void {
+    this.tintColor.setHex(stars);
+    this.tintAmount = Math.min(1, Math.max(0, amount));
+    this.skyMaterial.color.copy(this.skyColor).lerp(this.skyTarget.setHex(sky), this.tintAmount);
+  }
+
   /** Moves the stars to where they are `time` seconds into the run. */
   update(time: number): void {
     const pos = this.positions;
     const col = this.colors;
+    const tint = this.tintAmount * 0.7;
     for (let i = 0; i < this.total; i++) {
       // Whole pixels only, centred on the pixel, so each star fills exactly one.
       const row = Math.floor((this.startRow[i] + time * this.speed[i]) % FIELD_HEIGHT);
       pos[i * 3] = this.column[i] - FIELD_WIDTH / 2 + 0.5;
       pos[i * 3 + 1] = FIELD_HEIGHT / 2 - row - 0.5;
       const on = this.twinkles[i] === 1 && Math.sin(time * 4 + this.phase[i]) > 0.92;
-      col[i * 3] = on ? this.white.r : this.baseColors[i * 3];
-      col[i * 3 + 1] = on ? this.white.g : this.baseColors[i * 3 + 1];
-      col[i * 3 + 2] = on ? this.white.b : this.baseColors[i * 3 + 2];
+      const r = on ? this.white.r : this.baseColors[i * 3];
+      const g = on ? this.white.g : this.baseColors[i * 3 + 1];
+      const b = on ? this.white.b : this.baseColors[i * 3 + 2];
+      col[i * 3] = r + (this.tintColor.r - r) * tint;
+      col[i * 3 + 1] = g + (this.tintColor.g - g) * tint;
+      col[i * 3 + 2] = b + (this.tintColor.b - b) * tint;
     }
     this.geometry.attributes.position.needsUpdate = true;
     this.geometry.attributes.color.needsUpdate = true;

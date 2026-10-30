@@ -3,18 +3,26 @@ import type { Fit } from '../game/playfield';
 import { fitPlayfield } from '../game/playfield';
 import type { RunRecord } from '../game/records';
 import {
+  bossBarPercent,
+  bossDownHeading,
   comboLabel,
   endTitle,
   formatDate,
   formatScore,
   hudLayout,
+  meterCells,
   pickReady,
+  pickTags,
+  powerUpChips,
   PAUSE_RESERVE,
   PICK_GUARD_SECONDS,
   rankBadge,
   recordRowText,
+  specialHint,
   stackLabel,
   summarizeUpgrades,
+  synergyToast,
+  waveClearHeading,
   waveLabel,
 } from './format';
 
@@ -130,5 +138,100 @@ describe('hudLayout', () => {
 
   it('stays overlaid when the sides are too narrow', () => {
     expect(hudLayout(fitPlayfield(640, 700, 1), 640).side).toBe(false);
+  });
+});
+
+describe('meterCells', () => {
+  it('fills cells left to right', () => {
+    expect(meterCells(0)).toEqual([0, 0, 0, 0, 0]);
+    expect(meterCells(1)).toEqual([1, 1, 1, 1, 1]);
+    const half = meterCells(0.5);
+    expect(half.slice(0, 2)).toEqual([1, 1]);
+    expect(half[2]).toBeCloseTo(0.5, 9);
+    expect(half.slice(3)).toEqual([0, 0]);
+  });
+
+  it('keeps each cell between 0 and 1, and copes with bad numbers', () => {
+    expect(meterCells(3)).toEqual([1, 1, 1, 1, 1]);
+    expect(meterCells(-1)).toEqual([0, 0, 0, 0, 0]);
+    expect(meterCells(Number.NaN)).toEqual([0, 0, 0, 0, 0]);
+  });
+});
+
+describe('specialHint', () => {
+  it('names the key for each device', () => {
+    expect(specialHint('keyboard')).toBe('X');
+    expect(specialHint('gamepad')).toBe('B / LT');
+    expect(specialHint('touch')).toBe('tap the button');
+  });
+});
+
+describe('powerUpChips', () => {
+  it('counts down in whole seconds, rounding up', () => {
+    const chips = powerUpChips([
+      { kind: 'spread', timeLeft: 5.2 },
+      { kind: 'laser', timeLeft: 0.1 },
+    ]);
+    expect(chips.map((c) => c.label)).toEqual(['SPREAD 6s', 'LASER 1s']);
+  });
+
+  it('keeps the order they run in and flags the ones about to run out', () => {
+    const chips = powerUpChips([
+      { kind: 'helper', timeLeft: 9 },
+      { kind: 'slow', timeLeft: 2.5 },
+    ]);
+    expect(chips.map((c) => c.kind)).toEqual(['helper', 'slow']);
+    expect(chips.map((c) => c.low)).toEqual([false, true]);
+  });
+
+  it('skips a power-up with no time left, and shows nothing for none', () => {
+    expect(powerUpChips([{ kind: 'spread', timeLeft: 0 }])).toEqual([]);
+    expect(powerUpChips([])).toEqual([]);
+  });
+});
+
+describe('bossBarPercent', () => {
+  it('turns bossHealth into a whole percentage', () => {
+    expect(bossBarPercent(1)).toBe(100);
+    expect(bossBarPercent(0.624)).toBe(62);
+    expect(bossBarPercent(0)).toBe(0);
+  });
+
+  it('clamps and copes with bad numbers', () => {
+    expect(bossBarPercent(1.5)).toBe(100);
+    expect(bossBarPercent(-0.2)).toBe(0);
+    expect(bossBarPercent(Number.NaN)).toBe(0);
+  });
+});
+
+describe('pick headings', () => {
+  it('reads WAVE n CLEAR after a wave and the boss name after a boss', () => {
+    expect(waveClearHeading(3)).toBe('WAVE 3 CLEAR');
+    expect(bossDownHeading('broodMother')).toBe('BROOD MOTHER DOWN');
+  });
+});
+
+describe('pickTags', () => {
+  it('shows the rarity word when no synergy is completed', () => {
+    expect(pickTags('common', null)).toEqual({ rarity: 'common', synergy: null });
+    expect(pickTags('rare', null)).toEqual({ rarity: 'rare', synergy: null });
+  });
+
+  it('puts the synergy hint in place of the rarity word', () => {
+    expect(pickTags('uncommon', 'lance')).toEqual({ rarity: null, synergy: 'completes LANCE' });
+  });
+
+  it('keeps the word "rare" beside a synergy hint', () => {
+    expect(pickTags('rare', 'seekers')).toEqual({ rarity: 'rare', synergy: 'completes SEEKERS' });
+  });
+});
+
+describe('synergyToast', () => {
+  it('has the synergy name in capitals over its description', () => {
+    expect(synergyToast('lance')).toEqual({
+      text: 'SYNERGY: LANCE',
+      sub: 'Every volley adds a bolt that pierces everything.',
+    });
+    expect(synergyToast('chainReaction').text).toBe('SYNERGY: CHAIN REACTION');
   });
 });

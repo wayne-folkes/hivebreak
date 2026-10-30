@@ -1,19 +1,49 @@
 import { BoxGeometry, DoubleSide, Group, Mesh, MeshBasicMaterial, PlaneGeometry, RingGeometry } from 'three';
 import type { Scene } from 'three';
-import type { AlienKind } from '../game/types';
+import type { AlienKind, PowerUpKind } from '../game/types';
+import { WavePool } from './waves';
 
 // Everything that happens on top of the models: pixel-cube explosions and sparks, expanding
-// rings, the wave-clear flash and screen shake. Particles and rings are pooled (built once,
-// then shown, moved and hidden), so nothing is allocated while playing.
+// rings and waves, the wave-clear flash, the boss's multi-burst death and screen shake. Particles
+// and rings are pooled (built once, then shown, moved and hidden), so nothing is allocated
+// while playing.
 
-const MAX_PARTICLES = 220;
+const MAX_PARTICLES = 360;
+/** Bursts a boss's death can have queued at once. */
+const MAX_PENDING = 24;
 const MAX_RINGS = 4;
 
 const FIRE = [0xfff27a, 0xffd36a, 0xffb04f, 0xff6a3d, 0xffffff];
 const KIND_COLOR: Record<AlienKind, number> = { drone: 0xb04cff, warden: 0xff4fd8, diver: 0xff6a3d, carrier: 0x3fd6a0 };
 const SHIP_BURST = [0xffffff, 0x9ffbff, 0x4ff0ff, 0xffd36a, 0xff6a3d];
 const SPARK = [0xffffff, 0xfff27a, 0xffd36a];
-const COLORS = [...new Set([...FIRE, ...Object.values(KIND_COLOR), ...SHIP_BURST, ...SPARK])];
+/** The colour of each power-up's icon, for pickup sparkles. */
+export const POWER_UP_COLOR: Record<PowerUpKind, number> = { spread: 0xffb04f, laser: 0x4ff0ff, slow: 0x9b7bff, helper: 0x4fff9b };
+const POWER_UP_SPARK: Record<PowerUpKind, readonly number[]> = {
+  spread: [0xffb04f, 0xffe164, 0xffffff],
+  laser: [0x4ff0ff, 0x9dfafd, 0xffffff],
+  slow: [0x9b7bff, 0xc1c3eb, 0xffffff],
+  helper: [0x4fff9b, 0xd3f1ff, 0xffffff],
+};
+/** Cyan and white, for the Shield Burst and the core's shield. */
+export const SHIELD_SPARK: readonly number[] = [0xffffff, 0x9dfafd, 0x52ddeb];
+/** The Brood Mother's armour, its core and its fire. */
+const PLATE_SHARDS = [0xc1c3eb, 0x9391b9, 0x604da8, 0xffffff];
+const CORE_SPARK = [0xff56da, 0xffffff, 0xff8a45];
+const DEATH_BURST = [0xffffff, 0xfff27a, 0xffd36a, 0xff8a45, 0xff56da, 0xac55f7];
+const COLORS = [
+  ...new Set([
+    ...FIRE,
+    ...Object.values(KIND_COLOR),
+    ...SHIP_BURST,
+    ...SPARK,
+    ...Object.values(POWER_UP_SPARK).flat(),
+    ...SHIELD_SPARK,
+    ...PLATE_SHARDS,
+    ...CORE_SPARK,
+    ...DEATH_BURST,
+  ]),
+];
 
 const EXPLOSION_SECONDS = 0.5;
 const SHAKE_SECONDS = 0.3;
@@ -21,6 +51,8 @@ const SHAKE_PIXELS = 3;
 const RING_SECONDS = 0.3;
 const FLASH_SECONDS = 0.25;
 const FLASH_PEAK = 0.3;
+/** How long the boss's death lasts, from the first burst to the last big one, in seconds. */
+export const BOSS_DEATH_SECONDS = 1.2;
 
 export class Effects {
   private readonly group = new Group();
@@ -41,9 +73,20 @@ export class Effects {
   private readonly ringRadius = new Float32Array(MAX_RINGS);
   private ringCursor = 0;
 
+  private readonly waves: WavePool;
+
+  private readonly pendingDelay = new Float32Array(MAX_PENDING).fill(-1);
+  private readonly pendingX = new Float32Array(MAX_PENDING);
+  private readonly pendingY = new Float32Array(MAX_PENDING);
+  private readonly pendingBig = new Uint8Array(MAX_PENDING);
+  private pendingCursor = 0;
+
   private readonly flashMesh: Mesh;
   private flashLeft = 0;
+  private flashTotal = FLASH_SECONDS;
+  private flashPeak = FLASH_PEAK;
   private shakeLeft = 0;
+  private shakeTotal = SHAKE_SECONDS;
   private shakeScale = 0;
   /** A tiny random source of our own, so effects never touch the sim's seeded RNG. */
   private seed = 12345;
@@ -77,6 +120,7 @@ export class Effects {
     this.flashMesh.renderOrder = 100;
     this.flashMesh.visible = false;
     this.group.add(this.flashMesh);
+    this.waves = new WavePool(this.group);
     scene.add(this.group);
   }
 
@@ -116,11 +160,26 @@ export class Effects {
     this.emit(x, y, 5, SPARK, 55, 1.6, 0.25);
   }
 
+  /** A small burst of sparks in the given colours (shot reflections, shield hits, pickups). */
+  sparksIn(x: number, y: number, colors: readonly number[], count = 5, speed = 55): void {
+    this.emit(x, y, count, colors, speed, 1.8, 0.28);
+  }
+
+  /** A falling pickup appeared: a little sparkle in its colour. */
+  pickupSparkle(x: number, y: number, kind: PowerUpKind): void {
+    this.emit(x, y, 4, POWER_UP_SPARK[kind], 35, 1.6, 0.35);
+  }
+
+  /** A ship caught a pickup: a ring of sparkles in its colour and a ring wave. */
+  pickupCaught(x: number, y: number, kind: PowerUpKind): void {
+    this.emit(x, y, 14, POWER_UP_SPARK[kind], 80, 2.4, 0.5);
+    this.waves.start(x, y, 6, 26, 0.3, 2, POWER_UP_COLOR[kind]);
+  }
+
   /** The ship was hit: a bigger burst and a shake. */
   shipHit(x: number, y: number): void {
     this.emit(x, y, 26, SHIP_BURST, 95, 3.2, 0.6);
-    this.shakeLeft = SHAKE_SECONDS;
-    this.shakeScale = SHAKE_PIXELS;
+    this.kick(SHAKE_SECONDS, SHAKE_PIXELS);
   }
 
   /** The shield absorbed a hit: a ring flashes out from the ship. */
@@ -132,13 +191,81 @@ export class Effects {
     this.rings[i].position.x = x;
     this.rings[i].position.y = y;
     this.rings[i].visible = true;
-    this.shakeLeft = Math.max(this.shakeLeft, SHAKE_SECONDS / 3);
-    this.shakeScale = Math.max(this.shakeScale, 1);
+    this.kick(SHAKE_SECONDS / 3, 1);
   }
 
-  /** A brief wash of white over the field. */
-  waveFlash(): void {
-    this.flashLeft = FLASH_SECONDS;
+  /** A brief wash of colour over the field (white for a wave clear). */
+  waveFlash(color = 0xffffff, peak = FLASH_PEAK, seconds = FLASH_SECONDS): void {
+    (this.flashMesh.material as MeshBasicMaterial).color.setHex(color);
+    this.flashLeft = this.flashTotal = seconds;
+    this.flashPeak = peak;
+  }
+
+  /** A ring of constant thickness growing from `from` to `to` art pixels. */
+  wave(x: number, y: number, from: number, to: number, seconds: number, thick: number, color: number): void {
+    this.waves.start(x, y, from, to, seconds, thick, color);
+  }
+
+  /** A Pulse Bomb: a bright shockwave sweeping the whole field from the ship, and a shake. */
+  pulse(x: number, y: number): void {
+    this.waves.start(x, y, 4, 400, 0.6, 5, 0xd3f1ff);
+    this.emit(x, y, 18, SHIELD_SPARK, 120, 2.4, 0.5);
+    this.kick(SHAKE_SECONDS, SHAKE_PIXELS);
+  }
+
+  /** A bomb-on-kill burst of this radius: a quick ring and a scatter of fire. */
+  blast(x: number, y: number, radius: number): void {
+    this.waves.start(x, y, radius * 0.3, radius, 0.28, 2, 0xffd36a);
+    this.emit(x, y, Math.min(14, 4 + Math.round(radius / 6)), FIRE, radius * 3.2, 2.4, 0.4);
+  }
+
+  /** A boss part blew off: a hefty burst of its own shards and fire, and a small shake. */
+  partBurst(x: number, y: number, shards: readonly number[] = PLATE_SHARDS): void {
+    this.emit(x, y, 14, FIRE, 85, 3.6, 0.55);
+    this.emit(x, y, 9, shards, 70, 3.2, 0.6);
+    this.kick(SHAKE_SECONDS * 0.8, 2);
+  }
+
+  /** The boss's armour is gone and its core is bare: a burst in the core's colours. */
+  coreBare(x: number, y: number): void {
+    this.emit(x, y, 14, CORE_SPARK, 90, 2.6, 0.5);
+    this.waves.start(x, y, 6, 40, 0.35, 2, 0xff56da);
+  }
+
+  /**
+   * The boss dies: a string of bursts all over its body for `BOSS_DEATH_SECONDS`, then a huge
+   * one, with a long shake and a white flash at the end. `halfWidth` is half its span.
+   */
+  bigExplosion(x: number, y: number, halfWidth: number): void {
+    for (let n = 0; n < 16; n++) {
+      const u = n / 16;
+      this.queueBurst(
+        x + (this.random() * 2 - 1) * halfWidth,
+        y + (this.random() * 2 - 1) * 12,
+        u * BOSS_DEATH_SECONDS * 0.9 + this.random() * 0.05,
+        false,
+      );
+    }
+    this.queueBurst(x, y, BOSS_DEATH_SECONDS, true);
+    this.kick(BOSS_DEATH_SECONDS + 0.5, 3);
+    this.emit(x, y, 20, DEATH_BURST, 100, 3.4, 0.6);
+  }
+
+  private queueBurst(x: number, y: number, delay: number, big: boolean): void {
+    const i = this.pendingCursor;
+    this.pendingCursor = (this.pendingCursor + 1) % MAX_PENDING;
+    this.pendingDelay[i] = delay;
+    this.pendingX[i] = x;
+    this.pendingY[i] = y;
+    this.pendingBig[i] = big ? 1 : 0;
+  }
+
+  /** Shakes the screen for `seconds`, by up to `pixels`, unless it is already shaking harder. */
+  private kick(seconds: number, pixels: number): void {
+    const now = this.shakeLeft > 0 ? this.shakeScale * (this.shakeLeft / this.shakeTotal) : 0;
+    if (pixels < now) return;
+    this.shakeLeft = this.shakeTotal = seconds;
+    this.shakeScale = pixels;
   }
 
   /** Advances all effects by `dt` seconds. */
@@ -178,11 +305,30 @@ export class Effects {
       (ring.material as MeshBasicMaterial).opacity = 1 - u;
     }
 
+    for (let i = 0; i < MAX_PENDING; i++) {
+      if (this.pendingDelay[i] < 0) continue;
+      this.pendingDelay[i] -= dt;
+      if (this.pendingDelay[i] >= 0) continue;
+      this.pendingDelay[i] = -1;
+      const x = this.pendingX[i];
+      const y = this.pendingY[i];
+      if (this.pendingBig[i] === 1) {
+        this.emit(x, y, 44, DEATH_BURST, 150, 4.6, 0.8);
+        this.emit(x, y, 24, FIRE, 90, 3.6, 0.7);
+        this.waves.start(x, y, 8, 130, 0.5, 4, 0xffffff);
+        this.waveFlash(0xffffff, 0.4, 0.3);
+      } else {
+        this.emit(x, y, 11, FIRE, 80, 4.4, 0.6);
+        this.emit(x, y, 5, DEATH_BURST, 60, 3.2, 0.55);
+      }
+    }
+    this.waves.update(dt);
+
     if (this.flashLeft > 0) {
       this.flashLeft = Math.max(0, this.flashLeft - dt);
-      const u = this.flashLeft / FLASH_SECONDS;
+      const u = this.flashLeft / this.flashTotal;
       this.flashMesh.visible = this.flashLeft > 0;
-      (this.flashMesh.material as MeshBasicMaterial).opacity = u * u * FLASH_PEAK;
+      (this.flashMesh.material as MeshBasicMaterial).opacity = u * u * this.flashPeak;
     }
 
     if (this.shakeLeft > 0) this.shakeLeft = Math.max(0, this.shakeLeft - dt);
@@ -194,7 +340,7 @@ export class Effects {
       out.x = out.y = 0;
       return;
     }
-    const strength = this.shakeScale * (this.shakeLeft / SHAKE_SECONDS);
+    const strength = this.shakeScale * (this.shakeLeft / this.shakeTotal);
     out.x = Math.round((this.random() * 2 - 1) * strength);
     out.y = Math.round((this.random() * 2 - 1) * strength);
   }
@@ -206,5 +352,7 @@ export class Effects {
     this.flashMesh.visible = false;
     this.flashLeft = 0;
     this.shakeLeft = 0;
+    this.pendingDelay.fill(-1);
+    this.waves.clear();
   }
 }

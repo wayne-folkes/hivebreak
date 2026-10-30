@@ -1,20 +1,44 @@
+import { bossHealth } from '../game/boss';
+import type { SourceKind } from '../game/controls';
 import { WAVE_COUNT } from '../game/waves';
 import type { Fit } from '../game/playfield';
-import type { RunState, UpgradeId } from '../game/types';
+import type { PlayerState, RunState, SynergyId, UpgradeId } from '../game/types';
 import { byId } from './card';
-import { comboLabel, formatScore, hudLayout, summarizeUpgrades, waveLabel } from './format';
+import {
+  BOSS_NAMES,
+  bossBarPercent,
+  comboLabel,
+  formatScore,
+  hudLayout,
+  meterCells,
+  METER_CELLS,
+  powerUpChips,
+  SPECIAL_SHORT,
+  specialHint,
+  summarizeUpgrades,
+  synergyToast,
+  waveLabel,
+} from './format';
 
-// The in-run display: score, combo, wave, lives and the mute button. On a phone these overlay the
-// top of the field (score and combo left, wave and lives right, clear of the touch pause button
-// in the screen's corner). With room either side of the field they move out into side panels:
-// score, combo and high score on the left; wave, lives and the upgrades taken on the right.
+// The in-run display: score, combo, wave, lives, the Special meter, power-up timer chips, the boss
+// bar, a toast line and the mute button. On a phone these overlay the top of the field (score,
+// combo and the Special meter left; wave, lives and power-up chips right, clear of the touch pause
+// button in the screen's corner; the boss bar between them). With room either side of the field
+// they move out into side panels: score, combo, high score and the Special on the left; wave,
+// lives, the upgrades taken and power-ups on the right.
 //
 // main.ts: `new Hud(onMute)`; `layout(fit)` with the playfield's fit on start and on every resize;
 // `setBest(score)` with the saved best, `setMuted(muted)` whenever sound changes (this is the
 // game's only mute button); `setVisible(true)` while a run is on screen, false behind the title;
-// `update(run)` once per frame, which is cheap because it only touches the DOM when a value changes.
+// `update(run, controls.lastUsed)` once per frame, which is cheap because it only touches the DOM
+// when a value changes (the second argument picks the Special's key hint: X, B / LT or "tap the
+// button"). The Special meter, chips and boss bar all come from `run`. For the synergy banner, call
+// `synergyUnlocked(id)` on a `synergyUnlocked` event; `toast(text, sub?)` shows any short line.
 
 const MAX_LIFE_ICONS = 5;
+
+/** How long a toast stays up, seconds. */
+const TOAST_SECONDS = 2.6;
 
 export class Hud {
   private readonly root = byId('hud');
@@ -27,6 +51,21 @@ export class Hud {
   private readonly lives = byId('hud-lives');
   private readonly upgrades = byId('hud-upgrades');
   private readonly mute = byId<HTMLButtonElement>('hud-mute');
+  private readonly special = byId('hud-special');
+  private readonly specialName = byId('hud-special-name');
+  private readonly specialCells = byId('hud-special-cells');
+  private readonly specialHint = byId('hud-special-hint');
+  private readonly cells = [...this.specialCells.querySelectorAll<HTMLElement>('i')];
+  private readonly powerUpStat = byId('hud-powerups-stat');
+  private readonly powerUpList = byId('hud-powerups');
+  private readonly boss = byId('hud-boss');
+  private readonly bossName = byId('hud-boss-name');
+  private readonly bossBar = byId('hud-boss-bar');
+  private readonly bossFill = byId('hud-boss-fill');
+  private readonly toastEl = byId('hud-toast');
+  private readonly toastText = byId('hud-toast-text');
+  private readonly toastSub = byId('hud-toast-sub');
+  private toastTimer = 0;
 
   // The last values drawn, so update() can skip untouched parts of the DOM.
   private shownScore = -1;
@@ -35,6 +74,9 @@ export class Hud {
   private shownWave = -1;
   private shownLives = -1;
   private shownUpgrades = -1;
+  private shownSpecial = '';
+  private shownChips = '';
+  private shownBoss = -1;
   private best = 0;
 
   constructor(onMute: () => void) {
@@ -49,6 +91,32 @@ export class Hud {
 
   setVisible(visible: boolean): void {
     this.root.hidden = !visible;
+    if (!visible) this.clearToast();
+  }
+
+  /** A short line near the top of the field, with an optional smaller line under it. Replaces any toast showing. */
+  toast(text: string, sub?: string, seconds = TOAST_SECONDS): void {
+    window.clearTimeout(this.toastTimer);
+    this.toastText.textContent = text;
+    this.toastSub.textContent = sub ?? '';
+    this.toastSub.hidden = !sub;
+    // Taking the element out and putting it back restarts the animation, even for the same text.
+    this.toastEl.hidden = true;
+    void this.toastEl.offsetWidth;
+    this.toastEl.style.setProperty('--toast-seconds', `${seconds}s`);
+    this.toastEl.hidden = false;
+    this.toastTimer = window.setTimeout(() => this.clearToast(), seconds * 1000);
+  }
+
+  clearToast(): void {
+    window.clearTimeout(this.toastTimer);
+    this.toastEl.hidden = true;
+  }
+
+  /** The banner for a `synergyUnlocked` event: "SYNERGY: LANCE" over what it does. */
+  synergyUnlocked(id: SynergyId): void {
+    const { text, sub } = synergyToast(id);
+    this.toast(text, sub, TOAST_SECONDS + 0.6);
   }
 
   /** The best saved score, shown as "High" in the side panel. A run beating it moves it up live. */
@@ -75,7 +143,7 @@ export class Hud {
     style.setProperty('--hud-inset', `${mode.rightInset}px`);
   }
 
-  update(run: RunState): void {
+  update(run: RunState, device: SourceKind = 'keyboard'): void {
     const player = run.players[0];
 
     if (run.score !== this.shownScore) {
@@ -116,6 +184,69 @@ export class Hud {
       this.shownUpgrades = taken;
       this.drawUpgrades(player?.upgrades ?? []);
     }
+
+    this.drawSpecial(player, device);
+    this.drawPowerUps(player);
+    this.drawBoss(run);
+  }
+
+  /** The Special meter: hidden until one is chosen; "READY" and a key hint once full. */
+  private drawSpecial(player: PlayerState | undefined, device: SourceKind): void {
+    const id = player?.special ?? null;
+    if (!player || id === null) {
+      if (this.shownSpecial !== 'none') {
+        this.shownSpecial = 'none';
+        this.special.hidden = true;
+      }
+      return;
+    }
+    const cells = meterCells(player.specialCharge);
+    const ready = cells[cells.length - 1] >= 1;
+    // Cells only change a visible amount in whole-percent steps, so key the cache on those.
+    const key = `${id}|${device}|${Math.floor(player.specialCharge * 100)}|${ready}`;
+    if (key === this.shownSpecial) return;
+    this.shownSpecial = key;
+    const name = SPECIAL_SHORT[id].toUpperCase();
+    this.special.hidden = false;
+    this.special.dataset.state = ready ? 'ready' : 'charging';
+    this.specialName.textContent = ready ? `${name} READY` : name;
+    this.specialHint.textContent = specialHint(device);
+    this.specialCells.setAttribute('aria-label', ready ? `Special ready` : `Special ${Math.floor(player.specialCharge * 100)}% charged`);
+    for (let i = 0; i < METER_CELLS; i++) this.cells[i]?.style.setProperty('--fill', `${Math.round(cells[i] * 100)}%`);
+  }
+
+  /** One chip per running power-up, counting down in whole seconds. */
+  private drawPowerUps(player: PlayerState | undefined): void {
+    const chips = powerUpChips(player?.powerUps ?? []);
+    const key = chips.map((c) => `${c.kind}${c.seconds}${c.low ? '!' : ''}`).join(',');
+    if (key === this.shownChips) return;
+    this.shownChips = key;
+    this.powerUpStat.hidden = chips.length === 0;
+    this.powerUpList.replaceChildren(
+      ...chips.map((c) => {
+        const li = document.createElement('li');
+        li.className = c.low ? 'hud-chip is-low' : 'hud-chip';
+        li.dataset.kind = c.kind;
+        li.textContent = c.label;
+        return li;
+      }),
+    );
+  }
+
+  /** The boss bar: name and health while a boss stands, gone once it is dead. */
+  private drawBoss(run: RunState): void {
+    const boss = run.boss;
+    const health = boss ? bossHealth(boss) : 0;
+    // A boss with nothing left is dead (or about to be removed); hide the bar either way. A sliver
+    // of health still shows as 1%.
+    const shown = health > 0 ? Math.max(1, bossBarPercent(health)) : -1;
+    if (shown === this.shownBoss) return;
+    this.shownBoss = shown;
+    this.boss.hidden = shown < 0;
+    if (shown < 0 || !boss) return;
+    this.bossName.textContent = BOSS_NAMES[boss.kind].toUpperCase();
+    this.bossFill.style.width = `${shown}%`;
+    this.bossBar.setAttribute('aria-valuenow', String(shown));
   }
 
   /** Restarts the combo's pop animation. */
