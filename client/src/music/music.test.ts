@@ -553,6 +553,24 @@ describe('stinger routing', () => {
     }
   });
 
+  it('fades a sounding stinger out as the next one starts', () => {
+    const { ctx, raw, nodes } = fakeContext();
+    const music = new Music(undefined, tracks, stingers);
+    music.attach(ctx);
+    music.play('sector1');
+    run(raw, 1);
+    const before = nodes.createGain.length;
+    music.stinger('waveClear');
+    const first = nodes.createGain[before];
+    run(raw, 0.3);
+    music.stinger('upgrade');
+    const fade = calls(first, 'gain', 'setTargetAtTime');
+    expect(fade).toHaveLength(1);
+    expect(fade[0][0]).toBe(0);
+    // It fades from the new stinger's start, not before.
+    expect(fade[0][1]).toBeGreaterThanOrEqual(ctx.currentTime);
+  });
+
   it('ignores new stingers while an ending stinger sounds, and allows them again after a play()', () => {
     const { ctx, raw, created } = fakeContext();
     const music = new Music(undefined, tracks, stingers);

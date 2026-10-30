@@ -244,7 +244,8 @@ export class Music {
    * under it and comes back, or, for an ending stinger (victory, game over), fades out and stays
    * stopped until the next play(). On a slowed track it doesn't wait for a slow beat: it uses
    * the track's normal tempo, and starts at once if that beat is more than half a second away.
-   * While an ending stinger is sounding, new stingers are ignored.
+   * While an ending stinger is sounding, new stingers are ignored; otherwise a new stinger fades
+   * out one still sounding as it starts.
    */
   stinger(id: StingerId): void {
     const g = this.graph;
@@ -256,6 +257,8 @@ export class Music {
     const at = track ? stingerStart(track.lastBeatAt, track.unscaledBeatSec, now) : now + 0.03;
     const length = stingerSeconds(parsed) + STINGER_TAIL;
 
+    // One stinger at a time: one still sounding (a wave clear under a quick upgrade pick) fades as this one starts.
+    this.fadeStingers(at);
     if (this.audible()) this.playStinger(g, parsed, at, length);
     if (parsed.stinger.ends) this.endingUntil = at + length;
 
@@ -493,12 +496,12 @@ export class Music {
     }
   }
 
-  /** Fades out the stingers still sounding, to be disconnected once they are silent. */
-  private fadeStingers(now: number): void {
+  /** Fades out the stingers still sounding from `from` (AudioContext seconds), to be disconnected once they are silent. */
+  private fadeStingers(from: number): void {
     for (const st of this.sounding) {
-      if (st.endAt <= now + STINGER_FADE) continue;
-      st.gain.gain.setTargetAtTime(0, now, STINGER_FADE / 5);
-      st.endAt = now + STINGER_FADE;
+      if (st.endAt <= from + STINGER_FADE) continue;
+      st.gain.gain.setTargetAtTime(0, from, STINGER_FADE / 5);
+      st.endAt = from + STINGER_FADE;
     }
     this.endingUntil = 0;
   }

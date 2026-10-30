@@ -40,8 +40,13 @@ describe('musicState: which track', () => {
   });
 
   it('keeps the run track through the upgrade pick, until the next wave starts', () => {
-    expect(musicState('pick', runAt(4, 'upgradePick')).track).toBe('boss');
     expect(musicState('pick', runAt(2, 'upgradePick')).track).toBe('sector1');
+    expect(musicState('pick', runAt(3, 'upgradePick')).track).toBe('sector1');
+  });
+
+  it('moves on to the next sector, calm, under the upgrade card once a boss is beaten', () => {
+    const state = musicState('pick', runAt(4, 'upgradePick'));
+    expect(state).toMatchObject({ track: 'sector2', intensity: 0, bossPhase: 1, danger: false });
   });
 
   it('is silent once the run is won or lost, and on the game-over card', () => {

@@ -50,14 +50,22 @@ export function waveProgress(run: RunState): number {
   return clamp01(1 - alive / start);
 }
 
+/** The track a wave plays: the boss theme on a boss wave, otherwise its sector's. */
+function trackFor(wave: number): TrackId {
+  const def = WAVES[wave];
+  return def.boss ? 'boss' : def.sector === 2 ? 'sector2' : 'sector1';
+}
+
 /** What the music should be doing for this mode and run. */
 export function musicState(mode: Mode, run: RunState): MusicState {
   if (mode === 'title' || mode === 'special') return { track: 'title', ...QUIET };
   // The game-over card, and a run that is won or lost (its ending stinger fades the track).
   if (mode === 'over' || run.phase === 'won' || run.phase === 'lost') return { track: null, ...QUIET };
 
-  const def = WAVES[run.wave];
-  const track: TrackId = def.boss ? 'boss' : def.sector === 2 ? 'sector2' : 'sector1';
+  // With a boss beaten, its theme gives way to the next wave's track under the upgrade card.
+  const bossBeaten = run.phase === 'upgradePick' && WAVES[run.wave].boss && run.wave + 1 < WAVE_COUNT;
+  if (bossBeaten) return { track: trackFor(run.wave + 1), ...QUIET };
+  const track = trackFor(run.wave);
   // The enemy clocks only run (and so only wind down) in these phases; a Time Stop left over when
   // the last alien fell mustn't hold the music slow behind the upgrade card.
   const clocksRun = run.phase === 'playing' || run.phase === 'waveIntro';
