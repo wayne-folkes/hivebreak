@@ -21,7 +21,7 @@ import { createRng } from './rng';
 import type { WaveDef } from './types';
 
 const DT = 1 / 120;
-const def = (rows: string[], marchSpeed = 20): WaveDef => ({ rows, marchSpeed, fireRate: 0, diveRate: 0 });
+const def = (rows: string[], marchSpeed = 20): WaveDef => ({ rows, marchSpeed, fireRate: 0, diveRate: 0, sector: 1 });
 
 function ids() {
   let n = 0;

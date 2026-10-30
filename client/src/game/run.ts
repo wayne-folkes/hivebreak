@@ -95,6 +95,7 @@ export function createRun(seed: number, playerCount = 1, firstWave = 0): RunStat
     aliens: [],
     shots: [],
     pickups: [],
+    bunkers: [],
     beams: [],
     boss: null,
     freeze: 0,

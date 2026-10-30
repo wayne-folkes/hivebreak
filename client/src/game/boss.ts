@@ -80,10 +80,12 @@ export const BROOD_PARTS: readonly PartSpec[] = [
 
 export const BOSS_SPECS: Record<BossKind, BossSpec> = {
   broodMother: { parts: BROOD_PARTS },
+  // Placeholder until the Hive Mind worker builds it.
+  hiveMind: { parts: BROOD_PARTS },
 };
 
 /** Base points for destroying a part, before any combo multiplier. The core's is the boss kill. */
-export const BOSS_POINTS: Record<BossPartKind, number> = { plate: 100, bay: 150, core: 2000 };
+export const BOSS_POINTS: Record<BossPartKind, number> = { plate: 100, bay: 150, core: 2000, segment: 80 };
 
 /** Seconds between Drone launches and between volleys, by phase. Each wait varies by +-15%. */
 export const LAUNCH_INTERVAL = { 1: 5, 2: 3 } as const;

@@ -72,7 +72,7 @@ describe('WAVES', () => {
 
 describe('waveAlienCount', () => {
   it('counts the aliens, not the gaps', () => {
-    expect(waveAlienCount({ rows: ['.ww.', 'dddd'], marchSpeed: 1, fireRate: 0, diveRate: 0 })).toBe(6);
-    expect(waveColumns({ rows: ['.ww.', 'ddddd'], marchSpeed: 1, fireRate: 0, diveRate: 0 })).toBe(5);
+    expect(waveAlienCount({ rows: ['.ww.', 'dddd'], marchSpeed: 1, fireRate: 0, diveRate: 0, sector: 1 })).toBe(6);
+    expect(waveColumns({ rows: ['.ww.', 'ddddd'], marchSpeed: 1, fireRate: 0, diveRate: 0, sector: 1 })).toBe(5);
   });
 });

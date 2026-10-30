@@ -148,6 +148,14 @@ export function partsFor(event: RunEvent): Part[] {
       return arpeggio([659, 784, 988, 1319], 0.07, 'square', 0.12, 3);
     case 'upgradePicked':
       return [tone(1319, 0.3, 'triangle', 0.14), tone(1976, 0.28, 'triangle', 0.08, undefined, 0.05)];
+    case 'sectorStart':
+    case 'bunkerHit':
+    case 'alienSplit':
+    case 'formationSplit':
+    case 'formationRegroup':
+    case 'bossBeam':
+      // Slice 2b events get their sounds in the 2b sound step.
+      return [];
     case 'won':
       return arpeggio([523, 659, 784, 1047], 0.12, 'square', 0.14, 3.3);
     case 'lost':

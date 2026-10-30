@@ -191,7 +191,8 @@ export interface Beam {
   topY: number;
 }
 
-export type AlienKind = 'drone' | 'warden' | 'diver' | 'carrier';
+/** 'splitter' breaks into two 'mini' drones when killed (sector 2); minis fly free. */
+export type AlienKind = 'drone' | 'warden' | 'diver' | 'carrier' | 'splitter' | 'mini';
 
 /**
  * Where an alien is: in its formation slot, swooping at the player, flying back to its slot, or
@@ -235,12 +236,72 @@ export interface FormationState {
   dir: 1 | -1;
   /** Aliens alive at the start of the wave, for speeding up as it thins. */
   startCount: number;
+  /**
+   * Set on waves with the 'split' behaviour: the formation's left and right halves march on
+   * their own for a while, then regroup. The formation module owns this state's details and
+   * may add optional fields; aliens know their half from their column.
+   */
+  split?: SplitState;
 }
 
-export type BossKind = 'broodMother';
+export interface SplitState {
+  /** joined: marching as one; apart: halves marching on their own; regrouping: closing back up. */
+  mode: 'joined' | 'apart' | 'regrouping';
+  /** Seconds in the current mode. */
+  modeTime: number;
+  /** Each half's extra sideways offset on top of the formation's, and its own direction. */
+  leftOffsetX: number;
+  rightOffsetX: number;
+  leftDir: 1 | -1;
+  rightDir: 1 | -1;
+  /** The first column of the right half. */
+  splitColumn: number;
+}
+
+/** Things a wave's formation can do beyond marching. */
+export type FormationBehaviour = 'split' | 'pairedDives';
+
+/** Which sector a wave belongs to; the renderer and UI give each its own look and banner. */
+export type Sector = 1 | 2;
+
+/**
+ * A destructible bunker above the ship's row. Its shape is a pixel mask that both sides' shots
+ * (and aliens flying through it) erode. Bunkers are rebuilt at the start of each sector and
+ * persist through its waves.
+ */
+export interface Bunker {
+  id: number;
+  /** Bottom-left corner of the mask, in field coordinates. */
+  x: number;
+  y: number;
+  /** Mask size in art pixels. */
+  width: number;
+  height: number;
+  /** One byte per pixel, row by row from the bottom row up: 1 solid, 0 gone. */
+  mask: Uint8Array;
+  /** Goes up every time the mask changes, so the renderer knows to redraw it. */
+  version: number;
+}
+
+/** A Hive Mind beam: telegraphed along an angle, then deadly for a short time. */
+export interface BossBeam {
+  /** Angle from the core, radians (−π/2 is straight down). Beams sweep, so it changes. */
+  angle: number;
+  /** Sweep speed, radians per second. */
+  sweep: number;
+  state: 'warn' | 'fire';
+  /** Seconds left in the current state. */
+  timeLeft: number;
+}
+
+export type BossKind = 'broodMother' | 'hiveMind';
 
 /** The pieces of a boss you can shoot. Plates shield the core; bays launch Drones. */
-export type BossPartKind = 'plate' | 'bay' | 'core';
+/**
+ * The pieces of a boss you can shoot. Brood Mother: plates shield the core; bays launch Drones.
+ * Hive Mind: ring segments orbit the core and block shots that don't pass through a gap.
+ */
+export type BossPartKind = 'plate' | 'bay' | 'core' | 'segment';
 
 export interface BossPart {
   id: number;
@@ -273,11 +334,15 @@ export interface BossState {
   fireTimer: number;
   /** Seconds the boss is stunned (a Pulse Bomb); it neither moves nor fires. */
   stun: number;
+  /** Hive Mind: the ring's current rotation, radians; segment offsets follow it. */
+  ringAngle?: number;
+  /** Hive Mind: beams being telegraphed or firing. */
+  beams?: BossBeam[];
 }
 
 /**
  * One wave, as data. Each string in `rows` is one row of the formation, top row first, one
- * character per column: 'w' warden, 'd' drone, 'v' diver, 'c' carrier, '.' empty slot. A boss
+ * character per column: 'w' warden, 'd' drone, 'v' diver, 'c' carrier, 's' splitter, '.' empty slot. A boss
  * wave sets `boss` and usually has no rows.
  */
 export interface WaveDef {
@@ -289,6 +354,8 @@ export interface WaveDef {
   /** Dives started per second across the formation's divers. */
   diveRate: number;
   boss?: BossKind;
+  sector: Sector;
+  behaviours?: readonly FormationBehaviour[];
 }
 
 export type UpgradeId =
@@ -357,6 +424,8 @@ export interface RunState {
   shots: Shot[];
   /** Power-ups falling down the field. */
   pickups: Pickup[];
+  /** The current sector's bunkers (rebuilt at the start of each sector). */
+  bunkers: Bunker[];
   /** Lasers firing this step (one per ship with the laser power-up and fire held). */
   beams: Beam[];
   /** The boss of a boss wave, or null. */
@@ -412,5 +481,11 @@ export type RunEvent =
   | { type: 'waveClear'; wave: number }
   | { type: 'upgradePicked'; playerId: number; upgrade: UpgradeId }
   | { type: 'synergyUnlocked'; playerId: number; synergy: SynergyId }
+  | { type: 'sectorStart'; sector: Sector }
+  | { type: 'bunkerHit'; bunkerId: number; x: number; y: number }
+  | { type: 'alienSplit'; alienId: number; x: number; y: number }
+  | { type: 'formationSplit' }
+  | { type: 'formationRegroup' }
+  | { type: 'bossBeam'; state: 'warn' | 'fire'; angle: number }
   | { type: 'won' }
   | { type: 'lost'; reason: 'lives' | 'invaded' };

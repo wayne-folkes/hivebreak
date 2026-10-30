@@ -21,6 +21,9 @@ export const ALIEN_SPECS: Record<AlienKind, AlienSpec> = {
   diver: { hp: 1, points: 40, halfWidth: 6, halfHeight: 6 },
   // Slow and tough, sits in the formation and never dives; always drops a power-up (see powerups.ts).
   carrier: { hp: 4, points: 60, halfWidth: 10, halfHeight: 7 },
+  // Placeholders until the sector 2 worker tunes them.
+  splitter: { hp: 2, points: 40, halfWidth: 8, halfHeight: 6 },
+  mini: { hp: 1, points: 15, halfWidth: 5, halfHeight: 4 },
 };
 
 /** Seconds of white flash after a hit. */

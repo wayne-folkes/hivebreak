@@ -182,6 +182,7 @@ export function powerUpChips(powerUps: readonly ActivePowerUp[]): PowerUpChip[] 
 /** Boss names for the health bar and the pick card heading. */
 export const BOSS_NAMES: Record<BossKind, string> = {
   broodMother: 'Brood Mother',
+  hiveMind: 'Hive Mind',
 };
 
 /** The pick card's heading after a normal wave: "WAVE 3 CLEAR". */

@@ -15,16 +15,16 @@ export const WAVE_TUNING_NOTES = 'Slice 2a: ~25% faster march, ~30% more fire, d
 
 export const WAVES: readonly WaveDef[] = [
   // 1: drones only, a little brisker than before.
-  { rows: ['dddd', 'dddd', 'dddd'], marchSpeed: 15, fireRate: 0.33, diveRate: 0 },
+  { rows: ['dddd', 'dddd', 'dddd'], marchSpeed: 15, fireRate: 0.33, diveRate: 0, sector: 1 },
   // 2: a Carrier and a warden up top, and the first diver.
-  { rows: ['.cw.', 'dvdd', 'dddd', 'dddd'], marchSpeed: 18, fireRate: 0.52, diveRate: 0.08 },
+  { rows: ['.cw.', 'dvdd', 'dddd', 'dddd'], marchSpeed: 18, fireRate: 0.52, diveRate: 0.08, sector: 1 },
   // 3: more divers and a Carrier up front.
-  { rows: ['.www.', 'dvcvd', 'ddddd', 'ddddd'], marchSpeed: 20, fireRate: 0.65, diveRate: 0.16 },
+  { rows: ['.www.', 'dvcvd', 'ddddd', 'ddddd'], marchSpeed: 20, fireRate: 0.65, diveRate: 0.16, sector: 1 },
   // 4: wider, faster, two Carriers.
-  { rows: ['wwwwww', 'dvccvd', 'dddddd', 'dddddd'], marchSpeed: 23, fireRate: 0.85, diveRate: 0.22 },
+  { rows: ['wwwwww', 'dvccvd', 'dddddd', 'dddddd'], marchSpeed: 23, fireRate: 0.85, diveRate: 0.22, sector: 1 },
   // 5: the Brood Mother. No formation; the boss launches its own Drones, so the march, fire and
   // dive numbers are unused.
-  { rows: [], boss: 'broodMother', marchSpeed: 0, fireRate: 0, diveRate: 0 },
+  { rows: [], boss: 'broodMother', marchSpeed: 0, fireRate: 0, diveRate: 0, sector: 1 },
 ];
 
 export const WAVE_COUNT = WAVES.length;

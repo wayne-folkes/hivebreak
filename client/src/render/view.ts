@@ -230,6 +230,9 @@ export class GameView {
       warden: new ViewPool(this.scene, make('warden')),
       diver: new ViewPool(this.scene, make('diver')),
       carrier: new ViewPool(this.scene, make('carrier')),
+      // Placeholders until the Splitter and mini-drone models exist (2b renderer step).
+      splitter: new ViewPool(this.scene, make('diver')),
+      mini: new ViewPool(this.scene, make('drone')),
     };
     this.playerShots = new ViewPool(this.scene, make('shot_player'));
     this.alienShots = new ViewPool(this.scene, make('shot_alien'));
