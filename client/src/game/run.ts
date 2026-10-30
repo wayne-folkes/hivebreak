@@ -43,11 +43,12 @@ import { VOLLEY_HIT, awardKill, refillWaveGuards, registerMiss, registerShotHit 
 import type { Target } from './shots';
 import { stepShot } from './shots';
 import { CHARGE_PER_BOSS_PART, chargeSpecial, fireSpecial, killCharge, reflectShots, tickBurst } from './special';
-import { BURST_DAMAGE, BURST_RADIUS, hasSynergy, killBursts, unlockSynergies } from './synergies';
+import { BATTERY_CHARGE, BURST_DAMAGE, BURST_RADIUS, STORM_EXTRA_HOPS, hasSynergy, killBursts, unlockSynergies } from './synergies';
 import type { Alien, Box, Pickup, PlayerState, RunEvent, RunOptions, RunPhase, RunState, ShipInput, Shot, ShotKind, SpecialId, WaveDef } from './types';
 import { NO_INPUT } from './types';
-import { UPGRADES, applyUpgrade, offerUpgrades } from './upgrades';
+import { CHAIN_DAMAGE, CHAIN_RANGE, UPGRADES, applyUpgrade, offerUpgrades } from './upgrades';
 import { WAVE_COUNT, WAVES, waveColumns } from './waves';
+import { stepWell } from './well';
 
 // A whole run: the phases from the Special choice to a win or loss, and the fixed simulation step
 // that ties the ships, power-ups, Special, formation, boss, shots, collisions and scoring
@@ -60,7 +61,8 @@ import { WAVE_COUNT, WAVES, waveColumns } from './waves';
 //   3. Special presses
 //   4. firing: the laser beam, or the volley (with the spread power-up), wingmen, helper drone
 //   5. enemies, on scaled time (frozen, slowed or stunned): formation, aliens, boss, shots they fire
-//   6. shots fly; the ones that left the field are dropped and missed volleys counted
+//   6. shots fly; the ones that left the field are dropped and missed volleys counted; a Gravity
+//      Well bends and swallows enemy shots, drags free aliens in and grinds them
 //   7. Shield Burst reflects; enemy shots meet the bunkers, then the ships; aliens crash into
 //      ships; the Hive Mind's firing beams hit ships (and burn bunkers)
 //   8. player shots meet the bunkers, then hit aliens, then the boss
@@ -167,6 +169,7 @@ function startWave(run: RunState): void {
   run.freeze = 0;
   run.slow = 0;
   run.stun = 0;
+  run.well = null;
   for (const p of run.players) {
     refillWaveGuards(p);
     p.pendingDrag = 0;
@@ -260,6 +263,7 @@ function stepPlaying(run: RunState, inputs: readonly ShipInput[], dt: number, ev
 
   // 6. Shots.
   moveShots(run, dt, edt, events);
+  stepRunWell(run, dt, events);
 
   // 7. Reflection, then enemy shots and crashing aliens against the bunkers and ships, and the
   // Hive Mind's beams.
@@ -275,11 +279,13 @@ function stepPlaying(run: RunState, inputs: readonly ShipInput[], dt: number, ev
 
   // 10. The wave ends, or the run does.
   if (run.players.every((p) => !isAlive(p))) {
+    run.well = null;
     setPhase(run, 'lost');
     events.push({ type: 'lost', reason: 'lives' });
   } else if (def.boss ? run.boss !== null && bossDefeated(run.boss) : run.aliens.length === 0) {
     clearWave(run, events);
   } else if (hasInvaded(run.aliens)) {
+    run.well = null;
     setPhase(run, 'lost');
     events.push({ type: 'lost', reason: 'invaded' });
   }
@@ -413,7 +419,7 @@ function killAlien(run: RunState, alien: Alien, killer: PlayerState | null, opti
     events.push({ type: 'alienSplit', alienId: alien.id, x: alien.x, y: alien.y });
     spawnQueue.push(...splitAlien(alien, () => run.nextId++));
   }
-  const drop = rollDrop(alien.kind, run.rng);
+  const drop = rollDrop(alien.kind, run.rng, killer?.stats.dropRate ?? 1);
   if (drop) {
     const pickup = spawnPickup(drop, alien.x, alien.y, run.nextId++);
     run.pickups.push(pickup);
@@ -422,6 +428,42 @@ function killAlien(run: RunState, alien: Alien, killer: PlayerState | null, opti
   if (!killer) return;
   if (options.charge) events.push(...chargeSpecial(killer, killCharge(run.combo)));
   if (options.burst && killBursts(killer, options.kind, run.rng)) burstAround(run, alien, killer, events);
+}
+
+/**
+ * Chain Spark: after a player's shot hits `origin`, one spark per `stats.chain` arcs from it to
+ * the nearest other living alien within CHAIN_RANGE, doing CHAIN_DAMAGE. Every arc goes to a
+ * different alien (none to `origin`, none twice). With Storm each spark hops on again from the
+ * alien it hit, to a new one; all the first hops are made before any second hop. A spark's kill
+ * scores, charges the meter and may drop a power-up, but never bursts and never sparks again.
+ */
+function chainSparks(run: RunState, origin: Alien, killer: PlayerState, events: RunEvent[]): void {
+  const hops = hasSynergy(killer, 'storm') ? 1 + STORM_EXTRA_HOPS : 1;
+  const used = new Set<number>([origin.id]);
+  const tips: { x: number; y: number }[] = Array.from({ length: killer.stats.chain }, () => origin);
+  for (let hop = 0; hop < hops; hop++) {
+    for (let arc = 0; arc < tips.length; arc++) {
+      const from = tips[arc];
+      let target: Alien | null = null;
+      let best = CHAIN_RANGE;
+      for (const a of run.aliens) {
+        if (a.hp <= 0 || used.has(a.id)) continue;
+        const d = Math.hypot(a.x - from.x, a.y - from.y);
+        if (d <= best && (target === null || d < best)) {
+          best = d;
+          target = a;
+        }
+      }
+      if (!target) continue;
+      used.add(target.id);
+      events.push({ type: 'chainSpark', fromX: from.x, fromY: from.y, toX: target.x, toY: target.y });
+      let killed = false;
+      for (let i = 0; i < CHAIN_DAMAGE && !killed; i++) killed = damageAlien(target);
+      if (killed) killAlien(run, target, killer, { charge: true, burst: false, kind: null }, events);
+      else events.push({ type: 'alienHit', alienId: target.id, kind: target.kind, x: target.x, y: target.y });
+      tips[arc] = target;
+    }
+  }
 }
 
 /** A kill's burst: every living alien within BURST_RADIUS takes BURST_DAMAGE. Its kills don't burst again. */
@@ -817,10 +859,36 @@ function resolvePlayerShots(run: RunState, events: RunEvent[]): void {
 function hitAlien(run: RunState, shot: Shot, alien: Alien, events: RunEvent[]): void {
   const killer = shot.playerId === null ? null : (run.players[shot.playerId] ?? null);
   shot.hits++;
+  // A missile lands its full damage; every other shot takes one hit point from an alien whatever
+  // its damage (that stat only counts against bosses, and the waves are tuned for it).
+  const hits = shot.kind === 'missile' ? shot.damage : 1;
+  let killed = false;
+  for (let i = 0; i < hits && !killed; i++) killed = damageAlien(alien);
   // Points count at the combo before this hit raises it, so the first kill in a chain is x1.
-  if (damageAlien(alien)) killAlien(run, alien, killer, { charge: true, burst: true, kind: shot.kind }, events);
+  if (killed) killAlien(run, alien, killer, { charge: true, burst: true, kind: shot.kind }, events);
   else events.push({ type: 'alienHit', alienId: alien.id, kind: alien.kind, x: alien.x, y: alien.y });
+  if (killer && killer.stats.chain > 0) chainSparks(run, alien, killer, events);
   landVolley(run, shot, true);
+}
+
+// Gravity Well ----------------------------------------------------------------------------------
+
+/**
+ * Steps the Gravity Well (see well.ts) and finishes what it leaves to the run: the aliens it
+ * ground down score for the ship that fired it, like Pulse Bomb kills (no meter charge, no burst;
+ * drops allowed).
+ */
+function stepRunWell(run: RunState, dt: number, events: RunEvent[]): void {
+  if (!run.well) return;
+  const owner = run.players[run.well.playerId] ?? null;
+  const result = stepWell(run, dt);
+  events.push(...result.events);
+  for (const hit of result.hits) {
+    if (hit.killed) killAlien(run, hit.alien, owner, { charge: false, burst: false, kind: null }, events);
+    else events.push({ type: 'alienHit', alienId: hit.alien.id, kind: hit.alien.kind, x: hit.alien.x, y: hit.alien.y });
+  }
+  removeDead(run);
+  flushSpawns(run);
 }
 
 // Pickups and the wave's end --------------------------------------------------------------------
@@ -835,8 +903,10 @@ function stepRunPickups(run: RunState, dt: number, events: RunEvent[]): void {
 /** A ship catches a pickup: its power-up starts (and any run-wide part of it), with a `pickupCollected` event. */
 function collectPickup(run: RunState, player: PlayerState, pickup: Pickup, events: RunEvent[]): void {
   activatePowerUp(player, pickup.kind);
-  applyRunEffect(run, pickup.kind);
+  applyRunEffect(run, pickup.kind, player.stats.powerUpTime);
   events.push({ type: 'pickupCollected', playerId: player.id, pickupId: pickup.id, kind: pickup.kind });
+  // Battery: a caught power-up tops up the Special meter by a fixed amount (Overclock does not scale it).
+  if (hasSynergy(player, 'battery')) events.push(...chargeSpecial(player, BATTERY_CHARGE, false));
 }
 
 /**
@@ -859,12 +929,13 @@ function clearWave(run: RunState, events: RunEvent[]): void {
   run.shots = [];
   run.pickups = [];
   run.beams = [];
+  run.well = null;
   events.push({ type: 'waveClear', wave: run.wave });
   if (run.wave >= WAVE_COUNT - 1) {
     setPhase(run, 'won');
     events.push({ type: 'won' });
     return;
   }
-  run.offer = offerUpgrades(run.rng, run.players[0], OFFER_SIZE, { guaranteeRare: bossWave });
+  run.offer = offerUpgrades(run.rng, run.players[0], OFFER_SIZE, { guaranteeRare: bossWave, pool: run.upgradePool });
   setPhase(run, 'upgradePick');
 }

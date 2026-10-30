@@ -66,6 +66,50 @@ describe('rollDrop', () => {
   });
 });
 
+describe('scavenger', () => {
+  it('drops from other kills 50% more often, and carriers still always drop', () => {
+    const n = 40000;
+    let plain = 0;
+    let boosted = 0;
+    const a = createRng(7);
+    const b = createRng(7);
+    for (let i = 0; i < n; i++) {
+      if (rollDrop('drone', a) !== null) plain++;
+      if (rollDrop('drone', b, 1.5) !== null) boosted++;
+    }
+    expect(plain / n).toBeCloseTo(KILL_DROP_CHANCE, 2);
+    expect(boosted / n).toBeCloseTo(KILL_DROP_CHANCE * 1.5, 2);
+    expect(boosted).toBeGreaterThan(plain);
+    expect(rollDrop('carrier', createRng(1), 0.5)).not.toBeNull();
+  });
+
+  it('takes the same random numbers whatever the rate', () => {
+    const a = createRng(5);
+    const b = createRng(5);
+    rollDrop('drone', a);
+    rollDrop('drone', b, 1.5);
+    expect(a.next()).toBe(b.next());
+  });
+
+  it('makes power-ups last 50% longer', () => {
+    const p = createPlayer(0);
+    p.stats.powerUpTime = 1.5;
+    activatePowerUp(p, 'laser');
+    expect(p.powerUps).toEqual([{ kind: 'laser', timeLeft: POWER_UP_SECONDS.laser * 1.5 }]);
+    tickPowerUps(p, 3);
+    activatePowerUp(p, 'laser');
+    expect(p.powerUps[0].timeLeft).toBeCloseTo(12, 9);
+    expect(tickPowerUps(p, 11.9)).toEqual([]);
+    expect(tickPowerUps(p, 0.2)).toEqual(['laser']);
+  });
+
+  it('stretches the run-wide slow clock too', () => {
+    const run = createRun(1);
+    applyRunEffect(run, 'slow', 1.5);
+    expect(run.slow).toBeCloseTo(POWER_UP_SECONDS.slow * 1.5, 9);
+  });
+});
+
 describe('stepPickups', () => {
   it('builds a pickup and lets it fall at the fall speed', () => {
     const pickup = spawnPickup('laser', 10, 50, 3);

@@ -1,8 +1,9 @@
 import { damageAlien } from './aliens';
 import { overlaps, shotBox } from './collision';
 import { FIELD_HEIGHT, FIELD_WIDTH } from './playfield';
-import { SHIP_Y, isAlive, shipBox } from './player';
+import { SHIP_TOP, SHIP_Y, isAlive, shipBox } from './player';
 import { VOLLEY_HIT } from './scoring';
+import { createWell } from './well';
 import type { Alien, PlayerState, RunEvent, RunState, Shot, SpecialId } from './types';
 
 // The Special: one per run, chosen before wave 1. A meter fills from kills and boss parts; at
@@ -55,12 +56,14 @@ export function specialReady(player: PlayerState): boolean {
 
 /**
  * Adds `amount` to the ship's meter (use killCharge(run.combo) per kill and CHARGE_PER_BOSS_PART
- * per boss part). Nothing happens before a Special is chosen or while the meter is full. The
- * meter stops at 1, and the step that fills it returns a `specialReady` event, once.
+ * per boss part), times the ship's Overclock multiplier (`stats.chargeRate`) unless `useRate` is
+ * false (the Battery synergy adds its fixed quarter). Nothing happens before a Special is chosen
+ * or while the meter is full. The meter stops at 1, and the step that fills it returns a
+ * `specialReady` event, once.
  */
-export function chargeSpecial(player: PlayerState, amount: number): RunEvent[] {
+export function chargeSpecial(player: PlayerState, amount: number, useRate = true): RunEvent[] {
   if (player.special === null || player.specialCharge >= 1 || amount <= 0) return [];
-  player.specialCharge += amount;
+  player.specialCharge += useRate ? amount * player.stats.chargeRate : amount;
   // Close enough counts as full, so adding up kill after kill can't stop a hair short.
   if (player.specialCharge >= 1 - 1e-9) {
     player.specialCharge = 1;
@@ -83,6 +86,12 @@ export const PULSE_RADIUS = Math.hypot(FIELD_WIDTH, FIELD_HEIGHT);
 export const BURST_SECONDS = 3;
 /** Seconds Time Stop freezes the enemies. */
 export const TIME_STOP_SECONDS = 2.5;
+/** Missile Swarm: how many missiles, the half-angle of their fan from straight up (radians), and their flight. */
+export const MISSILE_COUNT = 8;
+export const MISSILE_FAN = Math.PI / 3;
+export const MISSILE_SPEED = 180;
+export const MISSILE_HOMING = 6;
+export const MISSILE_DAMAGE = 2;
 /** Speed and damage of a reflected shot. */
 export const REFLECT_SPEED = 220;
 export const REFLECT_DAMAGE = 2;
@@ -129,9 +138,33 @@ const EFFECTS: Record<SpecialId, Effect> = {
   timeStop(run) {
     run.freeze = Math.max(run.freeze, TIME_STOP_SECONDS);
   },
-  // PLACEHOLDERS until the content worker writes them.
-  missileSwarm() {},
-  gravityWell() {},
+  missileSwarm(run, player) {
+    // A fan from -MISSILE_FAN to +MISSILE_FAN, each missile homing hard; they sit in the VOLLEY_HIT
+    // volley, so a missile that finds nothing never breaks the combo.
+    for (let i = 0; i < MISSILE_COUNT; i++) {
+      const angle = (i / (MISSILE_COUNT - 1) - 0.5) * 2 * MISSILE_FAN;
+      run.shots.push({
+        id: run.nextId++,
+        owner: 'player',
+        kind: 'missile',
+        playerId: player.id,
+        x: player.x,
+        y: SHIP_TOP,
+        vx: Math.sin(angle) * MISSILE_SPEED,
+        vy: Math.cos(angle) * MISSILE_SPEED,
+        pierceLeft: 0,
+        damage: MISSILE_DAMAGE,
+        homing: MISSILE_HOMING,
+        bouncesLeft: 0,
+        hits: 0,
+        volley: VOLLEY_HIT,
+      });
+    }
+  },
+  gravityWell(run, player) {
+    // The run steps it from here (see well.ts); firing again moves it.
+    run.well = createWell(player);
+  },
 };
 
 /**
@@ -141,7 +174,8 @@ const EFFECTS: Record<SpecialId, Effect> = {
  * `hits` that `killed` (scoring.awardKill and an `alienKilled` event each, `alienHit` events for
  * the rest), drop dead aliens from `run.aliens`, and apply `bossDamage` to the boss (boss.ts's
  * `damageBossFixed`). Those kills score and may drop pickups (rollDrop), but they do not charge
- * the meter and do not trigger bomb-on-kill bursts.
+ * the meter and do not trigger bomb-on-kill bursts. Missile Swarm adds its missiles to
+ * `run.shots` and Gravity Well sets `run.well`; neither leaves anything for the caller.
  */
 export function fireSpecial(run: RunState, player: PlayerState): SpecialResult {
   const result: SpecialResult = { events: [], hits: [], bossDamage: 0 };

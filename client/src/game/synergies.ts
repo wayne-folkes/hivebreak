@@ -11,6 +11,8 @@ export const SYNERGIES: readonly SynergyDef[] = [
   { id: 'bulwark', name: 'Bulwark', description: 'Once a wave, a spent shield comes back after 8 seconds.', needs: ['shieldPulse', 'extraLife'] },
   { id: 'seekers', name: 'Seekers', description: 'A shot that bounces homes twice as hard and gets one more bounce.', needs: ['homing', 'ricochet'] },
   { id: 'chainReaction', name: 'Chain reaction', description: 'Overcharge and lance kills always burst.', needs: ['bombOnKill', 'overcharge'] },
+  { id: 'storm', name: 'Storm', description: 'Each spark chains on to one more alien.', needs: ['chainSpark', 'homing'] },
+  { id: 'battery', name: 'Battery', description: 'Catching a power-up adds a quarter of the Special meter.', needs: ['overclock', 'scavenger'] },
 ];
 
 /** The Lance bolt: how many aliens it passes through and its base damage. */
@@ -25,6 +27,10 @@ export const BULWARK_REGEN_SECONDS = 8;
 export const SEEKERS_HOMING_FACTOR = 2;
 export const SEEKERS_EXTRA_BOUNCES = 1;
 export const SEEKERS_HOMING_CAP = 12;
+/** Storm: extra hops each spark makes on from the alien it hit. */
+export const STORM_EXTRA_HOPS = 1;
+/** Battery: meter added when a power-up is caught. */
+export const BATTERY_CHARGE = 0.25;
 /** A kill's burst: aliens within this radius (art pixels) take this much damage. */
 export const BURST_RADIUS = 28;
 export const BURST_DAMAGE = 1;

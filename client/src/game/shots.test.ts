@@ -133,3 +133,55 @@ describe('seekers', () => {
     expect(s.homing).toBe(SEEKERS_HOMING_CAP);
   });
 });
+
+describe('missiles', () => {
+  const missile = (over: Partial<Shot> = {}): Shot =>
+    shot({ kind: 'missile', homing: 6, damage: 2, vx: 0, vy: 180, y: 0, ...over });
+
+  it('home toward a target above, keeping their speed', () => {
+    const m = missile({ vx: -155, vy: 90 });
+    const speed = Math.hypot(m.vx, m.vy);
+    for (let i = 0; i < 60; i++) stepShot(m, [{ x: 40, y: 120 }], DT);
+    expect(m.vx).toBeGreaterThan(0);
+    expect(Math.hypot(m.vx, m.vy)).toBeCloseTo(speed, 6);
+  });
+
+  it('with nothing above, level out upward instead of flying off the side', () => {
+    const m = missile({ vx: 155, vy: 90, x: 0 });
+    for (let i = 0; i < 120; i++) stepShot(m, [], DT);
+    expect(Math.abs(m.vx)).toBeLessThan(5);
+    expect(m.vy).toBeGreaterThan(170);
+    const passed = missile({ vx: 90, vy: 155 });
+    for (let i = 0; i < 120; i++) stepShot(passed, [{ x: 0, y: -50 }], DT);
+    expect(passed.vy).toBeGreaterThan(170);
+  });
+
+  it('other homing shots still fly straight when nothing is above', () => {
+    const s = shot({ homing: 6, vx: 50, vy: 100 });
+    stepShot(s, [], DT);
+    expect([s.vx, s.vy]).toEqual([50, 100]);
+  });
+});
+
+describe('missile swarm targeting', () => {
+  it('spreads the missiles over the nearest few targets by id, not all on the nearest', () => {
+    const targets = [{ x: 0, y: 40 }, { x: 20, y: 60 }, { x: -30, y: 80 }, { x: 50, y: 100 }, { x: 0, y: 200 }];
+    const aimed = [1, 2, 3, 4, 5, 6, 7, 8].map((id) => {
+      const m = shot({ id, kind: 'missile', homing: 6, vx: 0, vy: 180, y: 0, x: 0 });
+      stepShot(m, targets, 0.2);
+      return Math.sign(m.vx);
+    });
+    // Ids 4 and 8 aim at the nearest (straight ahead), the others lean toward other targets.
+    expect(new Set(aimed).size).toBeGreaterThan(1);
+  });
+
+  it('shares a short list out evenly', () => {
+    const targets = [{ x: -40, y: 50 }, { x: 40, y: 50 }];
+    const side = (id: number) => {
+      const m = shot({ id, kind: 'missile', homing: 6, vx: 0, vy: 180, y: 0, x: 0 });
+      stepShot(m, targets, 0.1);
+      return Math.sign(m.vx);
+    };
+    expect([side(1), side(2), side(3), side(4)].sort()).toEqual([-1, -1, 1, 1]);
+  });
+});

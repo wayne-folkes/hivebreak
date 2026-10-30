@@ -39,11 +39,11 @@ export const PICKUP_HALF_SIZE = 5;
 /**
  * What a destroyed alien drops: a Carrier always drops a random power-up, any other kind drops
  * one with a KILL_DROP_CHANCE chance, otherwise null. Call once per kill (a kill that is not a
- * crash into the ship) with `run.rng`.
+ * crash into the ship) with `run.rng`. `dropRate` is the killer's Scavenger multiplier on the chance.
  */
-export function rollDrop(kind: AlienKind, rng: Rng): PowerUpKind | null {
+export function rollDrop(kind: AlienKind, rng: Rng, dropRate = 1): PowerUpKind | null {
   if (kind === 'carrier') return rng.pick(POWER_UP_KINDS);
-  if (rng.next() < KILL_DROP_CHANCE) return rng.pick(POWER_UP_KINDS);
+  if (rng.next() < KILL_DROP_CHANCE * dropRate) return rng.pick(POWER_UP_KINDS);
   return null;
 }
 
@@ -115,9 +115,12 @@ export function hasPowerUp(player: PlayerState, kind: PowerUpKind): boolean {
   return player.powerUps.some((u) => u.kind === kind);
 }
 
-/** Starts the power-up on the ship, or resets its clock if it's already running (one of each kind). */
+/**
+ * Starts the power-up on the ship, or resets its clock if it's already running (one of each
+ * kind). It runs for POWER_UP_SECONDS times the ship's Scavenger multiplier (`stats.powerUpTime`).
+ */
 export function activatePowerUp(player: PlayerState, kind: PowerUpKind): void {
-  const seconds = POWER_UP_SECONDS[kind];
+  const seconds = POWER_UP_SECONDS[kind] * player.stats.powerUpTime;
   const running = player.powerUps.find((u) => u.kind === kind);
   if (running) running.timeLeft = seconds;
   else player.powerUps.push({ kind, timeLeft: seconds });
@@ -127,10 +130,10 @@ export function activatePowerUp(player: PlayerState, kind: PowerUpKind): void {
  * The part of a power-up that belongs to the whole run rather than one ship: 'slow' sets
  * `run.slow`. Call it right after activatePowerUp, for the same kind. Other kinds do nothing here.
  * (The player's own 'slow' entry is only the HUD timer; run.slow, counted down by
- * tickRunEffects, is what slows the enemies.)
+ * tickRunEffects, is what slows the enemies.) `timeScale` is the catcher's Scavenger multiplier.
  */
-export function applyRunEffect(run: RunState, kind: PowerUpKind): void {
-  if (kind === 'slow') run.slow = POWER_UP_SECONDS.slow;
+export function applyRunEffect(run: RunState, kind: PowerUpKind, timeScale = 1): void {
+  if (kind === 'slow') run.slow = POWER_UP_SECONDS.slow * timeScale;
 }
 
 /** Counts the ship's power-ups down and removes the finished ones, returning their kinds (for `powerUpEnded` events). */

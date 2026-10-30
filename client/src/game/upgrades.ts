@@ -12,6 +12,7 @@ export const UPGRADES: readonly UpgradeDef[] = [
   { id: 'extraLife', name: 'Extra life', description: 'Gain one more life.', rarity: 'common', maxStacks: 3 },
   { id: 'comboGuard', name: 'Combo guard', description: 'Each wave, forgive one miss before it breaks your combo.', rarity: 'common', maxStacks: 2 },
   { id: 'magnet', name: 'Magnet', description: 'Power-ups drift toward you from farther away.', rarity: 'common', maxStacks: 2 },
+  { id: 'scavenger', name: 'Scavenger', description: 'Power-ups last 50% longer and drop 50% more often.', rarity: 'common', maxStacks: 1 },
   // Uncommon.
   { id: 'piercing', name: 'Piercing shots', description: 'Shots pass through one more alien.', rarity: 'uncommon', maxStacks: 2 },
   { id: 'shieldPulse', name: 'Shield pulse', description: 'A shield absorbs one more hit each wave.', rarity: 'uncommon', maxStacks: 2 },
@@ -20,10 +21,13 @@ export const UPGRADES: readonly UpgradeDef[] = [
   { id: 'ricochet', name: 'Ricochet', description: 'Shots bounce off the side walls once more.', rarity: 'uncommon', maxStacks: 2 },
   { id: 'bombOnKill', name: 'Bomb on kill', description: 'Kills have a 15% chance to burst and hurt nearby aliens.', rarity: 'uncommon', maxStacks: 3 },
   { id: 'overcharge', name: 'Overcharge', description: 'Every 5th volley adds a big piercing shot (every 4th with a second copy).', rarity: 'uncommon', maxStacks: 2 },
+  { id: 'chainSpark', name: 'Chain spark', description: 'A hit arcs to a nearby alien for 1 damage (a second copy arcs to another).', rarity: 'uncommon', maxStacks: 2 },
+  { id: 'overclock', name: 'Overclock', description: 'Your Special meter charges 30% faster.', rarity: 'uncommon', maxStacks: 2 },
   // Rare.
   { id: 'wingman', name: 'Wingman', description: 'A wingman drone flies beside you and fires with you.', rarity: 'rare', maxStacks: 1 },
   { id: 'slowField', name: 'Slow field', description: 'Enemy shots fly 25% slower.', rarity: 'rare', maxStacks: 1 },
   { id: 'doubleTap', name: 'Double tap', description: 'Your shots do one more damage.', rarity: 'rare', maxStacks: 1 },
+  { id: 'lastStand', name: 'Last stand', description: 'On your last life, shoot 30% faster.', rarity: 'rare', maxStacks: 1 },
 ];
 
 /** Numbers the upgrades use, collected here for tuning. */
@@ -38,6 +42,16 @@ export const BOMB_CHANCE_PER_STACK = 0.15;
 export const OVERCHARGE_FIRST = 5;
 export const OVERCHARGE_SECOND = 4;
 export const SLOW_FIELD_FACTOR = 0.75;
+/** Chain Spark: how far a spark reaches from the alien it hit, art pixels, and the damage it does. */
+export const CHAIN_RANGE = 40;
+export const CHAIN_DAMAGE = 1;
+/** Scavenger: multipliers on power-up duration and on the chance a kill drops one. */
+export const SCAVENGER_TIME_FACTOR = 1.5;
+export const SCAVENGER_DROP_FACTOR = 1.5;
+/** Overclock: multiplier on Special meter gains, per copy. */
+export const OVERCLOCK_FACTOR = 1.3;
+/** Last Stand: multiplier on the fire interval while on the last life. */
+export const LAST_STAND_FACTOR = 0.7;
 
 /** How likely each rarity is to be offered, relative to the others. */
 export const RARITY_WEIGHT = { common: 3, uncommon: 2, rare: 1 } as const;
@@ -105,6 +119,20 @@ export function applyUpgrade(player: PlayerState, id: UpgradeId): boolean {
     case 'doubleTap':
       stats.damage += 1;
       break;
+    case 'chainSpark':
+      // The arcs themselves are made by the run (see chainSparks in run.ts).
+      stats.chain += 1;
+      break;
+    case 'scavenger':
+      stats.powerUpTime *= SCAVENGER_TIME_FACTOR;
+      stats.dropRate *= SCAVENGER_DROP_FACTOR;
+      break;
+    case 'overclock':
+      stats.chargeRate *= OVERCLOCK_FACTOR;
+      break;
+    case 'lastStand':
+      stats.lastStand *= LAST_STAND_FACTOR;
+      break;
   }
   player.upgrades.push(id);
   return true;
@@ -121,16 +149,18 @@ function drawWeighted(rng: Rng, pool: UpgradeDef[]): UpgradeId {
 
 /**
  * Picks up to `count` different upgrades the player can still take, at random, weighted by
- * rarity. Offers fewer if fewer are eligible. With `guaranteeRare`, one slot (the last) is always
- * a rare the player can still take, if there is one; the rest are drawn as usual.
+ * rarity. Offers fewer if fewer are eligible. Only upgrades in `options.pool` (the player's
+ * unlocked ones; default: all) are offered. With `guaranteeRare`, one slot (the last) is always
+ * a rare in the pool that the player can still take, if there is one; the rest are drawn as usual.
  */
 export function offerUpgrades(
   rng: Rng,
   player: PlayerState,
   count = 3,
-  options: { guaranteeRare?: boolean } = {},
+  options: { guaranteeRare?: boolean; pool?: readonly UpgradeId[] } = {},
 ): UpgradeId[] {
-  const pool = UPGRADES.filter((u) => stackCount(player, u.id) < u.maxStacks);
+  const allowed = options.pool;
+  const pool = UPGRADES.filter((u) => (!allowed || allowed.includes(u.id)) && stackCount(player, u.id) < u.maxStacks);
   const offer: UpgradeId[] = [];
   let rare: UpgradeId | null = null;
   if (options.guaranteeRare && count > 0) {

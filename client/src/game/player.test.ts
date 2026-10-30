@@ -386,3 +386,32 @@ describe('bulwark', () => {
     expect(p.shield).toBe(0);
   });
 });
+
+describe('last stand', () => {
+  it('shortens the fire interval only on the last life, and the cooldown follows', () => {
+    const p = createPlayer(0);
+    applyUpgrade(p, 'lastStand');
+    expect(p.lives).toBe(3);
+    expect(currentFireInterval(p)).toBe(p.stats.fireInterval);
+    p.lives = 2;
+    expect(currentFireInterval(p)).toBe(p.stats.fireInterval);
+    p.lives = 1;
+    tryFire(p, input({ fire: true }), () => 1);
+    expect(p.cooldown).toBeCloseTo(p.stats.fireInterval * 0.7, 9);
+  });
+
+  it('does nothing without the upgrade', () => {
+    const p = createPlayer(0);
+    p.lives = 1;
+    expect(currentFireInterval(p)).toBe(p.stats.fireInterval);
+  });
+
+  it('stacks with the Afterburner', () => {
+    const p = createPlayer(0);
+    for (const id of ['rapidFire', 'thrusters', 'lastStand'] as const) applyUpgrade(p, id);
+    unlockSynergies(p);
+    p.lives = 1;
+    p.vx = p.stats.speed;
+    expect(currentFireInterval(p)).toBeCloseTo(p.stats.fireInterval * 0.7 * 0.7, 9);
+  });
+});

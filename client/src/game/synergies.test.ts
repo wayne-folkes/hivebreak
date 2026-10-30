@@ -20,7 +20,7 @@ const give = (p: PlayerState, ...ids: UpgradeId[]) => {
 };
 
 describe('SYNERGIES', () => {
-  it('lists the five pairs', () => {
+  it('lists the seven pairs', () => {
     const pairs = Object.fromEntries(SYNERGIES.map((s) => [s.id, [...s.needs].sort()]));
     expect(pairs).toEqual({
       lance: ['piercing', 'twinShot'],
@@ -28,6 +28,8 @@ describe('SYNERGIES', () => {
       bulwark: ['extraLife', 'shieldPulse'],
       seekers: ['homing', 'ricochet'],
       chainReaction: ['bombOnKill', 'overcharge'],
+      storm: ['chainSpark', 'homing'],
+      battery: ['overclock', 'scavenger'],
     });
     for (const s of SYNERGIES) expect(synergyDef(s.id)).toBe(s);
   });
@@ -40,6 +42,8 @@ describe('unlockSynergies', () => {
     ['bulwark', 'shieldPulse', 'extraLife'],
     ['seekers', 'homing', 'ricochet'],
     ['chainReaction', 'bombOnKill', 'overcharge'],
+    ['storm', 'chainSpark', 'homing'],
+    ['battery', 'overclock', 'scavenger'],
   ];
 
   it.each(cases)('unlocks %s when both halves are held, and only then', (id, a, b) => {

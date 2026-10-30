@@ -132,11 +132,15 @@ export function stepPlayer(player: PlayerState, input: ShipInput, dt: number): v
   }
 }
 
-/** Seconds between volleys right now: the Afterburner synergy shortens it while the ship is moving fast. */
+/**
+ * Seconds between volleys right now: the Afterburner synergy shortens it while the ship is moving
+ * fast, and Last Stand (`stats.lastStand`) shortens it on the last life.
+ */
 export function currentFireInterval(player: PlayerState): number {
   const fast = Math.abs(player.vx) > AFTERBURNER_SPEED_FRACTION * player.stats.speed;
   const boost = fast && hasSynergy(player, 'afterburner') ? AFTERBURNER_INTERVAL_FACTOR : 1;
-  return player.stats.fireInterval * boost;
+  const lastStand = player.lives === 1 ? player.stats.lastStand : 1;
+  return player.stats.fireInterval * boost * lastStand;
 }
 
 /** Sideways places of the ship's wingmen: first on the right, then the left, then further out. */

@@ -7,6 +7,11 @@ import {
   BURST_SECONDS,
   CHARGE_PER_BOSS_PART,
   CHARGE_PER_KILL,
+  MISSILE_COUNT,
+  MISSILE_DAMAGE,
+  MISSILE_FAN,
+  MISSILE_HOMING,
+  MISSILE_SPEED,
   PULSE_BOSS_DAMAGE,
   PULSE_STUN_SECONDS,
   SPECIALS,
@@ -20,6 +25,8 @@ import {
   reflectShots,
   tickBurst,
 } from './special';
+import { WELL_SECONDS, WELL_WALL_MARGIN } from './well';
+import { FIELD_WIDTH } from './playfield';
 import type { BossState, RunState, Shot, SpecialId } from './types';
 
 function playingRun(special: SpecialId | null = 'pulseBomb', charge = 1): RunState {
@@ -84,6 +91,26 @@ describe('chargeSpecial', () => {
     for (let i = 0; i < 100 && p.specialCharge < 1; i++) ready += chargeSpecial(p, killCharge(1)).length;
     expect(ready).toBe(1);
     expect(p.specialCharge).toBe(1);
+  });
+
+  it('Overclock multiplies the gain, and the Battery top-up can skip it', () => {
+    const p = createPlayer(0);
+    p.special = 'pulseBomb';
+    p.stats.chargeRate = 1.3;
+    chargeSpecial(p, 0.1);
+    expect(p.specialCharge).toBeCloseTo(0.13, 9);
+    chargeSpecial(p, 0.1, false);
+    expect(p.specialCharge).toBeCloseTo(0.23, 9);
+  });
+
+  it('Overclock still says specialReady once, when the scaled gain fills the meter', () => {
+    const p = createPlayer(0);
+    p.special = 'timeStop';
+    p.stats.chargeRate = 1.3;
+    p.specialCharge = 0.8;
+    expect(chargeSpecial(p, 0.2)).toEqual([{ type: 'specialReady', playerId: 0 }]);
+    expect(p.specialCharge).toBe(1);
+    expect(chargeSpecial(p, 0.2)).toEqual([]);
   });
 
   it('does nothing before a Special is chosen', () => {
@@ -183,6 +210,93 @@ describe('fireSpecial', () => {
       expect(p.burst).toBe(0);
       expect(isBursting(p)).toBe(false);
     });
+  });
+});
+
+describe('missile swarm', () => {
+  it('launches eight missiles from the nose, fanned about 60 degrees either side of straight up', () => {
+    const run = playingRun('missileSwarm');
+    const p = run.players[0];
+    p.x = 25;
+    run.shots = [];
+    const result = fireSpecial(run, p);
+    expect(result.events.map((e) => e.type)).toEqual(['specialFired']);
+    expect(result.hits).toEqual([]);
+    expect(run.shots).toHaveLength(MISSILE_COUNT);
+    expect(MISSILE_COUNT).toBe(8);
+    const angles = run.shots.map((s) => Math.atan2(s.vx, s.vy));
+    expect(angles[0]).toBeCloseTo(-MISSILE_FAN, 6);
+    expect(angles[7]).toBeCloseTo(MISSILE_FAN, 6);
+    expect(MISSILE_FAN).toBeCloseTo(Math.PI / 3, 9);
+    for (let i = 1; i < angles.length; i++) expect(angles[i]).toBeGreaterThan(angles[i - 1]);
+    // Evenly spread, symmetric about straight up.
+    expect(angles[3] + angles[4]).toBeCloseTo(0, 9);
+    for (const s of run.shots) {
+      expect(Math.hypot(s.vx, s.vy)).toBeCloseTo(MISSILE_SPEED, 6);
+      expect(s.x).toBe(25);
+      expect(s.y).toBe(SHIP_TOP);
+    }
+  });
+
+  it('makes homing, 2-damage, non-piercing, non-bouncing missiles that can never be a miss', () => {
+    const run = playingRun('missileSwarm');
+    run.shots = [];
+    fireSpecial(run, run.players[0]);
+    expect(new Set(run.shots.map((s) => s.id)).size).toBe(MISSILE_COUNT);
+    for (const s of run.shots) {
+      expect(s).toMatchObject({
+        owner: 'player',
+        kind: 'missile',
+        playerId: 0,
+        damage: MISSILE_DAMAGE,
+        homing: MISSILE_HOMING,
+        pierceLeft: 0,
+        bouncesLeft: 0,
+        hits: 0,
+        volley: VOLLEY_HIT,
+      });
+    }
+    expect([MISSILE_DAMAGE, MISSILE_HOMING, MISSILE_SPEED]).toEqual([2, 6, 180]);
+  });
+
+  it('ignores the ship\'s own piercing, homing and bounces', () => {
+    const run = playingRun('missileSwarm');
+    Object.assign(run.players[0].stats, { pierce: 3, ricochet: 2, homing: 9, damage: 4 });
+    run.shots = [];
+    fireSpecial(run, run.players[0]);
+    expect(run.shots.every((s) => s.pierceLeft === 0 && s.bouncesLeft === 0 && s.homing === MISSILE_HOMING && s.damage === 2)).toBe(true);
+  });
+});
+
+describe('gravity well', () => {
+  it('opens a three-second well at the ship\'s x, mid-field, owned by the ship', () => {
+    const run = playingRun('gravityWell');
+    run.players[0].x = 40;
+    const result = fireSpecial(run, run.players[0]);
+    expect(result.events.map((e) => e.type)).toEqual(['specialFired']);
+    expect(run.well).toEqual({ x: 40, y: 0, timeLeft: WELL_SECONDS, playerId: 0 });
+    expect(WELL_SECONDS).toBe(3);
+  });
+
+  it('keeps the well inside the field when the ship is by a wall', () => {
+    const run = playingRun('gravityWell');
+    run.players[0].x = FIELD_WIDTH / 2 - 8;
+    fireSpecial(run, run.players[0]);
+    expect(run.well!.x).toBe(FIELD_WIDTH / 2 - WELL_WALL_MARGIN);
+    const left = playingRun('gravityWell');
+    left.players[0].x = -(FIELD_WIDTH / 2 - 8);
+    fireSpecial(left, left.players[0]);
+    expect(left.well!.x).toBe(-(FIELD_WIDTH / 2 - WELL_WALL_MARGIN));
+  });
+
+  it('touches nothing else: no aliens, shots or clocks', () => {
+    const run = playingRun('gravityWell');
+    const shots = run.shots.length;
+    const hp = run.aliens.map((a) => a.hp);
+    fireSpecial(run, run.players[0]);
+    expect(run.shots).toHaveLength(shots);
+    expect(run.aliens.map((a) => a.hp)).toEqual(hp);
+    expect(run.stun + run.freeze).toBe(0);
   });
 });
 
