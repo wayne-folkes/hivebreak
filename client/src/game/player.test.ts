@@ -21,6 +21,7 @@ import {
   stepPlayer,
   tryFire,
   wingmanXs,
+  wingmanShots,
   currentFireInterval,
 } from './player';
 import { BULWARK_REGEN_SECONDS, LANCE_DAMAGE, LANCE_PIERCE, unlockSynergies } from './synergies';
@@ -302,6 +303,30 @@ describe('wingmanXs', () => {
     const p = createPlayer(0, SHIP_X_LIMIT);
     p.stats.wingmen = 1;
     expect(wingmanXs(p)[0]).toBeLessThanOrEqual(90 - 4);
+  });
+});
+
+describe('wingmanShots', () => {
+  it('builds only the wingmen shots, outside any counted volley, without touching cooldown or volleys', () => {
+    const p = createPlayer(0, 10);
+    expect(wingmanShots(p, () => 1)).toEqual([]);
+    p.stats.wingmen = 2;
+    p.stats.damage = 2;
+    p.stats.pierce = 1;
+    let id = 100;
+    const shots = wingmanShots(p, () => id++);
+    expect(shots.map((s) => s.x)).toEqual(wingmanXs(p));
+    expect(shots.map((s) => s.id)).toEqual([100, 101]);
+    expect(shots.every((s) => s.volley === VOLLEY_HIT && s.kind === 'normal' && s.damage === 2 && s.pierceLeft === 1 && s.vx === 0)).toBe(true);
+    expect(p.volleys).toBe(0);
+    expect(p.cooldown).toBe(0);
+  });
+
+  it('is the same set of shots tryFire adds to a volley', () => {
+    const p = createPlayer(0, 0);
+    p.stats.wingmen = 1;
+    const fired = tryFire(p, input({ fire: true }), () => 7);
+    expect(fired.filter((s) => s.volley === VOLLEY_HIT).map((s) => s.x)).toEqual(wingmanXs(p));
   });
 });
 

@@ -24,7 +24,14 @@ describe('WAVES', () => {
     const kinds = (i: number) => new Set(WAVES[i].rows.join(''));
     for (const k of ['w', 'v', 'c']) expect(kinds(0).has(k)).toBe(false);
     for (const i of [1, 2, 3]) for (const k of ['w', 'v', 'c']) expect(kinds(i).has(k)).toBe(true);
-    expect(kinds(4).has('w') && kinds(4).has('v') && kinds(4).has('d')).toBe(true);
+  });
+
+  it('makes wave 5 the Brood Mother: a boss and no formation', () => {
+    expect(WAVES[4].boss).toBe('broodMother');
+    expect(WAVES[4].rows).toEqual([]);
+    expect(waveAlienCount(WAVES[4])).toBe(0);
+    expect(waveColumns(WAVES[4])).toBe(0);
+    for (const w of WAVES.slice(0, 4)) expect(w.boss).toBeUndefined();
   });
 
   it('has one or two carriers in waves 2 to 4', () => {
@@ -37,12 +44,12 @@ describe('WAVES', () => {
 
   it('has divers dive from wave 2', () => {
     expect(WAVES[0].diveRate).toBe(0);
-    for (let i = 1; i < WAVES.length; i++) expect(WAVES[i].diveRate).toBeGreaterThan(0);
+    for (let i = 1; i < 4; i++) expect(WAVES[i].diveRate).toBeGreaterThan(0);
   });
 
   it('is about 25% faster marching and 30% busier firing than slice 1', () => {
     const slice1 = { march: [12, 14, 16, 18, 20], fire: [0.25, 0.4, 0.5, 0.65, 0.8] };
-    WAVES.forEach((w, i) => {
+    WAVES.slice(0, 4).forEach((w, i) => {
       expect(w.marchSpeed / slice1.march[i]).toBeGreaterThan(1.2);
       expect(w.marchSpeed / slice1.march[i]).toBeLessThan(1.35);
       expect(w.fireRate / slice1.fire[i]).toBeGreaterThan(1.25);
@@ -54,8 +61,8 @@ describe('WAVES', () => {
     for (const w of WAVES) if (w.diveRate > 0) expect(w.rows.join('')).toContain('v');
   });
 
-  it('gets harder: more aliens, faster, more shots', () => {
-    for (let i = 1; i < WAVES.length; i++) {
+  it('gets harder through the formation waves: more aliens, faster, more shots', () => {
+    for (let i = 1; i < 4; i++) {
       expect(waveAlienCount(WAVES[i])).toBeGreaterThanOrEqual(waveAlienCount(WAVES[i - 1]));
       expect(WAVES[i].marchSpeed).toBeGreaterThan(WAVES[i - 1].marchSpeed);
       expect(WAVES[i].fireRate).toBeGreaterThan(WAVES[i - 1].fireRate);

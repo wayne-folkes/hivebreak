@@ -120,7 +120,7 @@ describe('killBursts', () => {
   });
 
   it('exports the burst size', () => {
-    expect(BURST_RADIUS).toBe(18);
+    expect(BURST_RADIUS).toBe(28);
     expect(BURST_DAMAGE).toBe(1);
   });
 });

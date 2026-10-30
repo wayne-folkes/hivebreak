@@ -73,8 +73,8 @@ const BAY_XS = [-28, 28] as const;
  * bays made slightly more forgiving to hit.
  */
 export const BROOD_PARTS: readonly PartSpec[] = [
-  ...PLATE_XS.map((dx): PartSpec => ({ kind: 'plate', dx, dy: 0, halfWidth: 11, halfHeight: 6, hp: 14 })),
-  { kind: 'core', dx: 0, dy: 0, halfWidth: 7, halfHeight: 6, hp: 140 },
+  ...PLATE_XS.map((dx): PartSpec => ({ kind: 'plate', dx, dy: 0, halfWidth: 11, halfHeight: 6, hp: 8 })),
+  { kind: 'core', dx: 0, dy: 0, halfWidth: 7, halfHeight: 6, hp: 80 },
   ...BAY_XS.map((dx): PartSpec => ({ kind: 'bay', dx, dy: -9.65, halfWidth: 7, halfHeight: 3, hp: 14 })),
 ];
 
@@ -207,6 +207,11 @@ function hurt(part: BossPart, amount: number): BossHit {
   part.hp = Math.max(0, part.hp - amount);
   part.flash = HIT_FLASH_SECONDS;
   return { part, destroyed: part.hp <= 0 };
+}
+
+/** Damages one part directly, for the laser's ticks (the caller has already checked the beam wasn't `blocked`). */
+export function damageBossPart(part: BossPart, amount: number): BossHit {
+  return hurt(part, amount);
 }
 
 /**

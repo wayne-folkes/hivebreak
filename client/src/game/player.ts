@@ -221,8 +221,33 @@ export function tryFire(player: PlayerState, input: ShipInput, newId: () => numb
       }),
     );
   }
-  for (const x of wingmanXs(player)) shots.push(make('normal', x, 0, stats.shotSpeed, { volley: VOLLEY_HIT }));
+  shots.push(...wingmanShots(player, newId));
   return shots;
+}
+
+/**
+ * One straight shot from each wingman, all in the VOLLEY_HIT volley so they never count as a
+ * miss. `tryFire` adds these to every volley; the run calls it alone while the laser replaces
+ * the ship's own shots (it does not touch the cooldown or the volley count).
+ */
+export function wingmanShots(player: PlayerState, newId: () => number): Shot[] {
+  const stats = player.stats;
+  return wingmanXs(player).map((x) => ({
+    id: newId(),
+    owner: 'player' as const,
+    kind: 'normal' as const,
+    playerId: player.id,
+    x,
+    y: SHIP_TOP,
+    vx: 0,
+    vy: stats.shotSpeed,
+    pierceLeft: stats.pierce,
+    damage: stats.damage,
+    homing: stats.homing,
+    bouncesLeft: stats.ricochet,
+    hits: 0,
+    volley: VOLLEY_HIT,
+  }));
 }
 
 /** What a hit did: nothing (safe moment or out of lives), used up a shield, or cost a life. */

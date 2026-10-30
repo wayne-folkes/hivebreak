@@ -250,7 +250,8 @@ describe('damageBossFixed', () => {
     expect(part(boss, 'plate', 0).hp).toBe(0);
     expect(hits.find((h) => h.part === part(boss, 'plate', 0))?.destroyed).toBe(true);
     // 12 = 1 + 11: the other three take 3 each, then the last 2 go to the first two of them.
-    expect(standingParts(boss, 'plate').map((p) => p.hp)).toEqual([10, 10, 11]);
+    const hpEach = part(boss, 'plate', 1).maxHp;
+    expect(standingParts(boss, 'plate').map((p) => p.hp)).toEqual([hpEach - 4, hpEach - 4, hpEach - 3]);
     expect(part(boss, 'core').hp).toBe(part(boss, 'core').maxHp);
   });
 
@@ -710,8 +711,8 @@ describe('a simulated fight', () => {
             expect(bossDefeated(boss)).toBe(true);
     expect(phases).toEqual([2]);
     // A bot that never misses its aim or dodges; a person takes longer, so this sits at the short end.
-    expect(seconds).toBeGreaterThan(35);
-    expect(seconds).toBeLessThan(75);
+    expect(seconds).toBeGreaterThan(25);
+    expect(seconds).toBeLessThan(60);
   });
 
   it('is slower, but still beatable, for an unupgraded ship', () => {

@@ -9,7 +9,7 @@ import { GamepadInput } from './game/gamepad';
 import { Keyboard } from './game/input';
 import { FIELD_WIDTH } from './game/playfield';
 import { RECORDS_KEY, addRecord, bestScore, loadRecords } from './game/records';
-import { WAVE_INTRO_SECONDS, createRun, pickUpgrade, stepRun } from './game/run';
+import { WAVE_INTRO_SECONDS, chooseSpecial, createRun, pickUpgrade, stepRun } from './game/run';
 import { TouchControls } from './game/touch';
 import { NO_INPUT } from './game/types';
 import type { RunEvent, RunState, ShipInput } from './game/types';
@@ -137,6 +137,7 @@ type Mode = 'title' | 'playing' | 'pick' | 'over';
 /** `title`: the demo plays behind the title and its menus. `playing`: a real run, including the pause menu. */
 let mode: Mode = 'title';
 let run: RunState = createRun(1);
+chooseSpecial(run, 'pulseBomb'); // TEMP until the 2a UI step
 let paused = false;
 let accumulator = 0;
 /** Touch drag read since the last sim step; handed to the next step that runs (see ShipInput.drag). */
@@ -154,6 +155,7 @@ const live = (): boolean => mode === 'playing' && !paused;
 
 function newRun(seed: number): void {
   run = createRun(seed);
+  chooseSpecial(run, 'pulseBomb'); // TEMP until the 2a UI step
   accumulator = 0;
   carry = 0;
   lostReason = undefined;

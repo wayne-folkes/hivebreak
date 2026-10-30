@@ -7,8 +7,8 @@ import type { WaveDef } from './types';
 /**
  * Tuning intent (slice 2a retune): one step harder than slice 1. March speed is about 25% up,
  * the formation fires about 30% more, divers join from wave 2, and 1-2 Carriers (tough, 4 hp)
- * sit in waves 2-4 so some aliens take several hits. Wave 5 stays a full formation here; the run
- * turns it into the boss wave. The scripted bot wins fewer runs with 3 lives than in slice 1,
+ * sit in waves 2-4 so some aliens take several hits. Wave 5 is the Brood Mother's boss wave, with
+ * no formation. The scripted bot wins fewer runs with 3 lives than in slice 1,
  * but still clears every wave when it has lives to spare.
  */
 export const WAVE_TUNING_NOTES = 'Slice 2a: ~25% faster march, ~30% more fire, divers from wave 2, carriers in waves 2-4.';
@@ -22,15 +22,16 @@ export const WAVES: readonly WaveDef[] = [
   { rows: ['.www.', 'dvcvd', 'ddddd', 'ddddd'], marchSpeed: 20, fireRate: 0.65, diveRate: 0.16 },
   // 4: wider, faster, two Carriers.
   { rows: ['wwwwww', 'dvccvd', 'dddddd', 'dddddd'], marchSpeed: 23, fireRate: 0.85, diveRate: 0.22 },
-  // 5: the full mixed formation (becomes the boss wave when the run folds this in).
-  { rows: ['wwwwww', 'vwddwv', 'dvddvd', 'dddddd', 'dddddd'], marchSpeed: 26, fireRate: 1.05, diveRate: 0.3 },
+  // 5: the Brood Mother. No formation; the boss launches its own Drones, so the march, fire and
+  // dive numbers are unused.
+  { rows: [], boss: 'broodMother', marchSpeed: 0, fireRate: 0, diveRate: 0 },
 ];
 
 export const WAVE_COUNT = WAVES.length;
 
 /** Columns in a wave's formation: its longest row. */
 export function waveColumns(def: WaveDef): number {
-  return Math.max(...def.rows.map((row) => row.length));
+  return Math.max(0, ...def.rows.map((row) => row.length));
 }
 
 /** How many aliens a wave starts with. */

@@ -403,6 +403,7 @@ export type RunEvent =
   | { type: 'bossLaunched'; alienId: number }
   | { type: 'bossFired'; x: number; y: number }
   | { type: 'bossPartHit'; partId: number; part: BossPartKind; x: number; y: number }
+  // A destroyed core has no bossPartDestroyed: its bossKilled is the event for it.
   | { type: 'bossPartDestroyed'; partId: number; part: BossPartKind; x: number; y: number; points: number }
   | { type: 'bossPhase'; phase: number }
   | { type: 'bossKilled'; kind: BossKind; x: number; y: number; points: number }

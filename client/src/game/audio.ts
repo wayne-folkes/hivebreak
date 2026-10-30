@@ -1,5 +1,5 @@
 import type { StorageLike } from './records';
-import type { RunEvent } from './types';
+import type { PowerUpKind, RunEvent, SpecialId } from './types';
 
 // Sound effects, synthesized live with the Web Audio API from oscillators and noise. There are no
 // sound files: it costs nothing to download and suits the retro look.
@@ -47,6 +47,14 @@ export function killPitch(combo: number, diver = false): number {
 export function playerFirePitch(shots: number): number {
   const extra = Math.max(0, Math.round(shots) - 1);
   return PLAYER_SHOT_HZ * 2 ** (-extra / 12);
+}
+
+/** The pitch (Hz) each kind of power-up's pickup arpeggio starts on, so the four sound apart. */
+const PICKUP_HZ: Record<PowerUpKind, number> = { spread: 523, laser: 659, slow: 392, helper: 784 };
+
+/** The pitch (Hz) a power-up pickup's arpeggio starts on. */
+export function pickupPitch(kind: PowerUpKind): number {
+  return PICKUP_HZ[kind];
 }
 
 /**
@@ -144,9 +152,96 @@ export function partsFor(event: RunEvent): Part[] {
       return arpeggio([523, 659, 784, 1047], 0.12, 'square', 0.14, 3.3);
     case 'lost':
       return arpeggio([392, 349, 311, 262], 0.3, 'triangle', 0.16, 2);
-    default:
-      // Slice 2a events get their sounds in the 2a sound step.
-      return [];
+    case 'specialChosen':
+      // A soft confirm chime.
+      return arpeggio([698, 880], 0.07, 'sine', 0.12, 2);
+    case 'specialReady':
+      // A rising sparkle. It can come round again, so it stays soft.
+      return arpeggio([1047, 1319, 1568], 0.05, 'triangle', 0.07, 2);
+    case 'specialFired':
+      return specialParts(event.special);
+    case 'pickupSpawned':
+      // A tiny twinkle, since pickups appear often.
+      return [tone(2093, 0.04, 'sine', 0.05), tone(3136, 0.05, 'sine', 0.04, undefined, 0.03)];
+    case 'pickupCollected': {
+      const pitch = pickupPitch(event.kind);
+      return arpeggio([pitch, pitch * 1.25, pitch * 1.5, pitch * 2], 0.045, 'square', 0.09, 2);
+    }
+    case 'powerUpEnded':
+      return [tone(740, 0.12, 'triangle', 0.09, 330)];
+    case 'blast':
+      // A small crunch, quieter than the kill it comes with.
+      return [
+        { kind: 'noise', from: 900, to: 120, dur: 0.18, filter: 'lowpass', q: 0.8, vol: 0.2 },
+        tone(90, 0.15, 'square', 0.06, 50),
+      ];
+    case 'comboGuarded':
+      // A soft ding, so the player knows the guard saved the combo.
+      return [tone(1568, 0.25, 'sine', 0.1), tone(3136, 0.15, 'sine', 0.03)];
+    case 'shotReflected':
+      // A metallic ping: two inharmonic partials.
+      return [tone(2600, 0.16, 'triangle', 0.1, 2000), tone(3900, 0.12, 'square', 0.03)];
+    case 'bossLaunched':
+      // A low thunk, then a whirr as the Drone leaves its bay.
+      return [
+        tone(140, 0.2, 'sine', 0.3, 50),
+        { kind: 'noise', from: 400, to: 1600, dur: 0.5, filter: 'bandpass', q: 2, vol: 0.12, delay: 0.1 },
+      ];
+    case 'bossFired':
+      // A low pew, quieter than the aliens' shots.
+      return [tone(330, 0.2, 'triangle', 0.07, 120)];
+    case 'bossPartHit':
+      // An armour clank, with two inharmonic partials.
+      return [tone(560, 0.08, 'square', 0.07, 480), tone(1190, 0.06, 'square', 0.04)];
+    case 'bossPartDestroyed':
+      return [
+        { kind: 'noise', from: 1600, to: 60, dur: 0.7, filter: 'lowpass', q: 0.7, vol: 0.45 },
+        tone(70, 0.6, 'sine', 0.4, 30),
+      ];
+    case 'bossPhase':
+      // An ominous two-note siren.
+      return arpeggio([311, 233], 0.25, 'triangle', 0.12, 2);
+    case 'bossKilled':
+      // A long explosion, with the victory fanfare over its tail.
+      return [
+        { kind: 'noise', from: 2000, to: 40, dur: 1.4, filter: 'lowpass', q: 0.6, vol: 0.45 },
+        tone(60, 1.2, 'sine', 0.4, 25),
+        ...after(arpeggio([523, 659, 784, 1047], 0.12, 'square', 0.12, 3), 0.8),
+      ];
+    case 'synergyUnlocked':
+      // A held major chord, its top note arriving last. Unlike the upgrade's pair, it is all sine.
+      return [
+        tone(523, 0.5, 'sine', 0.1),
+        tone(659, 0.5, 'sine', 0.08),
+        tone(784, 0.5, 'sine', 0.08),
+        tone(1047, 0.6, 'sine', 0.06, undefined, 0.08),
+      ];
+  }
+}
+
+/** The same parts, starting `delay` seconds later. */
+function after(parts: readonly Part[], delay: number): Part[] {
+  return parts.map((part): Part => ({ ...part, delay: (part.delay ?? 0) + delay }));
+}
+
+/** A Special's sound: a deep boom, a shimmer, or a tape stop. */
+function specialParts(special: SpecialId): Part[] {
+  switch (special) {
+    case 'pulseBomb':
+      return [
+        tone(110, 0.6, 'sine', 0.4, 40),
+        { kind: 'noise', from: 300, to: 3000, dur: 0.4, filter: 'bandpass', q: 1.5, vol: 0.2 },
+      ];
+    case 'shieldBurst':
+      return [
+        tone(1568, 0.5, 'triangle', 0.08),
+        tone(1976, 0.5, 'triangle', 0.07),
+        tone(2349, 0.5, 'triangle', 0.06),
+        tone(3136, 0.3, 'sine', 0.03, undefined, 0.1),
+      ];
+    case 'timeStop':
+      // The pitch falls away, like a tape slowing to a stop.
+      return [tone(660, 0.6, 'sawtooth', 0.08, 40)];
   }
 }
 

@@ -14,7 +14,7 @@ import {
   stepAlien,
 } from './aliens';
 import { SHIP_Y } from './player';
-import { createRun, stepRun } from './run';
+import { chooseSpecial, createRun, stepRun } from './run';
 import { WAVES } from './waves';
 
 const DT = 1 / 120;
@@ -134,6 +134,7 @@ describe('carrier in a run', () => {
     wave.diveRate = 50;
     try {
       const run = createRun(7);
+      chooseSpecial(run, 'pulseBomb');
       for (const a of run.aliens) a.kind = 'carrier';
       for (let t = 0; t < 8; t += DT) {
         stepRun(run, [{ move: 0, drag: 0, fire: false, special: false }], DT);

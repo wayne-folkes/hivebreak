@@ -66,6 +66,10 @@ offer after the boss), since all three sim workers would otherwise collide there
 
 ### 4. Wiring, review, ship
 
+Notes from the fold-in review for the wiring: `stepIntro` ignores `ShipInput.special`, so main keeps
+a Special press carried until a `playing` step has used it; react to `bossKilled` (not a core
+`bossPartDestroyed`) for the boss's death; remove the TEMP `chooseSpecial('pulseBomb')` calls.
+
 Sonnet wires the new screens and events into `main.ts`; the reviewer checks all of 2a; fixes; I
 play-test (including the boss fight and each Special on phone and desktop); push; follow CI and the
 Vercel deploy; you play-test.

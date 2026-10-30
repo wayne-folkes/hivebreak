@@ -26,7 +26,7 @@ export const SEEKERS_HOMING_FACTOR = 2;
 export const SEEKERS_EXTRA_BOUNCES = 1;
 export const SEEKERS_HOMING_CAP = 12;
 /** A kill's burst: aliens within this radius (art pixels) take this much damage. */
-export const BURST_RADIUS = 18;
+export const BURST_RADIUS = 28;
 export const BURST_DAMAGE = 1;
 
 export function synergyDef(id: SynergyId): SynergyDef {

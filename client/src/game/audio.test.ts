@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_SOUND_SETTINGS,
   MAX_VOICES,
@@ -10,11 +10,13 @@ import {
   killPitch,
   loadSoundSettings,
   partsFor,
+  pickupPitch,
   playerFirePitch,
   playerFireReady,
   saveSoundSettings,
   soundLength,
   uiParts,
+  type Part,
 } from './audio';
 import type { StorageLike } from './records';
 import type { RunEvent } from './types';
@@ -73,25 +75,56 @@ describe('attackTime', () => {
   });
 });
 
-describe('partsFor', () => {
-  const EVENTS: RunEvent[] = [
-    { type: 'waveStart', wave: 0 },
-    { type: 'playerFired', playerId: 0, shots: 1 },
-    { type: 'alienFired', x: 0, y: 0 },
-    { type: 'alienHit', alienId: 1, kind: 'warden', x: 0, y: 0 },
-    { type: 'alienKilled', alienId: 1, kind: 'drone', x: 0, y: 0, points: 10, combo: 1 },
-    { type: 'diveStart', alienId: 1 },
-    { type: 'comboBroken', combo: 3 },
-    { type: 'shieldHit', playerId: 0 },
-    { type: 'playerHit', playerId: 0, livesLeft: 2 },
-    { type: 'waveClear', wave: 0 },
-    { type: 'upgradePicked', playerId: 0, upgrade: 'twinShot' },
-    { type: 'won' },
-    { type: 'lost', reason: 'lives' },
-  ];
+/**
+ * One example of every event type. Keyed by type, so a new event type is a type error here until
+ * it has a sample, and the sound test then covers it.
+ */
+const EVENTS: Record<RunEvent['type'], RunEvent> = {
+  specialChosen: { type: 'specialChosen', playerId: 0, special: 'pulseBomb' },
+  waveStart: { type: 'waveStart', wave: 0 },
+  playerFired: { type: 'playerFired', playerId: 0, shots: 1 },
+  alienFired: { type: 'alienFired', x: 0, y: 0 },
+  alienHit: { type: 'alienHit', alienId: 1, kind: 'warden', x: 0, y: 0 },
+  alienKilled: { type: 'alienKilled', alienId: 1, kind: 'drone', x: 0, y: 0, points: 10, combo: 1 },
+  diveStart: { type: 'diveStart', alienId: 1 },
+  comboBroken: { type: 'comboBroken', combo: 3 },
+  comboGuarded: { type: 'comboGuarded', playerId: 0 },
+  shieldHit: { type: 'shieldHit', playerId: 0 },
+  playerHit: { type: 'playerHit', playerId: 0, livesLeft: 2 },
+  blast: { type: 'blast', x: 0, y: 0, radius: 20 },
+  pickupSpawned: { type: 'pickupSpawned', pickupId: 1, kind: 'spread', x: 0, y: 0 },
+  pickupCollected: { type: 'pickupCollected', playerId: 0, pickupId: 1, kind: 'laser' },
+  powerUpEnded: { type: 'powerUpEnded', playerId: 0, kind: 'slow' },
+  specialReady: { type: 'specialReady', playerId: 0 },
+  specialFired: { type: 'specialFired', playerId: 0, special: 'timeStop', x: 0, y: 0 },
+  shotReflected: { type: 'shotReflected', x: 0, y: 0 },
+  bossLaunched: { type: 'bossLaunched', alienId: 1 },
+  bossFired: { type: 'bossFired', x: 0, y: 0 },
+  bossPartHit: { type: 'bossPartHit', partId: 1, part: 'plate', x: 0, y: 0 },
+  bossPartDestroyed: { type: 'bossPartDestroyed', partId: 1, part: 'bay', x: 0, y: 0, points: 100 },
+  bossPhase: { type: 'bossPhase', phase: 2 },
+  bossKilled: { type: 'bossKilled', kind: 'broodMother', x: 0, y: 0, points: 1000 },
+  waveClear: { type: 'waveClear', wave: 0 },
+  upgradePicked: { type: 'upgradePicked', playerId: 0, upgrade: 'twinShot' },
+  synergyUnlocked: { type: 'synergyUnlocked', playerId: 0, synergy: 'lance' },
+  won: { type: 'won' },
+  lost: { type: 'lost', reason: 'lives' },
+};
 
+/** The loudest a cue's parts get, before the master level. */
+function loudest(parts: readonly Part[]): number {
+  return Math.max(...parts.map((p) => p.vol));
+}
+
+/** The pitch (Hz) of a cue's first note, or 0 if it starts with noise. */
+function firstFreq(parts: readonly Part[]): number {
+  const first = parts[0];
+  return first?.kind === 'tone' ? first.freq : 0;
+}
+
+describe('partsFor', () => {
   it('gives every event a short sound with real notes', () => {
-    for (const event of EVENTS) {
+    for (const event of Object.values(EVENTS)) {
       const parts = partsFor(event);
       expect(parts.length, event.type).toBeGreaterThan(0);
       for (const part of parts) expect(part.dur, event.type).toBeGreaterThan(0);
@@ -103,7 +136,6 @@ describe('partsFor', () => {
   it('keeps the player shot quiet, since it repeats a lot', () => {
     const shot = partsFor({ type: 'playerFired', playerId: 0, shots: 1 });
     const kill = partsFor({ type: 'alienKilled', alienId: 1, kind: 'drone', x: 0, y: 0, points: 10, combo: 1 });
-    const loudest = (parts: typeof shot) => Math.max(...parts.map((p) => p.vol));
     expect(loudest(shot)).toBeLessThan(loudest(kill));
   });
 
@@ -236,5 +268,110 @@ describe('saveSoundSettings', () => {
 
   it('does not throw when storage is blocked', () => {
     expect(() => saveSoundSettings(broken, { enabled: true, volume: 0.75 })).not.toThrow();
+  });
+});
+
+describe('pickup and Special sounds', () => {
+  it('pitches each kind of power-up differently', () => {
+    const kinds = ['spread', 'laser', 'slow', 'helper'] as const;
+    expect(new Set(kinds.map(pickupPitch)).size).toBe(kinds.length);
+  });
+
+  it("starts a pickup's arpeggio on its kind's pitch", () => {
+    for (const kind of ['spread', 'laser', 'slow', 'helper'] as const) {
+      const parts = partsFor({ type: 'pickupCollected', playerId: 0, pickupId: 1, kind });
+      expect(firstFreq(parts), kind).toBe(pickupPitch(kind));
+    }
+  });
+
+  it('gives each Special its own sound', () => {
+    const sounds = (['pulseBomb', 'shieldBurst', 'timeStop'] as const).map((special) =>
+      JSON.stringify(partsFor({ type: 'specialFired', playerId: 0, special, x: 0, y: 0 })),
+    );
+    expect(new Set(sounds).size).toBe(3);
+  });
+
+  it('keeps the blast and the boss shot quieter than the sounds they go with', () => {
+    const killed = partsFor({ type: 'alienKilled', alienId: 1, kind: 'drone', x: 0, y: 0, points: 10, combo: 1 });
+    const alienShot = partsFor({ type: 'alienFired', x: 0, y: 0 });
+    expect(loudest(partsFor({ type: 'blast', x: 0, y: 0, radius: 20 }))).toBeLessThan(loudest(killed));
+    expect(loudest(partsFor({ type: 'bossFired', x: 0, y: 0 }))).toBeLessThan(loudest(alienShot));
+  });
+
+  it('gives a synergy a chord that is not the upgrade chime', () => {
+    const upgrade = partsFor({ type: 'upgradePicked', playerId: 0, upgrade: 'twinShot' });
+    const synergy = partsFor({ type: 'synergyUnlocked', playerId: 0, synergy: 'lance' });
+    expect(JSON.stringify(synergy)).not.toBe(JSON.stringify(upgrade));
+  });
+});
+
+/** A stand-in for an audio node: it takes connections and does nothing. */
+class FakeNode {
+  type = '';
+  buffer: unknown = null;
+  Q = { value: 0 };
+  frequency = { setValueAtTime: () => {}, exponentialRampToValueAtTime: () => {} };
+  gain = { value: 0, setValueAtTime: () => {}, exponentialRampToValueAtTime: () => {}, setTargetAtTime: () => {} };
+  connect(): FakeNode {
+    return this;
+  }
+  start(): void {}
+  stop(): void {}
+}
+
+/** A stand-in for AudioContext that counts the oscillators and noise sources started. */
+class FakeAudioContext {
+  static last: FakeAudioContext | null = null;
+  currentTime = 0;
+  sampleRate = 1000;
+  state = 'running';
+  destination = new FakeNode();
+  sources = 0;
+
+  constructor() {
+    FakeAudioContext.last = this;
+  }
+
+  createGain(): FakeNode {
+    return new FakeNode();
+  }
+  createBiquadFilter(): FakeNode {
+    return new FakeNode();
+  }
+  createOscillator(): FakeNode {
+    this.sources++;
+    return new FakeNode();
+  }
+  createBufferSource(): FakeNode {
+    this.sources++;
+    return new FakeNode();
+  }
+  createBuffer(): { getChannelData: () => Float32Array } {
+    return { getChannelData: () => new Float32Array(this.sampleRate) };
+  }
+  resume(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+describe('voice limit', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('caps blast and bossPartHit at MAX_VOICES voices each', () => {
+    vi.stubGlobal('window', { AudioContext: FakeAudioContext });
+    const sound = new Sound();
+    sound.unlock();
+    const ctx = FakeAudioContext.last;
+    if (!ctx) throw new Error('no audio context was created');
+
+    // The fake clock never moves, so no voice ends: each cue can start only MAX_VOICES times.
+    // Each part starts one source, so a capped cue adds MAX_VOICES times its part count.
+    for (const event of [EVENTS.blast, EVENTS.bossPartHit]) {
+      const before = ctx.sources;
+      sound.handle(Array.from({ length: 10 }, () => event));
+      expect(ctx.sources - before, event.type).toBe(MAX_VOICES * partsFor(event).length);
+    }
   });
 });
