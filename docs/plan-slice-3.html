@@ -1,0 +1,476 @@
+<meta charset="utf-8">
+<title>Hivebreak Slice 3</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Barlow:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; concept renders and the soundtrack map break out wider. Single dark arcade look by choice, same system as the slice 1 and 2 pages. */
+:root {
+  --void: #0c0918;
+  --panel: #161128;
+  --line: #2c2450;
+  --ink: #ece8ff;
+  --muted: #9a92c4;
+  --hive: #ff4fd8;
+  --pilot: #4ff0ff;
+  --warm: #ffb04f;
+  --rare: #ffe14f;
+  --blood: #ff5a5a;
+  --green: #4fff9b;
+  --f-display: 'Silkscreen', ui-monospace, monospace;
+  --f-body: 'Barlow', system-ui, -apple-system, sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+body { background: var(--void); color: var(--ink); font-family: var(--f-body); font-size: 17px; line-height: 1.55; }
+.wrap { max-width: 1060px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 56px; }
+.prose { max-width: 66ch; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 400; text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(2.2rem, 7vw, 3.6rem); letter-spacing: 0.02em; }
+h1 .hive { color: var(--hive); }
+h2 { font-size: 1.45rem; margin-bottom: 14px; }
+h3 { font-size: 1rem; margin-bottom: 6px; }
+p { margin: 0 0 12px; }
+.eyebrow { font-family: var(--f-mono); font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+.lede { font-size: 1.2rem; }
+.muted { color: var(--muted); }
+section { display: grid; gap: 4px; }
+code { font-family: var(--f-mono); font-size: 0.85em; background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; }
+.release { display: inline-block; font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 1px 7px; }
+.release.a { color: var(--pilot); } .release.b { color: var(--rare); }
+
+/* Soundtrack map */
+.map { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.map-inner { min-width: 720px; padding: 16px 18px 12px; display: grid; gap: 6px; }
+.map-row { display: grid; grid-template-columns: 120px repeat(10, minmax(0, 1fr)); gap: 3px; align-items: end; }
+.map-row .lab { font-family: var(--f-mono); font-size: 0.75rem; color: var(--muted); align-self: center; }
+.map-head .cell { font-family: var(--f-display); font-size: 0.7rem; color: var(--muted); text-align: center; }
+.map-head .cell.boss { color: var(--hive); }
+.lane { height: 14px; border-radius: 2px; }
+.lane.off { background: transparent; }
+.l-base { background: #3d3170; } .l-drum { background: #6b56c2; } .l-arp { background: var(--pilot); } .l-tense { background: var(--hive); } .l-red { background: #a53a4e; } .l-redarp { background: var(--blood); }
+.ramp { background: linear-gradient(90deg, transparent, var(--pilot)); }
+.ramp.red { background: linear-gradient(90deg, transparent, var(--blood)); }
+.map-track { display: grid; grid-template-columns: 120px repeat(10, minmax(0, 1fr)); gap: 3px; margin-top: 6px; }
+.map-track .seg { font-family: var(--f-display); font-size: 0.7rem; padding: 4px 6px; border-radius: 3px; white-space: nowrap; overflow: hidden; }
+.t1 { background: rgb(79 240 255 / 0.12); color: var(--pilot); grid-column: 2 / span 4; }
+.tb { background: rgb(255 79 216 / 0.14); color: var(--hive); }
+.t2 { background: rgb(255 90 90 / 0.12); color: var(--blood); grid-column: 7 / span 4; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.85rem; color: var(--muted); padding: 10px 18px 14px; border-top: 1px solid var(--line); }
+.legend i { display: inline-block; width: 18px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chip { font-family: var(--f-display); font-size: 0.75rem; border: 1px solid var(--line); background: var(--panel); border-radius: 3px; padding: 4px 8px; }
+
+/* Concept frames */
+.concepts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 32px; align-items: start; }
+figure { margin: 0; display: grid; gap: 10px; min-width: 0; }
+figcaption { font-size: 0.92rem; color: var(--muted); max-width: 46ch; }
+figcaption b { color: var(--ink); font-weight: 600; }
+.tag { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--hive); }
+.phone { position: relative; width: 100%; max-width: 360px; background: #000; border: 2px solid var(--line); border-radius: 26px; padding: 14px 10px 0; overflow: hidden; }
+.field { position: relative; width: 100%; aspect-ratio: 9 / 16; }
+canvas.px { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
+.strip { height: 56px; background: #07050f; display: grid; place-items: center; font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+.overlay { position: absolute; inset: 0; display: grid; align-content: center; gap: 8px; padding: 0 7%; background: rgb(12 9 24 / 0.66); }
+.overlay h4 { margin: 0 0 4px; font-family: var(--f-display); font-weight: 400; font-size: clamp(11px, 3.6vw, 15px); text-align: center; line-height: 1.3; }
+.overlay h4 span { color: var(--hive); display: block; }
+.card { border: 2px solid var(--line); background: var(--panel); border-radius: 4px; padding: 7px 10px; display: grid; gap: 2px; }
+.card.focus { border-color: var(--pilot); box-shadow: 0 0 0 2px rgb(79 240 255 / 0.25); }
+.card.locked { opacity: 0.62; border-style: dashed; }
+.card .name { font-family: var(--f-display); font-size: clamp(10px, 3.3vw, 13px); }
+.card .what { font-size: clamp(11px, 3.2vw, 13px); color: var(--muted); line-height: 1.3; }
+.card .lock { font-family: var(--f-mono); font-size: 10px; color: var(--rare); }
+.unlocked { position: absolute; inset: 0; display: grid; align-content: center; justify-items: center; gap: 6px; background: radial-gradient(circle at 50% 46%, rgb(255 225 79 / 0.18), rgb(12 9 24 / 0.78) 60%); text-align: center; padding: 0 8%; }
+.unlocked .k { font-family: var(--f-display); font-size: clamp(12px, 4vw, 16px); color: var(--rare); letter-spacing: 0.1em; }
+.unlocked .n { font-family: var(--f-display); font-size: clamp(22px, 8vw, 34px); }
+.unlocked .d { font-size: clamp(11px, 3.4vw, 14px); color: var(--muted); max-width: 30ch; }
+.unlocked canvas { width: 40%; aspect-ratio: 1; image-rendering: pixelated; }
+
+.lineup { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
+.unit { display: grid; gap: 6px; justify-items: start; min-width: 0; }
+.unit .stage { width: 100%; aspect-ratio: 1; background: radial-gradient(circle at 50% 55%, #1d1638, var(--void) 70%); border: 1px solid var(--line); border-radius: 6px; }
+.unit .nm { font-family: var(--f-display); font-size: 0.95rem; color: var(--pilot); }
+.unit p { font-size: 0.9rem; color: var(--muted); margin: 0; }
+.stats { display: grid; gap: 3px; width: 100%; font-family: var(--f-mono); font-size: 0.72rem; color: var(--muted); }
+.stats div { display: grid; grid-template-columns: 52px 1fr; gap: 6px; align-items: center; }
+.stats b { height: 5px; background: var(--line); border-radius: 2px; position: relative; overflow: hidden; }
+.stats b::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--v); background: var(--pilot); }
+
+/* Unlocks screen */
+.unlocks { border: 2px solid var(--line); background: var(--panel); border-radius: 8px; padding: 18px; display: grid; gap: 14px; }
+.unlocks .head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline; }
+.unlocks .head .count { font-family: var(--f-mono); font-size: 0.85rem; color: var(--muted); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 10px; }
+.tile { border: 1px solid var(--line); border-radius: 4px; padding: 10px; display: grid; gap: 4px; background: #110c20; }
+.tile .kind { font-family: var(--f-mono); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.tile .nm { font-family: var(--f-display); font-size: 0.85rem; }
+.tile .goal { font-size: 0.85rem; color: var(--muted); line-height: 1.3; }
+.tile.done { border-color: rgb(79 255 155 / 0.45); }
+.tile.done .nm { color: var(--green); }
+.tile.next { border-color: var(--rare); box-shadow: 0 0 0 1px rgb(255 225 79 / 0.25); }
+.tile.next .nm { color: var(--rare); }
+.tile.lock .nm { color: var(--muted); }
+.bar { height: 5px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--rare); }
+
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; min-width: 600px; font-size: 0.93rem; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; background: var(--panel); }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-family: var(--f-display); white-space: nowrap; }
+.tables { display: grid; gap: 18px; }
+
+ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 0; display: grid; border-top: 1px solid var(--line); }
+ol.steps > li { counter-increment: step; display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 4px 16px; padding-block: 16px; border-bottom: 1px solid var(--line); }
+ol.steps > li::before { content: counter(step); font-family: var(--f-display); font-size: 1.6rem; color: var(--muted); line-height: 1; }
+ol.steps > li.par::before { color: var(--pilot); }
+ol.steps ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.who { font-family: var(--f-mono); font-size: 0.8rem; color: var(--muted); }
+.who b { color: var(--ink); font-weight: 500; }
+.badge { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 1px 6px; margin-left: 8px; }
+.badge.p { color: var(--pilot); } .badge.m { color: var(--muted); }
+ul.ticks { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+ul.ticks li { padding-left: 22px; position: relative; }
+ul.ticks li::before { content: ""; position: absolute; left: 2px; top: 0.55em; width: 8px; height: 8px; background: var(--pilot); }
+ul.ticks.b li::before { background: var(--rare); }
+.done { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px 32px; }
+.foot { font-size: 0.9rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 18px; }
+</style>
+
+<div class="wrap">
+
+<header class="prose">
+  <div class="eyebrow">Plan · slice 3 of Hivebreak · 30 Oct 2026</div>
+  <h1>Hive<span class="hive">break</span> slice 3</h1>
+  <p class="lede" style="margin-top:16px">A soundtrack that reacts to play, and a reason to come back: milestones that unlock ships, Specials and upgrades.</p>
+  <p class="muted">Two releases, each deployed and played before the next. <span class="release a">3a</span> adds the music. <span class="release b">3b</span> adds the unlocks. Everything stays in the browser: no backend, no cost. The pictures are concept renders drawn live with Three.js at the game's 180 × 320 resolution; the shapes are stand-ins for the Blender models.</p>
+</header>
+
+<section>
+  <h2>Release 3a: the soundtrack across a run</h2>
+  <p class="prose muted" style="margin-bottom:14px">Four tracks synthesized in code, like the sound effects: square and triangle voices and a noise drum, written as note patterns. Layers fade in as a wave thins and when you're on your last life; the boss theme shifts gear at each phase.</p>
+  <div class="map" role="img" aria-label="Soundtrack map: which music layers play in each of the ten waves">
+    <div class="map-inner">
+      <div class="map-row map-head"><span class="lab">wave</span><span class="cell">1</span><span class="cell">2</span><span class="cell">3</span><span class="cell">4</span><span class="cell boss">5</span><span class="cell">6</span><span class="cell">7</span><span class="cell">8</span><span class="cell">9</span><span class="cell boss">10</span></div>
+      <div class="map-row"><span class="lab">bass + lead</span><i class="lane l-base"></i><i class="lane l-base"></i><i class="lane l-base"></i><i class="lane l-base"></i><i class="lane l-tense"></i><i class="lane l-red"></i><i class="lane l-red"></i><i class="lane l-red"></i><i class="lane l-red"></i><i class="lane l-tense"></i></div>
+      <div class="map-row"><span class="lab">drums</span><i class="lane ramp"></i><i class="lane l-drum"></i><i class="lane l-drum"></i><i class="lane l-drum"></i><i class="lane l-tense"></i><i class="lane ramp red"></i><i class="lane l-red"></i><i class="lane l-red"></i><i class="lane l-red"></i><i class="lane l-tense"></i></div>
+      <div class="map-row"><span class="lab">arpeggio</span><i class="lane off"></i><i class="lane ramp"></i><i class="lane ramp"></i><i class="lane l-arp"></i><i class="lane l-tense"></i><i class="lane off"></i><i class="lane ramp red"></i><i class="lane ramp red"></i><i class="lane l-redarp"></i><i class="lane l-tense"></i></div>
+      <div class="map-row"><span class="lab">tension</span><i class="lane off"></i><i class="lane off"></i><i class="lane off"></i><i class="lane ramp"></i><i class="lane l-tense"></i><i class="lane off"></i><i class="lane off"></i><i class="lane ramp red"></i><i class="lane ramp red"></i><i class="lane l-tense"></i></div>
+      <div class="map-track"><span></span><span class="seg t1">SECTOR 1 THEME</span><span class="seg tb" style="grid-column:6">BOSS</span><span class="seg t2">SECTOR 2 THEME</span><span class="seg tb" style="grid-column:11">BOSS+</span></div>
+    </div>
+    <div class="legend"><span><i class="l-base"></i>always on</span><span><i class="ramp"></i>fades in as the wave thins</span><span><i class="l-tense"></i>boss theme, shifting up at each phase</span><span><i class="l-red"></i>sector 2's darker key</span></div>
+  </div>
+  <div class="chips" aria-label="Stingers"><span class="chip">Stinger · wave clear</span><span class="chip">Stinger · upgrade pick</span><span class="chip">Stinger · victory</span><span class="chip">Stinger · game over</span><span class="chip">Ducks under boss deaths and Specials</span><span class="chip">Slows under Time Stop and Slow</span></div>
+</section>
+
+<section>
+  <h2>Release 3b: ships</h2>
+  <p class="prose muted" style="margin-bottom:14px">Picked before a run, alongside the Special. Each trades one strength for one weakness; none is strictly better.</p>
+  <div class="lineup">
+    <div class="unit"><canvas class="px stage" id="m-breaker" width="48" height="48" aria-label="Concept: Breaker"></canvas><span class="nm">Breaker</span><div class="stats"><div>speed<b style="--v:55%"></b></div><div>fire<b style="--v:55%"></b></div><div>lives<b style="--v:60%"></b></div></div><p>Balanced. Where everyone starts.</p></div>
+    <div class="unit"><canvas class="px stage" id="m-interceptor" width="48" height="48" aria-label="Concept: Interceptor"></canvas><span class="nm">Interceptor</span><div class="stats"><div>speed<b style="--v:90%"></b></div><div>fire<b style="--v:68%"></b></div><div>lives<b style="--v:40%"></b></div></div><p>35% faster, fires quicker, only two lives.</p></div>
+    <div class="unit"><canvas class="px stage" id="m-lancer" width="48" height="48" aria-label="Concept: Lancer"></canvas><span class="nm">Lancer</span><div class="stats"><div>speed<b style="--v:55%"></b></div><div>fire<b style="--v:35%"></b></div><div>lives<b style="--v:60%"></b></div></div><p>Twin piercing shots, fires 35% slower.</p></div>
+    <div class="unit"><canvas class="px stage" id="m-bulwark" width="48" height="48" aria-label="Concept: Bulwark"></canvas><span class="nm">Bulwark</span><div class="stats"><div>speed<b style="--v:42%"></b></div><div>fire<b style="--v:55%"></b></div><div>lives<b style="--v:60%"></b></div></div><p>A free shield every wave, 15% slower.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Release 3b in play</h2>
+  <div class="concepts">
+    <figure>
+      <div class="phone">
+        <div class="field"><canvas class="px" id="c-choose" width="180" height="320" aria-label="Concept: choosing a ship before a run"></canvas>
+          <div class="overlay">
+            <h4>CHOOSE YOUR SHIP<span>THEN YOUR SPECIAL</span></h4>
+            <div class="card"><span class="name">BREAKER</span><span class="what">Balanced, three lives.</span></div>
+            <div class="card focus"><span class="name">LANCER</span><span class="what">Twin piercing shots, fires slower.</span></div>
+            <div class="card locked"><span class="name">INTERCEPTOR</span><span class="lock">LOCKED · reach sector 2</span></div>
+            <div class="card locked"><span class="name">BULWARK</span><span class="lock">LOCKED · destroy 300 aliens (182/300)</span></div>
+          </div>
+        </div>
+        <div class="strip">locked ships show what unlocks them</div>
+      </div>
+      <figcaption><span class="tag">Concept · run start</span><br><b>Pick a ship.</b> Locked ones stay on the list with their milestone and progress, so you always know what's next.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone">
+        <div class="field"><canvas class="px" id="c-missiles" width="180" height="320" aria-label="Concept: Missile Swarm and Gravity Well Specials"></canvas></div>
+        <div class="strip">Missile Swarm (left) · Gravity Well (right)</div>
+      </div>
+      <figcaption><span class="tag">Concept · new Specials</span><br><b>Missile Swarm and Gravity Well.</b> Eight homing missiles split to the nearest aliens; the well sits mid-field, drags in enemy shots and free aliens, and grinds them for three seconds.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone">
+        <div class="field"><canvas class="px" id="c-unlock" width="180" height="320" aria-label="Concept: the end-of-run unlock moment"></canvas>
+          <div class="unlocked">
+            <span class="k">UNLOCKED</span>
+            <canvas id="c-unlock-ship" width="48" height="48" aria-hidden="true"></canvas>
+            <span class="n">LANCER</span>
+            <span class="d">You defeated the Brood Mother. Twin piercing shots, slower fire.</span>
+          </div>
+        </div>
+        <div class="strip">then the usual result card</div>
+      </div>
+      <figcaption><span class="tag">Concept · end of run</span><br><b>The unlock moment.</b> After the run, before the result card, each new unlock gets its own beat with a fanfare.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <h2>The unlocks screen</h2>
+  <div class="unlocks" role="img" aria-label="Concept: unlocks screen with done, next and locked milestones">
+    <div class="head"><h3>UNLOCKS</h3><span class="count">7 of 16 unlocked · from the title screen</span></div>
+    <div class="tiles">
+      <div class="tile done"><span class="kind">upgrade</span><span class="nm">RICOCHET</span><span class="goal">Clear wave 3.</span></div>
+      <div class="tile done"><span class="kind">ship</span><span class="nm">LANCER</span><span class="goal">Defeat the Brood Mother.</span></div>
+      <div class="tile done"><span class="kind">special</span><span class="nm">TIME STOP</span><span class="goal">Fire your Special 5 times in one run.</span></div>
+      <div class="tile next"><span class="kind">ship · next</span><span class="nm">INTERCEPTOR</span><span class="goal">Reach sector 2.</span></div>
+      <div class="tile next"><span class="kind">ship · next</span><span class="nm">BULWARK</span><span class="goal">Destroy 300 aliens in total.</span><span class="bar"><i style="width:61%"></i></span></div>
+      <div class="tile lock"><span class="kind">special</span><span class="nm">MISSILE SWARM</span><span class="goal">Reach the Hive Mind.</span></div>
+      <div class="tile lock"><span class="kind">upgrade</span><span class="nm">CHAIN SPARK</span><span class="goal">Unlock any synergy.</span></div>
+      <div class="tile lock"><span class="kind">special</span><span class="nm">GRAVITY WELL</span><span class="goal">Win a run.</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Draft content</h2>
+  <p class="prose muted" style="margin-bottom:12px">Numbers get tuned during the work. A new player starts with nine upgrades (twin shot, rapid fire, extra life, piercing, shield pulse, thrusters, combo guard, magnet, homing), Pulse Bomb and Shield Burst, and the Breaker. Synergies appear once both halves are unlocked.</p>
+  <div class="tables">
+    <div class="tablewrap"><table><thead><tr><th>New upgrade</th><th>Effect</th></tr></thead><tbody>
+      <tr><td>Chain Spark</td><td>A hit arcs to one nearby alien for 1 damage.</td></tr>
+      <tr><td>Scavenger</td><td>Power-ups last 50% longer and drop more often.</td></tr>
+      <tr><td>Overclock</td><td>The Special meter charges 30% faster.</td></tr>
+      <tr><td>Last Stand</td><td>On your last life, fire 30% faster.</td></tr>
+      <tr><td>Storm</td><td>Synergy: Chain Spark + Homing. Sparks chain twice.</td></tr>
+      <tr><td>Battery</td><td>Synergy: Overclock + Scavenger. A caught power-up adds a quarter of the meter.</td></tr>
+    </tbody></table></div>
+    <div class="tablewrap"><table><thead><tr><th>Milestone</th><th>Unlocks</th></tr></thead><tbody>
+      <tr><td>Clear wave 3</td><td>Ricochet</td></tr>
+      <tr><td>Reach an x8 combo</td><td>Overcharge</td></tr>
+      <tr><td>Unlock any synergy</td><td>Chain Spark</td></tr>
+      <tr><td>Catch 10 power-ups in a run</td><td>Scavenger</td></tr>
+      <tr><td>Fire your Special 5 times in a run</td><td>Time Stop</td></tr>
+      <tr><td>Clear a wave without breaking your combo</td><td>Bomb on kill</td></tr>
+      <tr><td>Beat the Brood Mother without losing a life</td><td>Double Tap</td></tr>
+      <tr><td>Defeat the Brood Mother</td><td>Lancer</td></tr>
+      <tr><td>Reach sector 2</td><td>Interceptor</td></tr>
+      <tr><td>Reach the Hive Mind</td><td>Missile Swarm</td></tr>
+      <tr><td>Win a run</td><td>Gravity Well</td></tr>
+      <tr><td>Win with Time Stop</td><td>Slow Field</td></tr>
+      <tr><td>Win with two different ships</td><td>Wingman</td></tr>
+      <tr><td>Destroy 300 aliens in total</td><td>Bulwark</td></tr>
+      <tr><td>Finish 10 runs</td><td>Overclock, Last Stand</td></tr>
+    </tbody></table></div>
+  </div>
+</section>
+
+<section class="prose" style="max-width:none">
+  <h2>Done means</h2>
+  <div class="done">
+    <div><h3 style="margin-bottom:10px"><span class="release a">3a</span></h3><ul class="ticks">
+      <li>Title, both sectors and the bosses have their music; stingers on wave clear, pick, victory and game over.</li>
+      <li>Layers build as waves thin and on the last life; bosses shift gear by phase.</li>
+      <li>Ducks under big moments, slows under Time Stop and Slow.</li>
+      <li>Its own on/off and volume; no glitches on pause, tab away or restart.</li></ul></div>
+    <div><h3 style="margin-bottom:10px"><span class="release b">3b</span></h3><ul class="ticks b">
+      <li>New players start with the trimmed pool.</li>
+      <li>Each milestone unlocks what it says, once, with an unlock moment.</li>
+      <li>The unlocks screen shows progress and what's next.</li>
+      <li>Ships and the new Specials play as designed; progress survives reloads and can be exported.</li></ul></div>
+  </div>
+</section>
+
+<section>
+  <h2>Steps</h2>
+  <p class="prose muted" style="margin-bottom:12px">As in slices 1 and 2: I write each release's contract, smaller models build in parallel on separate files, the reviewer checks every round, and I play-test before pushing. Blue numbers run as parallel workers.</p>
+  <ol class="steps">
+    <li><div><h3>3a contract <span class="badge m">main session</span></h3><p>The song format (tempo, channels, note patterns, layers, loops) and the music API (play, stinger, intensity, boss phase, duck, time scale, volume).</p></div></li>
+    <li class="par"><div><h3>3a engine, tracks, settings <span class="badge p">3 in parallel</span></h3><ul>
+      <li><span class="who"><b>Sonnet</b></span> sequencer on Web Audio, scheduled ahead so it stays in time; crossfades, layers, ducking, time scaling, stingers on the beat.</li>
+      <li><span class="who"><b>Sonnet</b></span> composer: the four tracks and stingers as data, with a dev page to audition them.</li>
+      <li><span class="who"><b>Haiku</b></span> music on/off and volume in Settings.</li></ul></div></li>
+    <li><div><h3>3a wiring, review, ship</h3><p>A music director in <code>main.ts</code> picks tracks by screen and wave and feeds intensity, boss phase, ducking and time effects. Play-tested by ear on desktop and phone.</p></div></li>
+    <li><div><h3>3b contract <span class="badge m">main session</span></h3><p>Unlock ids, milestone definitions, the versioned progress save, ship definitions, and the new Specials and upgrades in the existing unions.</p></div></li>
+    <li class="par"><div><h3>3b logic and models <span class="badge p">3 in parallel</span></h3><ul>
+      <li><span class="who"><b>Sonnet</b></span> progression: milestone checks, unlock bookkeeping, starting pool, save, export and import.</li>
+      <li><span class="who"><b>Sonnet</b></span> new content: ships, Missile Swarm, Gravity Well, four upgrades and two synergies, only unlocked items offered.</li>
+      <li><span class="who"><b>Sonnet</b></span> Blender models: Interceptor, Lancer, Bulwark, missile, Gravity Well core.</li></ul></div></li>
+    <li class="par"><div><h3>3b renderer, UI, sound <span class="badge p">3 in parallel</span></h3><ul>
+      <li><span class="who"><b>Sonnet</b></span> renderer: ships, missiles, the well's pull.</li>
+      <li><span class="who"><b>Sonnet</b></span> UI: ship choice, unlocks screen, the unlock moment, export and import.</li>
+      <li><span class="who"><b>Haiku</b></span> sound: unlock fanfare, the new Specials.</li></ul></div></li>
+    <li><div><h3>3b wiring, review, ship</h3><p>As for 3a.</p></div></li>
+  </ol>
+</section>
+
+<p class="foot">Full requirements: <code>docs/requirements.md</code> · This plan as Markdown: <code>docs/plan-slice-3.md</code> · Slices 1 and 2 are live at hivebreak.folkes.dev</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  if (!window.THREE) return;
+  const T = THREE;
+  const W = 180, H = 320;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let renderer;
+  try { renderer = new T.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true }); } catch (e) { return; }
+  renderer.setPixelRatio(1);
+  renderer.setSize(W, H, false);
+  renderer.setClearColor(0x000000, 0);
+  const gl = renderer.domElement;
+
+  const grad = new T.DataTexture(new Uint8Array([70, 70, 70, 150, 150, 150, 255, 255, 255]), 3, 1, T.RGBFormat);
+  grad.minFilter = grad.magFilter = T.NearestFilter; grad.generateMipmaps = false; grad.needsUpdate = true;
+  const outlineMat = new T.MeshBasicMaterial({ color: 0x07040f, side: T.BackSide });
+  const toon = (c) => new T.MeshToonMaterial({ color: c, gradientMap: grad });
+  const glow = (c) => new T.MeshBasicMaterial({ color: c });
+  function part(geo, mat, x, y, z, outline) {
+    const m = new T.Mesh(geo, mat);
+    m.position.set(x || 0, y || 0, z || 0);
+    if (outline !== false) { const o = new T.Mesh(geo, outlineMat); o.scale.setScalar(1.16); m.add(o); }
+    return m;
+  }
+
+  // The four ships: the Breaker as in slices 1-2, and three stand-ins for the new models.
+  function makeBreaker() {
+    const g = new T.Group();
+    const hull = part(new T.ConeGeometry(4, 16, 4), toon(0xd8f6ff), 0, 2, 0); hull.rotation.y = Math.PI / 4; g.add(hull);
+    g.add(part(new T.BoxGeometry(18, 5, 2.4), toon(0x2bb6d9), 0, -4, 0));
+    g.add(part(new T.BoxGeometry(2.4, 7, 2.6), toon(0xffb04f), -9, -4, 0));
+    g.add(part(new T.BoxGeometry(2.4, 7, 2.6), toon(0xffb04f), 9, -4, 0));
+    g.add(part(new T.SphereGeometry(1.8, 8, 6), glow(0x4ff0ff), 0, 3, 2.6, false));
+    for (const x of [-3.5, 3.5]) { const f = part(new T.ConeGeometry(1.6, 5, 5), glow(0xffd36a), x, -9.5, 0, false); f.rotation.z = Math.PI; g.add(f); }
+    return g;
+  }
+  function makeInterceptor() {
+    const g = new T.Group();
+    const hull = part(new T.ConeGeometry(3, 20, 3), toon(0xffe9f6), 0, 3, 0); hull.rotation.y = Math.PI; g.add(hull);
+    for (const s of [-1, 1]) { const w = part(new T.BoxGeometry(9, 2, 1.6), toon(0xff4fd8), s * 5, -4, 0); w.rotation.z = s * -0.55; g.add(w); }
+    g.add(part(new T.SphereGeometry(1.5, 8, 6), glow(0x4ff0ff), 0, 4, 2, false));
+    const f = part(new T.ConeGeometry(1.8, 8, 5), glow(0xffd36a), 0, -10, 0, false); f.rotation.z = Math.PI; g.add(f);
+    return g;
+  }
+  function makeLancer() {
+    const g = new T.Group();
+    g.add(part(new T.BoxGeometry(6, 14, 3), toon(0xc9c2e8), 0, -1, 0));
+    for (const s of [-1, 1]) {
+      g.add(part(new T.BoxGeometry(2, 18, 2), toon(0x6b56c2), s * 5.5, 3, 0));
+      g.add(part(new T.BoxGeometry(1.4, 3, 1.4), glow(0x9ffbff), s * 5.5, 12.5, 0, false));
+    }
+    g.add(part(new T.BoxGeometry(16, 3, 2.4), toon(0x2bb6d9), 0, -6, 0));
+    g.add(part(new T.SphereGeometry(1.6, 8, 6), glow(0x4ff0ff), 0, 2, 2, false));
+    return g;
+  }
+  function makeBulwark() {
+    const g = new T.Group();
+    const hull = part(new T.CylinderGeometry(7, 9, 10, 6), toon(0x9aa7c8), 0, 0, 0); hull.rotation.x = Math.PI / 2; g.add(hull);
+    for (const s of [-1, 1]) g.add(part(new T.BoxGeometry(6, 9, 4), toon(0x3d4a7a), s * 10, -2, 0));
+    g.add(part(new T.BoxGeometry(3, 8, 3), toon(0xffb04f), 0, 7, 0));
+    g.add(part(new T.TorusGeometry(15, 0.7, 4, 18), glow(0x4fff9b), 0, 0, 0, false));
+    g.add(part(new T.SphereGeometry(1.8, 8, 6), glow(0x4ff0ff), 0, 1, 4.5, false));
+    return g;
+  }
+  function makeDrone() {
+    const g = new T.Group();
+    const b = part(new T.OctahedronGeometry(6), toon(0xb04cff), 0, 0, 0); b.scale.set(1.3, 0.8, 0.8); g.add(b);
+    g.add(part(new T.BoxGeometry(2.2, 1.6, 1), glow(0xffe14f), -2.4, 0.6, 4.4, false));
+    g.add(part(new T.BoxGeometry(2.2, 1.6, 1), glow(0xffe14f), 2.4, 0.6, 4.4, false));
+    for (const x of [-4.5, 0, 4.5]) g.add(part(new T.BoxGeometry(1.4, 4.5, 1.4), toon(0x6a2bb0), x, -5.5, 0));
+    return g;
+  }
+  function makeMissile() {
+    const g = new T.Group();
+    g.add(part(new T.ConeGeometry(1.4, 5, 4), toon(0xffe9f6), 0, 1, 0));
+    const f = part(new T.ConeGeometry(1.2, 4, 4), glow(0xffb04f), 0, -3, 0, false); f.rotation.z = Math.PI; g.add(f);
+    return g;
+  }
+  function lights(scene) {
+    scene.add(new T.HemisphereLight(0x9ab8ff, 0x1a0f2e, 0.9));
+    const sun = new T.DirectionalLight(0xffffff, 1.1); sun.position.set(-2, 3, 4); scene.add(sun);
+  }
+  function tiltCam() { const c = new T.OrthographicCamera(-W / 2, W / 2, H / 2, -H / 2, 1, 1000); c.position.set(0, -110, 300); c.lookAt(0, 0, 0); return c; }
+
+  let seed = 9; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const stars = []; for (let i = 0; i < 90; i++) stars.push([Math.floor(rnd() * W), rnd() * H, rnd() < 0.2 ? 2 : 1, rnd() < 0.15]);
+
+  // ---- Field scene: a formation, the Lancer below, missiles on the left, the well on the right ----
+  const field = new T.Scene(); lights(field);
+  const cam = tiltCam();
+  const drones = [];
+  for (let r = 0; r < 3; r++) for (let i = 0; i < 6; i++) { if (r === 2 && (i === 1 || i === 4)) continue; const d = makeDrone(); d.position.set(-60 + i * 24, 104 - r * 22, 0); field.add(d); drones.push(d); }
+  const ship = makeLancer(); ship.position.set(-20, -128, 0); field.add(ship);
+  const missiles = [];
+  for (let i = 0; i < 8; i++) { const m = makeMissile(); m.userData.i = i; field.add(m); missiles.push(m); }
+  const well = new T.Group(); well.position.set(42, 10, 0); field.add(well);
+  well.add(part(new T.IcosahedronGeometry(6, 0), toon(0x2a0f52), 0, 0, 0));
+  well.add(part(new T.IcosahedronGeometry(3, 0), glow(0x9b7bff), 0, 0, 5, false));
+  const motes = [];
+  for (let i = 0; i < 18; i++) { const m = part(new T.BoxGeometry(1.6, 1.6, 1.6), glow(i % 3 ? 0x9b7bff : 0xff4fd8), 0, 0, 0, false); m.userData.a = (i / 18) * Math.PI * 2; m.userData.r = 10 + (i % 4) * 6; well.add(m); motes.push(m); }
+  const caught = [[30, -16], [56, 22], [36, 34]].map(([x, y]) => { const s = part(new T.OctahedronGeometry(2.2), glow(0xff4fd8), x, y, 0, false); field.add(s); return s; });
+
+  // ---- Stages for the ship lineup and the unlock moment ----
+  const stage = new T.Scene(); lights(stage);
+  const stageCam = new T.OrthographicCamera(-24, 24, 24, -24, 1, 1000); stageCam.position.set(0, -90, 300); stageCam.lookAt(0, 0, 0);
+  const stageModels = { 'm-breaker': makeBreaker(), 'm-interceptor': makeInterceptor(), 'm-lancer': makeLancer(), 'm-bulwark': makeBulwark(), 'c-unlock-ship': makeLancer() };
+  for (const k in stageModels) { stageModels[k].scale.setScalar(1.25); stageModels[k].visible = false; stage.add(stageModels[k]); }
+
+  const ctx = (id) => { const c = document.getElementById(id); const x = c && c.getContext('2d'); if (x) x.imageSmoothingEnabled = false; return x; };
+  const fieldCtxs = ['c-choose', 'c-missiles', 'c-unlock'].map(ctx);
+  const stageCtx = {}; for (const k in stageModels) stageCtx[k] = ctx(k);
+
+  function drawField(t) {
+    drones.forEach((d, i) => { d.userData.bx = d.userData.bx ?? d.position.x; d.position.x = d.userData.bx + Math.sin(t * 0.6) * 5; d.rotation.y = Math.sin(t * 2 + i) * 0.25; });
+    ship.position.x = -20 + Math.sin(t * 0.8) * 12; ship.rotation.y = Math.cos(t * 0.8) * 0.4;
+    // Missiles fan out from the ship and curve toward the left half of the formation.
+    const k = (t * 0.55) % 1;
+    missiles.forEach((m) => {
+      const i = m.userData.i, target = drones[i % drones.length];
+      const sx = ship.position.x, sy = -118, side = (i - 3.5) * 9;
+      const cx = sx + side * 2.2, cy = -40;
+      const ex = target.position.x, ey = target.position.y;
+      const u = Math.min(1, k * 1.1 + i * 0.012);
+      const x = (1 - u) * (1 - u) * sx + 2 * (1 - u) * u * cx + u * u * ex;
+      const y = (1 - u) * (1 - u) * sy + 2 * (1 - u) * u * cy + u * u * ey;
+      const dx = 2 * (1 - u) * (cx - sx) + 2 * u * (ex - cx), dy = 2 * (1 - u) * (cy - sy) + 2 * u * (ey - cy);
+      m.position.set(x, y, 2); m.rotation.z = Math.atan2(dy, dx) - Math.PI / 2; m.visible = u < 0.98;
+    });
+    motes.forEach((m) => { const a = m.userData.a - t * 2.4, r = m.userData.r * (0.75 + 0.25 * Math.sin(t * 3 + m.userData.a)); m.position.set(Math.cos(a) * r, Math.sin(a) * r * 0.8, 0); });
+    caught.forEach((s, i) => { const a = t * 1.6 + i * 2.1, r = 14 + 6 * Math.sin(t + i); s.position.set(42 + Math.cos(a) * r, 10 + Math.sin(a) * r * 0.8, 0); s.rotation.y = t * 4; });
+    renderer.setViewport(0, 0, W, H); renderer.setScissor(0, 0, W, H); renderer.setScissorTest(true);
+    renderer.clear(); renderer.render(field, cam);
+    for (const c of fieldCtxs) {
+      if (!c) continue;
+      c.fillStyle = '#05030f'; c.fillRect(0, 0, W, H);
+      for (const [x, y, sz, tw] of stars) { const yy = Math.floor((y + t * (sz === 2 ? 14 : 7)) % H); c.fillStyle = tw && Math.sin(t * 5 + x) > 0.5 ? '#ffffff' : sz === 2 ? '#8f86c9' : '#463e7a'; c.fillRect(x, yy, 1, sz); }
+      c.drawImage(gl, 0, 0);
+      if ('filter' in c) { c.save(); c.filter = 'blur(2px)'; c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.45; c.drawImage(gl, 0, 0); c.restore(); }
+    }
+  }
+  function drawStages(t) {
+    let i = 0;
+    for (const k in stageModels) {
+      const m = stageModels[k], c = stageCtx[k]; if (!c) continue;
+      for (const kk in stageModels) stageModels[kk].visible = kk === k;
+      m.rotation.y = Math.sin(t * 0.8 + i) * 0.6; m.position.y = Math.sin(t * 1.6 + i) * 1.2;
+      renderer.setViewport(0, H - 48, 48, 48); renderer.setScissor(0, H - 48, 48, 48); renderer.setScissorTest(true);
+      renderer.clear(); renderer.render(stage, stageCam);
+      c.clearRect(0, 0, 48, 48); c.drawImage(gl, 0, 0, 48, 48, 0, 0, 48, 48);
+      i++;
+    }
+  }
+  let last = -1;
+  function frame(ms) {
+    const t = ms / 1000;
+    if (ms - last > 30) { last = ms; drawStages(t); drawField(t); }
+    if (!reduce) requestAnimationFrame(frame);
+  }
+  if (reduce) frame(1800); else requestAnimationFrame(frame);
+})();
+</script>

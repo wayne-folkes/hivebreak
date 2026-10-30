@@ -98,11 +98,25 @@ slices but shapes the design now.
 - **Destructible shields** (slice 2): bunkers above the ship's row that erode pixel by pixel from
   both sides' fire, in both sectors.
 
+### Unlocks (slice 3)
+
+- **Milestones** unlock content: concrete goals shown on an unlocks screen (beat the Brood Mother,
+  reach sector 2, hit an x8 combo, win a run, ...), each naming what it unlocks, so players know
+  what they're chasing. No currency and no permanent stat boosts; each run stays fair.
+- **What unlocks:** upgrades for the pool, ships and Specials. A new player starts with a trimmed
+  pool (about 9 of the 15 slice-2 upgrades, Pulse Bomb and Shield Burst, and the Breaker); the
+  rest of today's content and the new content come from milestones. Synergies appear once both
+  halves are unlocked.
+- **New content:** three ships picked before a run alongside the Special (Interceptor: fast, two
+  lives; Lancer: piercing twin shot, slower fire; Bulwark: starts with a shield each wave, slower),
+  two Specials (Missile Swarm, Gravity Well), four upgrades and two synergies, about 15 milestones.
+- **Saving:** progress lives in the browser (localStorage), like the records. Settings offers an
+  export/import code as a backup.
+
 ### Later slices
 
-- **Unlocks:** finishing runs unlocks new upgrades and ships for the pool. No permanent stat boosts;
-  each run is fair.
-- Music, the online leaderboard, and local co-op.
+- The online leaderboard (Supabase), and local co-op for controllers on any device (plus one
+  touch player and one controller player on phones; two people on one phone's touch is ruled out).
 
 ## Players
 
@@ -137,8 +151,14 @@ layer (ported from rc-racer).
 
 - Sound effects synthesized with Web Audio in code (no sound files), as in rc-racer's `audio.ts`.
   Slice 1: shoot, alien hit, alien death, player hit, upgrade pick, wave clear, game over.
-- A chiptune music track (CC0 or generated) in a later slice.
 - Sound on/off and volume, remembered.
+- **Music (slice 3):** synthesized in code like the effects: a small chiptune sequencer with
+  tracks written as note patterns. Four tracks (title, sector 1, sector 2, and a boss theme shared
+  by both bosses with a tenser variation for the Hive Mind's later phases), plus stingers (wave
+  clear, upgrade pick, victory, game over). It reacts to the game: intensity layers as the
+  formation thins and on the last life, a gear change at each boss phase, ducking under big
+  moments, and slowing and pitching down during Time Stop and Slow. Music has its own on/off
+  and volume, apart from the sound effects.
 
 ## Scores and progression
 
