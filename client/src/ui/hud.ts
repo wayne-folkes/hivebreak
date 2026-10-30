@@ -2,7 +2,7 @@ import { bossHealth } from '../game/boss';
 import type { SourceKind } from '../game/controls';
 import { WAVE_COUNT } from '../game/waves';
 import type { Fit } from '../game/playfield';
-import type { PlayerState, RunState, SynergyId, UpgradeId } from '../game/types';
+import type { PlayerState, PowerUpKind, RunState, SpecialId, SynergyId, UpgradeId } from '../game/types';
 import { byId } from './card';
 import {
   BOSS_NAMES,
@@ -74,8 +74,11 @@ export class Hud {
   private shownWave = -1;
   private shownLives = -1;
   private shownUpgrades = -1;
-  private shownSpecial = '';
-  private shownChips = '';
+  private shownSpecialId: SpecialId | null = null;
+  private shownSpecialDevice: SourceKind | null = null;
+  private shownSpecialPercent = -1;
+  private shownChipKinds: PowerUpKind[] = [];
+  private shownChipSeconds: number[] = [];
   private shownBoss = -1;
   private best = 0;
 
@@ -194,33 +197,45 @@ export class Hud {
   private drawSpecial(player: PlayerState | undefined, device: SourceKind): void {
     const id = player?.special ?? null;
     if (!player || id === null) {
-      if (this.shownSpecial !== 'none') {
-        this.shownSpecial = 'none';
+      if (this.shownSpecialId !== null) {
+        this.shownSpecialId = null;
         this.special.hidden = true;
       }
       return;
     }
-    const cells = meterCells(player.specialCharge);
-    const ready = cells[cells.length - 1] >= 1;
-    // Cells only change a visible amount in whole-percent steps, so key the cache on those.
-    const key = `${id}|${device}|${Math.floor(player.specialCharge * 100)}|${ready}`;
-    if (key === this.shownSpecial) return;
-    this.shownSpecial = key;
+    // Compare plain numbers first: cells only change visibly in whole-percent steps, and 100 means ready.
+    const charge = player.specialCharge;
+    const percent = charge >= 1 ? 100 : Math.max(0, Math.min(99, Math.floor(charge * 100)));
+    if (id === this.shownSpecialId && device === this.shownSpecialDevice && percent === this.shownSpecialPercent) return;
+    this.shownSpecialId = id;
+    this.shownSpecialDevice = device;
+    this.shownSpecialPercent = percent;
+    const ready = percent === 100;
+    const cells = meterCells(charge);
     const name = SPECIAL_SHORT[id].toUpperCase();
     this.special.hidden = false;
     this.special.dataset.state = ready ? 'ready' : 'charging';
     this.specialName.textContent = ready ? `${name} READY` : name;
     this.specialHint.textContent = specialHint(device);
-    this.specialCells.setAttribute('aria-label', ready ? `Special ready` : `Special ${Math.floor(player.specialCharge * 100)}% charged`);
+    this.specialCells.setAttribute('aria-label', ready ? 'Special ready' : `Special ${percent}% charged`);
     for (let i = 0; i < METER_CELLS; i++) this.cells[i]?.style.setProperty('--fill', `${Math.round(cells[i] * 100)}%`);
   }
 
   /** One chip per running power-up, counting down in whole seconds. */
   private drawPowerUps(player: PlayerState | undefined): void {
-    const chips = powerUpChips(player?.powerUps ?? []);
-    const key = chips.map((c) => `${c.kind}${c.seconds}${c.low ? '!' : ''}`).join(',');
-    if (key === this.shownChips) return;
-    this.shownChips = key;
+    const powerUps = player?.powerUps ?? [];
+    // Compare kinds and whole seconds in place; only build chips when one differs.
+    let n = 0;
+    let changed = false;
+    for (const p of powerUps) {
+      if (!(p.timeLeft > 0)) continue;
+      if (this.shownChipKinds[n] !== p.kind || this.shownChipSeconds[n] !== Math.ceil(p.timeLeft)) changed = true;
+      n++;
+    }
+    if (!changed && n === this.shownChipKinds.length) return;
+    const chips = powerUpChips(powerUps);
+    this.shownChipKinds = chips.map((c) => c.kind);
+    this.shownChipSeconds = chips.map((c) => c.seconds);
     this.powerUpStat.hidden = chips.length === 0;
     this.powerUpList.replaceChildren(
       ...chips.map((c) => {

@@ -443,15 +443,13 @@ export class GameView {
         this.effects.sparksIn(e.x, e.y, CORE_FIRE, 4, 40);
         break;
       case 'bossPartHit':
-        if (e.part === 'core' && run.boss && platesStanding(run.boss)) {
-          // A shot the shielded core stopped: the shield flares.
-          this.bossShieldFlash = 0.2;
-          this.effects.sparksIn(e.x, e.y, SHIELD_SPARK, 5, 60);
-        } else if (e.part === 'core') {
-          this.effects.sparksIn(e.x, e.y, CORE_FIRE, 5, 60);
-        } else {
-          this.effects.sparks(e.x, e.y);
-        }
+        if (e.part === 'core') this.effects.sparksIn(e.x, e.y, CORE_FIRE, 5, 60);
+        else this.effects.sparks(e.x, e.y);
+        break;
+      case 'coreBlocked':
+        // A shot (or the laser) the shielded core stopped: the shield flares.
+        this.bossShieldFlash = 0.2;
+        this.effects.sparksIn(e.x, e.y, SHIELD_SPARK, 5, 60);
         break;
       case 'bossPartDestroyed':
         this.effects.partBurst(e.x, e.y);

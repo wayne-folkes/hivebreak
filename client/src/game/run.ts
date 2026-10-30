@@ -73,11 +73,16 @@ export const ALIEN_SHOT_MAX_VX = 50;
 export const OFFER_SIZE = 3;
 /** Gap between players' starting places when there's more than one, art pixels. */
 export const PLAYER_START_SPACING = 40;
+/** The laser's blocked-core flare comes at most this often, seconds. */
+export const CORE_BLOCK_FLARE_SECONDS = 0.3;
 /** Player shots are dropped once they are this far past the side walls, art pixels. */
 export const SHOT_SIDE_MARGIN = 4;
 
-/** Starts a run at wave 0, waiting in the Special choice. */
-export function createRun(seed: number, playerCount = 1): RunState {
+/**
+ * Starts a run waiting in the Special choice, at wave 0 or, for testing, at `firstWave` (an
+ * index into the wave list; the dev server's `?wave=` uses it to reach the boss quickly).
+ */
+export function createRun(seed: number, playerCount = 1, firstWave = 0): RunState {
   const players = Array.from({ length: playerCount }, (_, i) =>
     createPlayer(i, (i - (playerCount - 1) / 2) * PLAYER_START_SPACING),
   );
@@ -85,7 +90,7 @@ export function createRun(seed: number, playerCount = 1): RunState {
     phase: 'chooseSpecial',
     phaseTime: 0,
     time: 0,
-    wave: 0,
+    wave: Math.max(0, Math.min(WAVES.length - 1, Math.floor(firstWave))),
     players,
     aliens: [],
     shots: [],
@@ -298,7 +303,7 @@ function fireShips(run: RunState, inputs: readonly ShipInput[], dt: number, even
         p.cooldown = currentFireInterval(p);
         fired = wingmanShots(p, newId);
       }
-      fireLaser(run, p, events);
+      fireLaser(run, p, dt, events);
     } else {
       fired = tryFire(p, input, newId);
       if (fired.length > 0) fired.push(...spreadVolley(p, newId, fired[0].volley));
@@ -312,10 +317,17 @@ function fireShips(run: RunState, inputs: readonly ShipInput[], dt: number, even
 }
 
 /** One ship's laser for this step: adds its beam and applies a damage tick to what it stops at. */
-function fireLaser(run: RunState, player: PlayerState, events: RunEvent[]): void {
+function fireLaser(run: RunState, player: PlayerState, dt: number, events: RunEvent[]): void {
   const { beam, target } = computeBeam(player, run.aliens, run.boss);
   run.beams.push(beam);
-  if (!target || target.blocked) return;
+  if (!target) return;
+  if (target.blocked) {
+    // The shielded core stops the beam: no damage, but the shield flares, a few times a second.
+    if (Math.floor(run.time / CORE_BLOCK_FLARE_SECONDS) !== Math.floor((run.time - dt) / CORE_BLOCK_FLARE_SECONDS)) {
+      events.push({ type: 'coreBlocked', x: beam.x, y: beam.topY });
+    }
+    return;
+  }
   const damage = laserDamage(player);
   if (damage <= 0) return;
   if (target.alienId !== undefined) {
@@ -631,7 +643,7 @@ function landVolley(run: RunState, shot: Shot, raiseCombo: boolean): void {
 /**
  * Player shots against aliens, then against the boss: hits, kills, combo and points. A piercing
  * shot carries on past what it hit; any other is spent. A shot the boss's shielded core stops is
- * spent without damage or an event. Dead aliens are removed.
+ * spent without damage (a `coreBlocked` event lets the shield flare). Dead aliens are removed.
  */
 function resolvePlayerShots(run: RunState, events: RunEvent[]): void {
   for (const shot of run.shots) {
@@ -655,6 +667,7 @@ function resolvePlayerShots(run: RunState, events: RunEvent[]): void {
     shot.hits++;
     if (hit.blocked) {
       // Stopped by the armour: not a miss, but nothing to reward either.
+      events.push({ type: 'coreBlocked', x: shot.x, y: shot.y });
       landVolley(run, shot, false);
       idScratch.add(shot.id);
       continue;

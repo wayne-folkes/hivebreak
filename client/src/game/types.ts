@@ -403,6 +403,8 @@ export type RunEvent =
   | { type: 'bossLaunched'; alienId: number }
   | { type: 'bossFired'; x: number; y: number }
   | { type: 'bossPartHit'; partId: number; part: BossPartKind; x: number; y: number }
+  // A player's shot (or the laser, a few times a second) stopped by the shielded core: no damage.
+  | { type: 'coreBlocked'; x: number; y: number }
   // A destroyed core has no bossPartDestroyed: its bossKilled is the event for it.
   | { type: 'bossPartDestroyed'; partId: number; part: BossPartKind; x: number; y: number; points: number }
   | { type: 'bossPhase'; phase: number }

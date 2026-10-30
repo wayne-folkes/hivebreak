@@ -193,6 +193,9 @@ export function partsFor(event: RunEvent): Part[] {
     case 'bossPartHit':
       // An armour clank, with two inharmonic partials.
       return [tone(560, 0.08, 'square', 0.07, 480), tone(1190, 0.06, 'square', 0.04)];
+    case 'coreBlocked':
+      // A quiet, dull tick: the shot hit the shield.
+      return [tone(900, 0.05, 'triangle', 0.04, 700)];
     case 'bossPartDestroyed':
       return [
         { kind: 'noise', from: 1600, to: 60, dur: 0.7, filter: 'lowpass', q: 0.7, vol: 0.45 },

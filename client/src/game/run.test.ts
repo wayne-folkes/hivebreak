@@ -887,8 +887,26 @@ describe('the boss wave', () => {
     const events = steps(run, 3);
     expect(core.hp).toBe(core.maxHp);
     expect(has(events, 'bossPartHit')).toBe(false);
+    expect(ofType(events, 'coreBlocked')).toEqual([{ type: 'coreBlocked', x: boss.x, y: expect.any(Number) }]);
     expect(run.shots).toEqual([]);
     expect(has(events, 'comboBroken')).toBe(false);
+  });
+
+  it('flares the core shield for a blocked laser only a few times a second', () => {
+    const run = bossFight();
+    const boss = run.boss!;
+    boss.stun = 100;
+    const p = run.players[0];
+    p.x = boss.x;
+    activatePowerUp(p, 'laser');
+    const events = steps(run, 120, HOLD_FIRE); // one second
+    const flares = ofType(events, 'coreBlocked');
+    expect(flares.length).toBeGreaterThanOrEqual(2);
+    expect(flares.length).toBeLessThanOrEqual(4);
+    expect(flares[0].x).toBeCloseTo(boss.x, 5);
+    // Over a plate the beam isn't blocked.
+    p.x = boss.x + 13;
+    expect(ofType(steps(run, 60, HOLD_FIRE), 'coreBlocked')).toEqual([]);
   });
 
   it('lets a piercing shot hit a plate and carry on', () => {

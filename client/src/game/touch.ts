@@ -126,7 +126,7 @@ export class TouchControls implements InputSource {
   private readonly tapped = new Set<Tap>();
   private used = false;
   /** The last Special display drawn, so setSpecial() can skip the DOM when nothing changed. */
-  private shownSpecial = '';
+  private shownSpecial = -2; // -2 nothing drawn yet, -1 hidden, else the fill percent (100 = ready)
   /** True once a touch has been seen, or the device reports a coarse pointer. */
   private enabled: boolean;
   /** Whether the game wants the overlay up (it hides behind menu cards). */
@@ -207,16 +207,17 @@ export class TouchControls implements InputSource {
     const button = this.special();
     if (!button) return;
     if (charge === null) {
-      if (this.shownSpecial !== 'none') {
-        this.shownSpecial = 'none';
+      if (this.shownSpecial !== -1) {
+        this.shownSpecial = -1;
         button.hidden = true;
       }
       return;
     }
+    // Compare the whole percent first; only build the view when it changed.
+    const fill = charge >= 1 ? 100 : Math.max(0, Math.min(99, Math.floor(charge * 100) || 0));
+    if (fill === this.shownSpecial) return;
+    this.shownSpecial = fill;
     const view = specialView(charge);
-    const key = `${view.fill}|${view.ready}`;
-    if (key === this.shownSpecial) return;
-    this.shownSpecial = key;
     button.hidden = false;
     button.dataset.state = view.ready ? 'ready' : 'charging';
     button.style.setProperty('--charge', `${view.fill}%`);

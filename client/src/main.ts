@@ -12,7 +12,9 @@ import { RECORDS_KEY, addRecord, bestScore, loadRecords } from './game/records';
 import { WAVE_INTRO_SECONDS, chooseSpecial, createRun, pickUpgrade, stepRun } from './game/run';
 import { TouchControls } from './game/touch';
 import { NO_INPUT } from './game/types';
-import type { RunEvent, RunState, ShipInput } from './game/types';
+import type { RunEvent, RunState, ShipInput, SpecialId } from './game/types';
+import { SPECIAL_IDS } from './game/special';
+import { completesSynergy } from './game/synergies';
 import { stackCount } from './game/upgrades';
 import { GameView } from './render/view';
 import {
@@ -23,13 +25,15 @@ import {
   PauseCard,
   RecordsCard,
   SettingsCard,
+  SpecialCard,
   TitleCard,
   UpgradeCard,
+  bossDownHeading,
 } from './ui';
 import type { MenuCard, RunResult } from './ui';
 
 // The game: the loop that steps the simulation and draws it, the input sources, sound, storage
-// and the flow between screens (title, run, upgrade pick, pause, game over). The title plays an
+// and the flow between screens (title, Special choice, run, upgrade pick, pause, game over). The title plays an
 // autopilot demo run behind it, silently.
 
 inject();
@@ -132,16 +136,24 @@ function clearStack(): void {
 
 // Run state ----------------------------------------------------------------------------------
 
-type Mode = 'title' | 'playing' | 'pick' | 'over';
+type Mode = 'title' | 'special' | 'playing' | 'pick' | 'over';
 
-/** `title`: the demo plays behind the title and its menus. `playing`: a real run, including the pause menu. */
+/**
+ * `title`: the demo plays behind the title and its menus. `special`: a real run waiting on the
+ * Special card. `playing`: a real run, including the pause menu.
+ */
 let mode: Mode = 'title';
 let run: RunState = createRun(1);
-chooseSpecial(run, 'pulseBomb'); // TEMP until the 2a UI step
 let paused = false;
 let accumulator = 0;
 /** Touch drag read since the last sim step; handed to the next step that runs (see ShipInput.drag). */
 let carry = 0;
+/**
+ * A Special press read since a `playing` step last ran; handed to the next steps until one of
+ * them has used it (the wave intro ignores it), then cleared. Pressing with the meter not full
+ * is simply consumed there.
+ */
+let specialCarry = false;
 /** Events from outside the loop (a tapped upgrade), played with the next frame's. */
 let pending: RunEvent[] = [];
 let lostReason: 'lives' | 'invaded' | undefined;
@@ -153,11 +165,22 @@ const demo = (): boolean => mode === 'title';
 /** The ship answers the player: a real run, not paused and not behind a card. */
 const live = (): boolean => mode === 'playing' && !paused;
 
+/**
+ * Dev server only, for testing: `?wave=5` starts real runs at that wave (1-based), and
+ * `?charged` starts them with a full Special meter. Production builds drop both.
+ */
+const DEV_PARAMS = import.meta.env.DEV ? new URLSearchParams(location.search) : null;
+const DEV_WAVE = Number(DEV_PARAMS?.get('wave'));
+const DEV_FIRST_WAVE = Number.isFinite(DEV_WAVE) && DEV_WAVE >= 1 ? DEV_WAVE - 1 : 0;
+const DEV_CHARGED = DEV_PARAMS?.has('charged') ?? false;
+
 function newRun(seed: number): void {
-  run = createRun(seed);
-  chooseSpecial(run, 'pulseBomb'); // TEMP until the 2a UI step
+  run = createRun(seed, 1, mode === 'title' ? 0 : DEV_FIRST_WAVE);
+  // The title demo picks its Special itself, silently; a real run waits for the Special card.
+  if (demo()) chooseSpecial(run, SPECIAL_IDS[seed % SPECIAL_IDS.length]);
   accumulator = 0;
   carry = 0;
+  specialCarry = false;
   lostReason = undefined;
   savedRank = null;
   view.reset();
@@ -176,14 +199,26 @@ function showTitle(): void {
   enter(titleScreen);
 }
 
+/** Starts a real run: it opens on the Special card, and the wave intro begins once one is picked. */
 function startRun(): void {
   clearStack();
-  mode = 'playing';
+  mode = 'special';
   paused = false;
   newRun(Date.now());
   hud.setBest(bestScore(storage));
   hud.setVisible(true);
-  hud.update(run);
+  hud.update(run, controls.lastUsed);
+  controls.holdFireUntilReleased();
+  enter(specialScreen);
+}
+
+function takeSpecial(special: SpecialId): void {
+  if (mode !== 'special') return;
+  pending.push(...chooseSpecial(run, special));
+  // Choosing resets the meter, so the dev `?charged` fill comes after it.
+  if (DEV_CHARGED) for (const p of run.players) p.specialCharge = 1;
+  mode = 'playing';
+  leave();
   controls.holdFireUntilReleased();
   screenView('/play');
 }
@@ -192,6 +227,7 @@ function pauseRun(): void {
   paused = true;
   accumulator = 0;
   carry = 0;
+  specialCarry = false;
   banner.hide();
   enter(pauseScreen);
 }
@@ -200,6 +236,7 @@ function resumeRun(): void {
   paused = false;
   accumulator = 0;
   carry = 0;
+  specialCarry = false;
   clearStack();
   controls.holdFireUntilReleased();
   // The wave banner was cut short by the pause; show what is left of it.
@@ -216,6 +253,7 @@ function takeUpgrade(index: number): void {
   if (mode !== 'pick') return;
   pending.push(...pickUpgrade(run, index));
   mode = 'playing';
+  specialCarry = false;
   leave();
   controls.holdFireUntilReleased();
   screenView('/play');
@@ -249,6 +287,7 @@ function finishRun(): void {
   };
   mode = 'over';
   carry = 0;
+  specialCarry = false;
   banner.hide();
   enter(overScreen);
 }
@@ -284,6 +323,7 @@ const settingsCard = new SettingsCard(
 document.getElementById('settings-volume')?.addEventListener('change', saveSound);
 const recordsCard = new RecordsCard(() => loadRecords(storage), leave);
 const pauseCard = new PauseCard({ resume: resumeRun, settings: () => enter(settingsScreen), quit: showTitle });
+const specialCard = new SpecialCard(takeSpecial);
 const upgradeCard = new UpgradeCard(takeUpgrade);
 const overCard = new GameOverCard({ playAgain: startRun, title: showTitle });
 
@@ -292,9 +332,17 @@ const howtoScreen: Screen = { card: howtoCard, open: () => howtoCard.show(), pat
 const settingsScreen: Screen = { card: settingsCard, open: () => settingsCard.show(), path: '/settings' };
 const recordsScreen: Screen = { card: recordsCard, open: () => recordsCard.show(), path: '/records' };
 const pauseScreen: Screen = { card: pauseCard, open: () => pauseCard.show(), path: '/paused' };
+const specialScreen: Screen = { card: specialCard, open: () => specialCard.show(), path: '/special' };
 const pickScreen: Screen = {
   card: upgradeCard,
-  open: () => upgradeCard.show(run.offer, run.wave + 1, (id) => stackCount(run.players[0], id)),
+  open: () => {
+    const player = run.players[0];
+    // run.boss is only set on a boss wave, and stays until the next wave starts.
+    upgradeCard.show(run.offer, run.wave + 1, (id) => stackCount(player, id), {
+      ...(run.boss ? { heading: bossDownHeading(run.boss.kind) } : {}),
+      completes: (id) => completesSynergy(player, id),
+    });
+  },
   path: '/pick',
 };
 const overScreen: Screen = {
@@ -324,6 +372,10 @@ function pressPause(): void {
   } else if (top === howtoScreen || top === settingsScreen || top === recordsScreen) {
     sound.ui('back');
     leave();
+  } else if (top === specialScreen) {
+    // Backing out before a Special is chosen abandons the run; nothing has been played yet.
+    sound.ui('back');
+    showTitle();
   }
   // The title, the upgrade pick and the result card have nothing to go back to.
 }
@@ -360,17 +412,22 @@ function layout(): void {
   view.layout();
   hud.layout(view.fit);
   banner.layout(view.fit);
+  touch.layout(view.fit);
 }
 window.addEventListener('resize', layout);
 
 // The loop -----------------------------------------------------------------------------------
 
-/** What the real run reacts to besides sound: the wave banner, rumble, and why the run was lost. */
+/** What the real run reacts to besides sound: the wave banner, rumble, the synergy toast, and why the run was lost. */
 function reactTo(events: readonly RunEvent[]): void {
   for (const e of events) {
     if (e.type === 'waveStart') banner.show(`WAVE ${e.wave + 1}`, WAVE_INTRO_SECONDS);
     else if (e.type === 'playerHit') controls.rumble(0.8, 250);
     else if (e.type === 'shieldHit') controls.rumble(0.3, 120);
+    else if (e.type === 'bossKilled') controls.rumble(1, 500);
+    else if (e.type === 'specialFired') controls.rumble(0.6, 200);
+    else if (e.type === 'bossPartDestroyed') controls.rumble(0.4, 150);
+    else if (e.type === 'synergyUnlocked') hud.synergyUnlocked(e.synergy);
     else if (e.type === 'lost') lostReason = e.reason;
   }
 }
@@ -388,6 +445,9 @@ function frame(now: number): void {
   // earlier will have; keep asking while a pad is in use.
   if (controls.lastUsed === 'gamepad' && controls.used()) sound.unlock();
   handleInput();
+  // Special is read like any action, and only from a live run: cards never see it, so it can't
+  // double as a menu button.
+  if (live() && controls.pressed('special')) specialCarry = true;
   touch.setVisible(live());
   // Read exactly once per frame: reading drains the touch drag.
   const ship = controls.shipInput();
@@ -403,10 +463,13 @@ function frame(now: number): void {
     while (accumulator >= STEP) {
       if (demo()) inputs[0] = autopilot(run);
       else if (live()) {
-        inputs[0] = { move: ship.move, drag: carry, fire: ship.fire, special: false };
+        inputs[0] = { move: ship.move, drag: carry, fire: ship.fire, special: specialCarry };
         carry = 0;
       } else inputs[0] = NO_INPUT;
+      // The wave intro ignores the press, so keep it until a playing step has had it.
+      const consumes = live() && run.phase === 'playing';
       events.push(...stepRun(run, inputs, STEP));
+      if (consumes) specialCarry = false;
       view.stepped(run);
       accumulator -= STEP;
     }
@@ -422,7 +485,9 @@ function frame(now: number): void {
       if (run.phase === 'upgradePick') openPick();
       else if ((run.phase === 'won' || run.phase === 'lost') && run.phaseTime >= END_DELAY) finishRun();
     }
-    hud.update(run);
+    hud.update(run, controls.lastUsed);
+    const player = run.players[0];
+    touch.setSpecial(player.special === null ? null : player.specialCharge);
   }
 
   // Paused, the picture and its effects stand still.

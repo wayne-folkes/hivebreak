@@ -11,6 +11,9 @@ export const PALETTE: readonly number[] = [
   0x604da8, 0x7869aa, 0x9391b9, 0xc1c3eb, 0xffffff, 0xd3f1ff,
   0x9dfafd, 0x52ddeb, 0x2db3dd, 0x278da6, 0x2a5b80, 0x1b3a4b,
   0xff56da, 0x8f2a8a, 0xcd6037, 0xe9a251, 0xffe164, 0xff8a45,
+  // Green and true purple, with a darker shade of each, so the Helper and Slow pickups keep their
+  // colours (the HUD chips use 0x4fff9b and 0x9b7bff) instead of snapping to cyan and lavender.
+  0x4fff9b, 0x1f9e63, 0x9b7bff, 0x5b3fd0,
 ];
 
 /** Channel weights for colour distance: green counts most, blue least. */

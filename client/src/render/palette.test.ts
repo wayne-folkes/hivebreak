@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { nearestPaletteIndex, PALETTE } from './palette';
 
 describe('palette', () => {
-  it('has about two dozen distinct colours', () => {
-    expect(PALETTE.length).toBe(24);
+  it('has a small set of distinct colours', () => {
+    expect(PALETTE.length).toBe(28);
     expect(new Set(PALETTE).size).toBe(PALETTE.length);
   });
 
@@ -11,6 +11,13 @@ describe('palette', () => {
     PALETTE.forEach((c, i) => {
       expect(nearestPaletteIndex((c >> 16) & 255, (c >> 8) & 255, c & 255)).toBe(i);
     });
+  });
+
+  it('keeps the Helper green and the Slow purple apart from cyan and lavender', () => {
+    expect(PALETTE).toContain(0x4fff9b);
+    expect(PALETTE).toContain(0x9b7bff);
+    expect(nearestPaletteIndex(0x4f, 0xff, 0x9b)).toBe(PALETTE.indexOf(0x4fff9b));
+    expect(nearestPaletteIndex(0x9b, 0x7b, 0xff)).toBe(PALETTE.indexOf(0x9b7bff));
   });
 
   it('snaps near-colours to the closest entry', () => {

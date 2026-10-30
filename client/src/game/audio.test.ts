@@ -101,6 +101,7 @@ const EVENTS: Record<RunEvent['type'], RunEvent> = {
   bossLaunched: { type: 'bossLaunched', alienId: 1 },
   bossFired: { type: 'bossFired', x: 0, y: 0 },
   bossPartHit: { type: 'bossPartHit', partId: 1, part: 'plate', x: 0, y: 0 },
+  coreBlocked: { type: 'coreBlocked', x: 0, y: 0 },
   bossPartDestroyed: { type: 'bossPartDestroyed', partId: 1, part: 'bay', x: 0, y: 0, points: 100 },
   bossPhase: { type: 'bossPhase', phase: 2 },
   bossKilled: { type: 'bossKilled', kind: 'broodMother', x: 0, y: 0, points: 1000 },
