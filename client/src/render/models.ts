@@ -15,6 +15,7 @@ import {
 } from 'three';
 import type { Material, MeshStandardMaterial, Object3D } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import type { ShipId } from '../game/types';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // Loads the Blender models and gives them the pixel look: toon (stepped) shading, an unlit
@@ -23,6 +24,11 @@ import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export type ModelName =
   | 'player'
+  | 'interceptor'
+  | 'lancer'
+  | 'bastion'
+  | 'missile'
+  | 'well'
   | 'drone'
   | 'warden'
   | 'diver'
@@ -41,6 +47,11 @@ export type ModelName =
 
 const FILES: Record<string, readonly ModelName[]> = {
   player: ['player'],
+  interceptor: ['interceptor'],
+  lancer: ['lancer'],
+  bastion: ['bastion'],
+  missile: ['missile'],
+  well: ['well'],
   drone: ['drone'],
   warden: ['warden'],
   diver: ['diver'],
@@ -53,6 +64,14 @@ const FILES: Record<string, readonly ModelName[]> = {
   pickups: ['pickup_spread', 'pickup_laser', 'pickup_slow', 'pickup_helper'],
   shots: ['shot_player', 'shot_alien'],
 };
+
+/** The model each ship is drawn with (the Breaker's is `player.glb`). */
+export function shipModelName(ship: ShipId): ModelName {
+  return ship === 'breaker' ? 'player' : ship;
+}
+
+/** The models that are ships, whose hull centre (flames left out) the kit measures. */
+const SHIP_MODELS: readonly ModelName[] = ['player', 'interceptor', 'lancer', 'bastion'];
 
 /** How a model is coloured: its own colours, a cool blue-shift (the slow field), or washed out and icy (Time Stop). */
 export const LOOK_NORMAL = 0;
@@ -243,8 +262,9 @@ export class Model {
 
 export class ModelKit {
   private readonly templates = new Map<ModelName, Object3D>();
-  /** Y of the ship's hull centre (flames left out) in the model's own space. */
+  /** Y of the Breaker's hull centre (flames left out) in the model's own space. */
   hullCentreY = 0;
+  private readonly hullCentres = new Map<ModelName, number>();
 
   async load(baseUrl: string): Promise<void> {
     const loader = new GLTFLoader();
@@ -255,12 +275,21 @@ export class ModelKit {
           const node = gltf.scene.getObjectByName(name);
           if (!node) throw new Error(`models/${file}.glb has no "${name}" node`);
           node.removeFromParent();
-          if (name === 'player') this.hullCentreY = hullCentre(node);
+          if (SHIP_MODELS.includes(name)) {
+            const centre = hullCentre(node);
+            this.hullCentres.set(name, centre);
+            if (name === 'player') this.hullCentreY = centre;
+          }
           stylize(node);
           this.templates.set(name, node);
         }
       }),
     );
+  }
+
+  /** Y of a ship model's hull centre (flames left out) in its own space; 0 for models that are not ships. */
+  hullCentreOf(name: ModelName): number {
+    return this.hullCentres.get(name) ?? 0;
   }
 
   create(name: ModelName): Model {

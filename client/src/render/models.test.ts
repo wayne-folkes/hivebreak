@@ -1,6 +1,6 @@
 import { Color, Group, Mesh, MeshBasicMaterial, BoxGeometry } from 'three';
 import { describe, expect, it } from 'vitest';
-import { LOOK_FROZEN, LOOK_NORMAL, LOOK_SLOW, Model, coolColor, frozenColor } from './models';
+import { LOOK_FROZEN, LOOK_NORMAL, LOOK_SLOW, Model, coolColor, frozenColor, shipModelName } from './models';
 
 const spread = (c: Color): number => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b);
 
@@ -78,5 +78,14 @@ describe('Model part states', () => {
     m.setLook(LOOK_FROZEN);
     m.setLook(LOOK_NORMAL);
     expect(materialOf(m, 'plate')).toBe(before);
+  });
+});
+
+describe('ship models', () => {
+  it('draws the Breaker with player.glb and every other ship with its own model', () => {
+    expect(shipModelName('breaker')).toBe('player');
+    expect(shipModelName('interceptor')).toBe('interceptor');
+    expect(shipModelName('lancer')).toBe('lancer');
+    expect(shipModelName('bastion')).toBe('bastion');
   });
 });

@@ -21,21 +21,24 @@ import type { Fit } from '../game/playfield';
 import { SHIP_BOX_OFFSET_Y, SHIP_TOP, SHIP_Y, wingmanXs } from '../game/player';
 import { POWER_UP_KINDS, enemyTimeScale, helperPosition } from '../game/powerups';
 import { WAVES } from '../game/waves';
-import type { Alien, AlienKind, BossKind, BossState, PlayerState, PowerUpKind, RunEvent, RunState, Shot } from '../game/types';
+import type { Alien, AlienKind, BossKind, BossState, PlayerState, PowerUpKind, RunEvent, RunState, Shot, ShipId } from '../game/types';
+import { ArcView } from './arcs';
 import { BeamView } from './beams';
 import { BossBeamView, rayToFieldEdge } from './bossbeams';
 import { bayGlowName, bossPartNames, corePulse, hiveCorePulse, hiveGlowScale, launchWarning } from './bossparts';
 import { BunkerView } from './bunkerview';
-import { BOSS_DEATH_SECONDS, Effects, POWER_UP_COLOR, SEGMENT_SHARDS, SHIELD_SPARK } from './effects';
+import { ARC_SPARK, BOSS_DEATH_SECONDS, Effects, POWER_UP_COLOR, SEGMENT_SHARDS, SHIELD_SPARK, WELL_SPARK } from './effects';
 import { approachAngle, Tracker } from './interp';
 import type { Sample } from './interp';
-import { LOOK_FROZEN, LOOK_NORMAL, LOOK_SLOW, Model, ModelKit } from './models';
+import { dropsTrail, exhaustScale, missileAngle } from './missile';
+import { LOOK_FROZEN, LOOK_NORMAL, LOOK_SLOW, Model, ModelKit, shipModelName } from './models';
 import type { Look, ModelName } from './models';
 import { PALETTE } from './palette';
 import { PalettePass } from './post';
 import { Starfield } from './stars';
 import { StunMarkers } from './stun';
 import { createTiltCamera, placeTiltCamera } from './tilt';
+import { WellView } from './wellview';
 
 // Draws a run. The sim steps at a fixed rate and the screen redraws at its own, so entities are
 // drawn at positions blended between the last two steps. The view keeps no game state: it
@@ -88,6 +91,11 @@ const SUN = [0xffffff, 0xffe2d2] as const;
 const SPLIT_SECONDS = 0.35;
 const SPLIT_SPEED = 80;
 const SPLIT_GHOSTS = 4;
+/** Seconds a ship flashes white after a hit, and a Lancer's muzzles flash after a volley. */
+const HIT_FLASH_SECONDS = 0.14;
+const MUZZLE_SECONDS = 0.09;
+/** The Gravity Well's Special flash on the ship, and a swallowed shot's inward pop, in art pixels. */
+const WELL_POP_RADIUS = 8;
 /** The Hive Mind's decorative spikes turn this fast, radians per second. */
 const SPIKE_TURN = 0.12;
 /** The Brood Mother's bays blink this many times a second as a launch nears (more as it gets close). */
@@ -141,11 +149,17 @@ class ViewPool {
 }
 
 interface ShipView {
+  /** The ship this view is the model of. */
+  id: ShipId;
   model: Model;
   shield: Mesh;
   /** The Shield Burst's hex shell. */
   burst: Group;
   bank: number;
+  /** Seconds of white hit-flash left. */
+  flash: number;
+  /** Seconds of muzzle flash left (ships with `muzzle_L/R`). */
+  muzzle: number;
 }
 
 /** Half of a broken Splitter, flying off. */
@@ -185,6 +199,8 @@ export class GameView {
   private readonly effects: Effects;
   private readonly beams: BeamView;
   private readonly stun: StunMarkers;
+  private readonly arcs: ArcView;
+  private wellView: WellView | null = null;
   private readonly pass = PALETTE_PASS ? new PalettePass() : null;
   private readonly kit = new ModelKit();
   private fitNow: Fit;
@@ -200,6 +216,7 @@ export class GameView {
   private overchargeShots!: ViewPool;
   private lanceShots!: ViewPool;
   private reflectedShots!: ViewPool;
+  private missileShots!: ViewPool;
   private pickupViews!: Record<PowerUpKind, ViewPool>;
   private helperViews!: ViewPool;
   private wingmanViews!: ViewPool;
@@ -216,7 +233,11 @@ export class GameView {
   private sectorSnap = true;
   private lastSectorApplied = -1;
   private enemyScale = 1;
-  private readonly ships: ShipView[] = [];
+  /** Each player's ship views, one per ship flown so far (a new run with another ship swaps to that model). */
+  private readonly ships: Partial<Record<ShipId, ShipView>>[] = [];
+  /** The view each player's ship was last drawn with, so a swap to another ship hides the old model. */
+  private readonly shipShown: (ShipView | undefined)[] = [];
+  private frame = 0;
 
   private readonly bossModels: Partial<Record<BossKind, Model>> = {};
   private bossShield: Group | null = null;
@@ -256,6 +277,7 @@ export class GameView {
     this.bossBeams = new BossBeamView(this.scene, this.effects);
     this.beams = new BeamView(this.scene, this.effects);
     this.stun = new StunMarkers(this.scene);
+    this.arcs = new ArcView(this.scene);
     this.fitNow = this.layout();
   }
 
@@ -280,7 +302,9 @@ export class GameView {
     this.overchargeShots = new ViewPool(this.scene, () => this.makeBigShot('overcharge'));
     this.lanceShots = new ViewPool(this.scene, () => this.makeBigShot('lance'));
     this.reflectedShots = new ViewPool(this.scene, () => this.makeBigShot('reflected'));
-    this.shotPools = [this.playerShots, this.alienShots, this.overchargeShots, this.lanceShots, this.reflectedShots];
+    this.missileShots = new ViewPool(this.scene, make('missile'));
+    this.shotPools = [this.playerShots, this.alienShots, this.overchargeShots, this.lanceShots, this.reflectedShots, this.missileShots];
+    this.wellView = new WellView(this.scene, this.kit.create('well'), this.effects);
     this.pickupViews = {
       spread: new ViewPool(this.scene, () => this.makePickup('spread')),
       laser: new ViewPool(this.scene, () => this.makePickup('laser')),
@@ -318,10 +342,11 @@ export class GameView {
     return model;
   }
 
-  /** The ship model with its hull (not its flames) centred on the holder's origin. */
-  private makeShipModel(): Model {
-    const model = this.kit.create('player');
-    model.body.position.y = -this.kit.hullCentreY;
+  /** A ship model (the Breaker's by default) with its hull (not its flames) centred on the holder's origin. */
+  private makeShipModel(ship: ShipId = 'breaker'): Model {
+    const name = shipModelName(ship);
+    const model = this.kit.create(name);
+    model.body.position.y = -this.kit.hullCentreOf(name);
     return model;
   }
 
@@ -372,6 +397,9 @@ export class GameView {
     this.effects.clear();
     this.beams.clear();
     this.stun.clear();
+    this.arcs.clear();
+    this.wellView?.clear();
+    for (const views of this.ships) for (const view of Object.values(views)) view.model.holder.visible = false;
     this.hideBoss();
     this.bossDying = -1;
     this.bossBeams.clear();
@@ -412,6 +440,7 @@ export class GameView {
     const alpha = Math.min(1, Math.max(0, alphaIn));
     const dt = Math.min(Math.max(frameDt, 0), MAX_FRAME_DT);
     this.time += dt;
+    this.frame++;
     const enemyScale = enemyTimeScale(run);
     this.enemyScale = enemyScale;
     this.enemyTime += dt * enemyScale;
@@ -420,6 +449,8 @@ export class GameView {
 
     for (const e of events) this.playEvent(run, e);
     this.effects.update(dt);
+    this.arcs.update(dt);
+    this.wellView?.update(run.well, dt, this.time);
     this.bossShieldFlash = Math.max(0, this.bossShieldFlash - dt);
 
     this.stun.begin();
@@ -493,9 +524,29 @@ export class GameView {
         break;
       case 'playerHit': {
         const p = run.players[e.playerId];
-        if (p) this.effects.shipHit(p.x, SHIP_Y + SHIP_BOX_OFFSET_Y);
+        if (p) {
+          this.effects.shipHit(p.x, SHIP_Y + SHIP_BOX_OFFSET_Y);
+          const view = this.ships[p.id]?.[p.ship];
+          if (view) view.flash = HIT_FLASH_SECONDS;
+        }
         break;
       }
+      case 'playerFired': {
+        const p = run.players[e.playerId];
+        const view = p ? this.ships[p.id]?.[p.ship] : undefined;
+        if (view) view.muzzle = MUZZLE_SECONDS;
+        break;
+      }
+      case 'chainSpark':
+        // A jagged arc from one alien to the next, and a few sparks where it lands.
+        this.arcs.add(e.fromX, e.fromY, e.toX, e.toY);
+        this.effects.sparksIn(e.toX, e.toY, ARC_SPARK, 3, 38);
+        break;
+      case 'wellConsumed':
+        // An enemy shot swallowed at the core: motes drawn in and a tiny pop.
+        this.effects.implode(e.x, e.y, WELL_POP_RADIUS, 5, WELL_SPARK);
+        this.effects.sparksIn(e.x, e.y, WELL_SPARK, 2, 20);
+        break;
       case 'shieldHit': {
         const p = run.players[e.playerId];
         if (p) this.effects.shieldRing(p.x, SHIP_Y + SHIP_BOX_OFFSET_Y);
@@ -597,16 +648,23 @@ export class GameView {
     } else if (special === 'shieldBurst') {
       this.effects.wave(x, y + SHIP_BOX_OFFSET_Y, 10, 36, 0.35, 2, 0xffffff);
       this.effects.sparksIn(x, y + SHIP_BOX_OFFSET_Y, SHIELD_SPARK, 10, 70);
+    } else if (special === 'missileSwarm') {
+      // The missiles leave the nose in a puff of exhaust.
+      this.effects.sparksIn(x, y + SHIP_BOX_OFFSET_Y + 8, MISSILE_PUFF, 10, 75);
+      this.effects.wave(x, y + SHIP_BOX_OFFSET_Y + 6, 4, 22, 0.25, 2, 0xffe164);
+    } else if (special === 'gravityWell') {
+      this.effects.sparksIn(x, y + SHIP_BOX_OFFSET_Y + 8, WELL_SPARK, 8, 60);
     } else if (special === 'timeStop') {
       this.effects.waveFlash(0x9dfafd, 0.25, 0.35);
       this.effects.wave(x, y, 4, 400, 0.55, 2, 0x52ddeb);
     }
   }
 
-  private shipFor(index: number): ShipView {
-    let ship = this.ships[index];
+  private shipFor(index: number, id: ShipId): ShipView {
+    const views = (this.ships[index] ??= {});
+    let ship = views[id];
     if (!ship) {
-      const model = this.makeShipModel();
+      const model = this.makeShipModel(id);
       this.scene.add(model.holder);
       const shield = new Mesh(
         new RingGeometry(11, 12.2, 6),
@@ -620,7 +678,7 @@ export class GameView {
       burst.position.z = 1.5;
       burst.visible = false;
       model.holder.add(burst);
-      ship = this.ships[index] = { model, shield, burst, bank: 0 };
+      ship = views[id] = { id, model, shield, burst, bank: 0, flash: 0, muzzle: 0 };
     }
     return ship;
   }
@@ -634,8 +692,12 @@ export class GameView {
   }
 
   private drawShip(run: RunState, p: PlayerState, alpha: number, dt: number): void {
-    const ship = this.shipFor(p.id);
+    const ship = this.shipFor(p.id, p.ship);
     const { model } = ship;
+    // A new run can fly another ship: only the model for the current one shows.
+    const shown = this.shipShown[p.id];
+    if (shown && shown !== ship) shown.model.holder.visible = false;
+    this.shipShown[p.id] = ship;
     const alive = p.lives > 0;
     const bursting = p.burst > 0;
     // Blink while invulnerable; a Shield Burst's invulnerability shows as its shell instead.
@@ -651,9 +713,12 @@ export class GameView {
     ship.bank += (target - ship.bank) * (1 - Math.exp(-BANK_RATE * dt));
     model.body.rotation.y = ship.bank;
 
-    // Engine flames flicker.
+    // Engine flames flicker; a hit flashes the hull white for a moment.
     const t = this.time;
     flicker(model, t);
+    ship.flash = Math.max(0, ship.flash - dt);
+    model.setFlash(ship.flash > 0);
+    this.drawShipDetails(p, ship, dt);
 
     ship.shield.visible = p.shield > 0;
     if (p.shield > 0) ship.shield.scale.setScalar(1 + 0.04 * Math.sin(t * 8));
@@ -667,6 +732,32 @@ export class GameView {
 
     if (p.stats.wingmen > 0) this.drawWingmen(p, x, ship.bank);
     this.drawHelper(run, p, x);
+  }
+
+  /**
+   * The parts only some ships have: the Bastion's emitters glow and pulse while it has shield
+   * hits left and go dark when they are spent, and the Lancer's muzzles flash white as it fires.
+   */
+  private drawShipDetails(p: PlayerState, ship: ShipView, dt: number): void {
+    const { parts } = ship.model;
+    if (parts.emitter_L || parts.emitter_R) {
+      const live = p.shield > 0;
+      const pulse = live ? 1.05 + 0.2 * Math.sin(this.time * 9) : 0.85;
+      for (const name of EMITTERS) {
+        ship.model.setPartWreck(name, !live);
+        const node = parts[name];
+        if (node) node.scale.setScalar(pulse);
+      }
+    }
+    ship.muzzle = Math.max(0, ship.muzzle - dt);
+    if (parts.muzzle_L || parts.muzzle_R) {
+      const lit = ship.muzzle > 0 && ship.flash <= 0;
+      for (const name of MUZZLES) {
+        ship.model.setPartFlash(name, lit);
+        const node = parts[name];
+        if (node) node.scale.setScalar(lit ? 1.35 : 1);
+      }
+    }
   }
 
   /** The wingmen: smaller copies of the ship at their sideways places, banking and flaring with it. */
@@ -1030,6 +1121,7 @@ export class GameView {
     if (s.kind === 'overcharge') return this.overchargeShots;
     if (s.kind === 'lance') return this.lanceShots;
     if (s.kind === 'reflected') return this.reflectedShots;
+    if (s.kind === 'missile') return this.missileShots;
     return s.owner === 'player' ? this.playerShots : this.alienShots;
   }
 
@@ -1042,6 +1134,10 @@ export class GameView {
       model.setLook(this.look);
       return;
     }
+    if (s.kind === 'missile') {
+      this.drawMissile(model, s, known ? this.sample.x : s.x, known ? this.sample.y : s.y);
+      return;
+    }
     // A player's shot points the way it flies (spread, homing and ricochet shots slant).
     model.holder.rotation.z = s.vx === 0 ? 0 : Math.atan2(-s.vx, s.vy);
     if (s.kind === 'overcharge') {
@@ -1051,7 +1147,18 @@ export class GameView {
       model.body.rotation.y = this.time * 9 + s.id;
     }
   }
+
+  /** A missile points along its flight, its exhaust flickers and stretches, and it leaves a trail. */
+  private drawMissile(model: Model, s: Shot, x: number, y: number): void {
+    model.holder.rotation.z = missileAngle(s.vx, s.vy, model.holder.rotation.z);
+    const exhaust = model.parts.exhaust;
+    if (exhaust) exhaust.scale.set(1, exhaustScale(this.time, s.id), 1);
+    if (dropsTrail(this.frame, s.id)) this.effects.missileTrail(x, y, s.vx, s.vy);
+  }
 }
+
+const EMITTERS = ['emitter_L', 'emitter_R'] as const;
+const MUZZLES = ['muzzle_L', 'muzzle_R'] as const;
 
 /** Blasts at least this big (the Pulse Bomb's field-wide one) are played by their Special, not as a bomb-on-kill burst. */
 const BIG_BLAST = 100;
@@ -1060,6 +1167,7 @@ const BOSS_BLAST_HALF_WIDTH = 46;
 /** Half the Hive Mind's span (its spikes reach 42 from the centre), for scattering its death bursts. */
 const HIVE_BLAST_HALF_SIZE = 34;
 const BAY_SPARK: readonly number[] = [0xffb04f, 0xffe164, 0xffffff];
+const MISSILE_PUFF: readonly number[] = [0xffe164, 0xff8a45, 0xffffff];
 const CORE_FIRE: readonly number[] = [0xff56da, 0xffffff, 0xff8a45];
 
 /** Flickers a ship model's two engine flames. */

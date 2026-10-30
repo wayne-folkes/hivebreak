@@ -37,6 +37,13 @@ const HIVE_DEATH_BURST = [0xffffff, 0xffe164, 0xff8a45, 0xff5a5a, 0xc0392b, 0xff
 export const SPLIT_SPARK: readonly number[] = [0xff8a3d, 0xffe14f, 0xc0392b, 0xffffff];
 export const SEGMENT_SHARDS: readonly number[] = [0xd04a64, 0x8e2a3c, 0xff5a5a, 0xffffff];
 export const BUNKER_CRUMBS: readonly number[] = [0x3fd6a0, 0x1f7a66, 0x7af0c8];
+/** The Gravity Well: violet and magenta with white. */
+export const WELL_SPARK: readonly number[] = [0xac55f7, 0xff56da, 0xffffff, 0x9b7bff];
+/** Chain Spark's arcs: cyan and white. */
+export const ARC_SPARK: readonly number[] = [0xffffff, 0x9dfafd, 0x52ddeb];
+/** A missile's exhaust trail: hot sparks, and a little grey smoke. */
+const MISSILE_SPARK: readonly number[] = [0xffe164, 0xff8a45, 0xffffff];
+const MISSILE_SMOKE: readonly number[] = [0x9391b9, 0x7869aa];
 const COLORS = [
   ...new Set([
     ...FIRE,
@@ -52,6 +59,10 @@ const COLORS = [
     ...SPLIT_SPARK,
     ...SEGMENT_SHARDS,
     ...BUNKER_CRUMBS,
+    ...WELL_SPARK,
+    ...ARC_SPARK,
+    ...MISSILE_SPARK,
+    ...MISSILE_SMOKE,
   ]),
 ];
 
@@ -157,6 +168,50 @@ export class Effects {
       const m = this.meshes[i];
       m.material = this.materials.get(colors[Math.floor(this.random() * colors.length)])!;
       m.visible = true;
+    }
+  }
+
+  /** Starts one particle with the given velocity. */
+  private emitOne(x: number, y: number, vx: number, vy: number, colors: readonly number[], size: number, life: number): void {
+    const i = this.cursor;
+    this.cursor = (this.cursor + 1) % MAX_PARTICLES;
+    this.px[i] = x;
+    this.py[i] = y;
+    this.vx[i] = vx;
+    this.vy[i] = vy;
+    this.spin[i] = (this.random() - 0.5) * 8;
+    this.size[i] = size * (0.7 + this.random() * 0.6);
+    this.age[i] = 0;
+    this.life[i] = life * (0.75 + this.random() * 0.25);
+    const m = this.meshes[i];
+    m.material = this.materials.get(colors[Math.floor(this.random() * colors.length)])!;
+    m.visible = true;
+  }
+
+  /**
+   * A missile's exhaust: a spark, and now and then a puff of smoke, left at (x, y) and drifting
+   * back along the missile's flight (it flies at (vx, vy)).
+   */
+  missileTrail(x: number, y: number, vx: number, vy: number): void {
+    const speed = Math.hypot(vx, vy) || 1;
+    const bx = (-vx / speed) * 14;
+    const by = (-vy / speed) * 14;
+    // Leave it at the nozzle, a little behind the missile's centre.
+    x += bx * 0.25;
+    y += by * 0.25;
+    // A little sideways scatter, across the flight direction.
+    const side = (this.random() - 0.5) * 10;
+    this.emitOne(x, y, bx - (by / 14) * side, by + (bx / 14) * side, MISSILE_SPARK, 1.7, 0.2);
+    if (this.random() < 0.4) this.emitOne(x, y, bx * 0.4, by * 0.4, MISSILE_SMOKE, 2.2, 0.38);
+  }
+
+  /** Motes pulled in from a ring of `radius` to (x, y): a Gravity Well swallowing a shot. */
+  implode(x: number, y: number, radius: number, count: number, colors: readonly number[]): void {
+    for (let n = 0; n < count; n++) {
+      const a = this.random() * Math.PI * 2;
+      // Drag slows particles, so they cover about radius / 7.5 per unit of speed in their short life.
+      const v = radius * 7.5;
+      this.emitOne(x + Math.cos(a) * radius, y + Math.sin(a) * radius, -Math.cos(a) * v, -Math.sin(a) * v, colors, 2, 0.2);
     }
   }
 
