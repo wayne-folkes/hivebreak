@@ -3,6 +3,7 @@ import { LEGACY_RECORD_WAVES } from '../game/records';
 import type { RunRecord } from '../game/records';
 import type { SourceKind } from '../game/controls';
 import type { ActivePowerUp, BossKind, PowerUpKind, Rarity, Sector, SpecialId, SynergyId, UpgradeId } from '../game/types';
+import { SPECIALS } from '../game/special';
 import { synergyDef } from '../game/synergies';
 import { WAVES } from '../game/waves';
 import { upgradeDef } from '../game/upgrades';
@@ -146,6 +147,17 @@ export function specialHint(device: SourceKind): string {
   if (device === 'gamepad') return 'B / LT';
   if (device === 'touch') return 'tap the button';
   return 'X';
+}
+
+/** What to press, as the ready prompt says it: "PRESS X", "PRESS B / LT", "TAP SPECIAL". */
+export function specialPromptAction(device: SourceKind): string {
+  if (device === 'touch') return 'TAP SPECIAL';
+  return `PRESS ${specialHint(device)}`;
+}
+
+/** The reminder while the meter is full: "PULSE BOMB READY · PRESS X". */
+export function specialPrompt(special: SpecialId, device: SourceKind): string {
+  return `${SPECIALS[special].name.toUpperCase()} READY · ${specialPromptAction(device)}`;
 }
 
 /** Short names for power-up chips. */

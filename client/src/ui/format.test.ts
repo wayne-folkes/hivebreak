@@ -22,6 +22,8 @@ import {
   sectorBanner,
   recordRowText,
   specialHint,
+  specialPrompt,
+  specialPromptAction,
   stackLabel,
   summarizeUpgrades,
   synergyToast,
@@ -284,5 +286,19 @@ describe('the wave counter over ten waves', () => {
   it('reads 1/10 to 10/10', () => {
     expect(waveLabel(1, 10)).toBe('1/10');
     expect(waveLabel(10, 10)).toBe('10/10');
+  });
+});
+
+describe('specialPrompt', () => {
+  it('names the key for each device', () => {
+    expect(specialPromptAction('keyboard')).toBe('PRESS X');
+    expect(specialPromptAction('gamepad')).toBe('PRESS B / LT');
+    expect(specialPromptAction('touch')).toBe('TAP SPECIAL');
+  });
+
+  it('puts the Special name and the action in one line, for every Special and device', () => {
+    expect(specialPrompt('pulseBomb', 'keyboard')).toBe('PULSE BOMB READY · PRESS X');
+    expect(specialPrompt('shieldBurst', 'gamepad')).toBe('SHIELD BURST READY · PRESS B / LT');
+    expect(specialPrompt('timeStop', 'touch')).toBe('TIME STOP READY · TAP SPECIAL');
   });
 });

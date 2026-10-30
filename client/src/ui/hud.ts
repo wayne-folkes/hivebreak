@@ -1,7 +1,8 @@
 import { bossHealth } from '../game/boss';
+import { BUNKER_BOTTOM_Y, BUNKER_HEIGHT } from '../game/bunkers';
 import type { SourceKind } from '../game/controls';
 import { WAVE_COUNT } from '../game/waves';
-import type { Fit } from '../game/playfield';
+import { FIELD_HEIGHT, type Fit } from '../game/playfield';
 import type { PlayerState, PowerUpKind, RunState, SpecialId, SynergyId, UpgradeId } from '../game/types';
 import { byId } from './card';
 import {
@@ -14,6 +15,7 @@ import {
   powerUpChips,
   SPECIAL_SHORT,
   specialHint,
+  specialPrompt,
   summarizeUpgrades,
   synergyToast,
   waveLabel,
@@ -68,6 +70,8 @@ export class Hud {
   private readonly bossPhase = byId('hud-boss-phase');
   private readonly bossBar = byId('hud-boss-bar');
   private readonly bossFill = byId('hud-boss-fill');
+  private readonly prompt = byId('hud-special-prompt');
+  private readonly promptText = byId('hud-special-prompt-text');
   private readonly toastEl = byId('hud-toast');
   private readonly toastText = byId('hud-toast-text');
   private readonly toastSub = byId('hud-toast-sub');
@@ -86,6 +90,8 @@ export class Hud {
   private shownSpecialId: SpecialId | null = null;
   private shownSpecialDevice: SourceKind | null = null;
   private shownSpecialPercent = -1;
+  private shownPromptId: SpecialId | null = null;
+  private shownPromptDevice: SourceKind | null = null;
   private shownChipKinds: PowerUpKind[] = [];
   private shownChipSeconds: number[] = [];
   private shownBoss = -1;
@@ -104,6 +110,11 @@ export class Hud {
   setVisible(visible: boolean): void {
     this.root.hidden = !visible;
     if (!visible) this.clearToast();
+    // Coming back, the prompt pops in again if the meter is still full.
+    if (!visible) {
+      this.shownPromptId = null;
+      this.prompt.hidden = true;
+    }
   }
 
   /** A short line near the top of the field, with an optional smaller line under it. Replaces any toast showing. */
@@ -153,6 +164,9 @@ export class Hud {
     style.height = `${fit.height}px`;
     style.setProperty('--hud-side', `${mode.sideWidth}px`);
     style.setProperty('--hud-inset', `${mode.rightInset}px`);
+    // The ready prompt sits just above the bunkers (the top of the ship's cover), clear of the ship.
+    const coverTop = (BUNKER_BOTTOM_Y + BUNKER_HEIGHT + FIELD_HEIGHT / 2) / FIELD_HEIGHT;
+    style.setProperty('--hud-prompt-bottom', `${Math.round(coverTop * fit.height) + 6}px`);
   }
 
   update(run: RunState, device: SourceKind = 'keyboard'): void {
@@ -205,6 +219,7 @@ export class Hud {
     }
 
     this.drawSpecial(player, device);
+    this.drawPrompt(run, player, device);
     this.drawPowerUps(player);
     this.drawBoss(run);
   }
@@ -235,6 +250,29 @@ export class Hud {
     this.specialHint.textContent = specialHint(device);
     this.specialCells.setAttribute('aria-label', ready ? 'Special ready' : `Special ${percent}% charged`);
     for (let i = 0; i < METER_CELLS; i++) this.cells[i]?.style.setProperty('--fill', `${Math.round(cells[i] * 100)}%`);
+  }
+
+  /**
+   * The "PULSE BOMB READY · PRESS X" reminder: up while the meter is full during play, popping in
+   * large the moment it fills (the CSS restarts that when the element is shown again), gone once
+   * the Special fires or the meter drops. Touches the DOM only when the Special or device changes.
+   */
+  private drawPrompt(run: RunState, player: PlayerState | undefined, device: SourceKind): void {
+    const id = player?.special ?? null;
+    const live = run.phase === 'playing' || run.phase === 'waveIntro';
+    if (!player || id === null || !live || !(player.specialCharge >= 1)) {
+      if (this.shownPromptId !== null) {
+        this.shownPromptId = null;
+        this.shownPromptDevice = null;
+        this.prompt.hidden = true;
+      }
+      return;
+    }
+    if (id === this.shownPromptId && device === this.shownPromptDevice) return;
+    this.shownPromptId = id;
+    this.shownPromptDevice = device;
+    this.promptText.textContent = specialPrompt(id, device);
+    this.prompt.hidden = false;
   }
 
   /** One chip per running power-up, counting down in whole seconds. */

@@ -116,8 +116,10 @@ body {
 }
 
 .touch-special[data-state='ready'] {
-  background: rgb(79 240 255 / 0.4);
+  background: rgb(79 240 255 / 0.55);
   color: #fff;
+  font-size: 12px;
+  text-shadow: 0 0 6px #000;
   box-shadow:
     inset 0 0 0 3px var(--pilot),
     0 0 18px rgb(79 240 255 / 0.7);
@@ -129,19 +131,22 @@ body {
 }
 
 .touch-special[data-state='ready'].is-pressed {
+  animation: none;
   background: rgb(79 240 255 / 0.7);
 }
 
 @keyframes special-glow {
   from {
+    transform: scale(1);
     box-shadow:
       inset 0 0 0 3px var(--pilot),
       0 0 8px rgb(79 240 255 / 0.4);
   }
   to {
+    transform: scale(1.07);
     box-shadow:
       inset 0 0 0 3px var(--pilot),
-      0 0 20px rgb(79 240 255 / 0.85);
+      0 0 24px rgb(79 240 255 / 0.95);
   }
 }
 
@@ -971,6 +976,71 @@ kbd {
   display: grid;
 }
 
+/* The "SPECIAL READY" prompt ---------------------------------------------------------------- */
+
+.hud-prompt {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: var(--hud-prompt-bottom, 22%);
+  display: grid;
+  justify-items: center;
+  text-align: center;
+}
+
+.hud-prompt-text {
+  padding: 3px 8px;
+  border: 1px solid var(--pilot);
+  border-radius: 3px;
+  background: rgb(12 9 24 / 0.78);
+  color: #fff;
+  font-size: clamp(9px, 2.8vw, 11px);
+  letter-spacing: 0.06em;
+  text-wrap: balance;
+  text-shadow: 0 0 6px var(--pilot);
+  box-shadow: 0 0 10px rgb(79 240 255 / 0.4);
+  /* Pops in large and pulses for about two seconds, then settles to a glowing steady line. */
+  animation:
+    prompt-pop 2.2s ease-out both,
+    prompt-glow 1.4s ease-in-out 2.2s infinite alternate;
+}
+
+.hud[data-mode='side'] .hud-prompt-text {
+  font-size: clamp(11px, 1.1vw, 14px);
+}
+
+@keyframes prompt-pop {
+  0% {
+    transform: scale(1.7);
+    box-shadow: 0 0 22px rgb(79 240 255 / 0.9);
+  }
+  12% {
+    transform: scale(1.3);
+  }
+  30% {
+    transform: scale(1.5);
+    box-shadow: 0 0 22px rgb(79 240 255 / 0.9);
+  }
+  48% {
+    transform: scale(1.25);
+  }
+  66% {
+    transform: scale(1.4);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes prompt-glow {
+  from {
+    box-shadow: 0 0 6px rgb(79 240 255 / 0.3);
+  }
+  to {
+    box-shadow: 0 0 14px rgb(79 240 255 / 0.65);
+  }
+}
+
 /* Boss bar and toast ---------------------------------------------------------------------- */
 
 .hud-boss {
@@ -1347,7 +1417,8 @@ kbd {
 
   .touch-special[data-state='ready'],
   .hud-special[data-state='ready'] .hud-special-name,
-  .hud-chip.is-low {
+  .hud-chip.is-low,
+  .hud-prompt-text {
     animation: none;
   }
 
