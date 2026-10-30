@@ -859,9 +859,9 @@ function resolvePlayerShots(run: RunState, events: RunEvent[]): void {
 function hitAlien(run: RunState, shot: Shot, alien: Alien, events: RunEvent[]): void {
   const killer = shot.playerId === null ? null : (run.players[shot.playerId] ?? null);
   shot.hits++;
-  // A missile lands its full damage; every other shot takes one hit point from an alien whatever
-  // its damage (that stat only counts against bosses, and the waves are tuned for it).
-  const hits = shot.kind === 'missile' ? shot.damage : 1;
+  // A shot lands its full damage: Double Tap, an Overcharge or Lance bolt, a reflected shot or a
+  // missile can take a tough alien down in one hit.
+  const hits = Math.max(1, shot.damage);
   let killed = false;
   for (let i = 0; i < hits && !killed; i++) killed = damageAlien(alien);
   // Points count at the combo before this hit raises it, so the first kill in a chain is x1.
