@@ -31,6 +31,7 @@ import {
 } from './powerups';
 import { createRng } from './rng';
 import { createRun } from './run';
+import type { Bunker } from './types';
 import { VOLLEY_HIT } from './scoring';
 
 const DT = 1 / 120;
@@ -196,7 +197,7 @@ describe('spreadVolley', () => {
 describe('computeBeam', () => {
   it('runs to the top of the field when nothing is in the way', () => {
     const p = createPlayer(0, 10);
-    const { beam, target } = computeBeam(p, [createAlien('drone', 1, 0, 0, 80, 50)], null);
+    const { beam, target } = computeBeam(p, [createAlien('drone', 1, 0, 0, 80, 50)], null, []);
     expect(beam).toEqual({ playerId: 0, x: 10, topY: FIELD_HEIGHT / 2 });
     expect(target).toBeNull();
   });
@@ -206,7 +207,7 @@ describe('computeBeam', () => {
     const high = createAlien('drone', 1, 0, 0, 0, 100);
     const low = createAlien('drone', 2, 0, 1, 3, 40);
     const aside = createAlien('drone', 3, 0, 2, 40, 0);
-    const { beam, target } = computeBeam(p, [high, low, aside], null);
+    const { beam, target } = computeBeam(p, [high, low, aside], null, []);
     expect(target).toEqual({ alienId: 2 });
     expect(beam.topY).toBe(40 - 5);
   });
@@ -217,7 +218,7 @@ describe('computeBeam', () => {
     boss.y = 100;
     boss.x = 0;
     const alien = createAlien('drone', 1, 0, 0, 0, 200);
-    const { beam, target } = computeBeam(p, [alien], boss);
+    const { beam, target } = computeBeam(p, [alien], boss, []);
     expect(target?.alienId).toBeUndefined();
     expect(target?.part).toBeDefined();
     expect(beam.topY).toBeLessThan(200);
@@ -230,7 +231,7 @@ describe('computeBeam', () => {
     boss.y = 100;
     boss.x = 0;
     const alien = createAlien('drone', 1, 0, 0, 0, 20);
-    const { beam, target } = computeBeam(p, [alien], boss);
+    const { beam, target } = computeBeam(p, [alien], boss, []);
     expect(target).toEqual({ alienId: 1 });
     expect(beam.topY).toBe(15);
   });
@@ -239,14 +240,44 @@ describe('computeBeam', () => {
     const boss = createBoss('broodMother', ids());
     boss.y = 100;
     boss.x = 0;
-    expect(computeBeam(createPlayer(0, 85), [], boss).target).toBeNull();
+    expect(computeBeam(createPlayer(0, 85), [], boss, []).target).toBeNull();
+  });
+
+  describe('with bunkers', () => {
+    const bunker = (y: number): Bunker => ({ id: 1, x: -10, y, width: 20, height: 4, mask: new Uint8Array(80).fill(1), version: 0 });
+
+    it('stops at the first solid pixel, dropping a target above it', () => {
+      const p = createPlayer(0, 0);
+      const alien = createAlien('drone', 1, 0, 0, 0, 60);
+      const { beam, target, bunkerY } = computeBeam(p, [alien], null, [bunker(-60)]);
+      expect(bunkerY).toBe(-60);
+      expect(beam.topY).toBe(-60);
+      expect(target).toBeNull();
+    });
+
+    it('lets an alien below the bunker take the beam', () => {
+      const p = createPlayer(0, 0);
+      const alien = createAlien('drone', 1, 0, 0, 0, -70);
+      const { beam, target, bunkerY } = computeBeam(p, [alien], null, [bunker(-60)]);
+      expect(bunkerY).toBeNull();
+      expect(target).toEqual({ alienId: 1 });
+      expect(beam.topY).toBe(-75);
+    });
+
+    it('passes through a gap in the bunker and a bunker off to the side', () => {
+      const p = createPlayer(0, 0);
+      const holed = bunker(-60);
+      for (let row = 0; row < 4; row++) holed.mask[row * 20 + 10] = 0; // the column at x = 0
+      expect(computeBeam(p, [], null, [holed]).bunkerY).toBeNull();
+      expect(computeBeam(createPlayer(0, 50), [], null, [bunker(-60)]).bunkerY).toBeNull();
+    });
   });
 
   it('ignores dead aliens', () => {
     const p = createPlayer(0, 0);
     const dead = createAlien('drone', 1, 0, 0, 0, 40);
     dead.hp = 0;
-    expect(computeBeam(p, [dead], null).target).toBeNull();
+    expect(computeBeam(p, [dead], null, []).target).toBeNull();
   });
 });
 

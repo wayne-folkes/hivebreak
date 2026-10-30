@@ -319,7 +319,7 @@ function fireShips(run: RunState, inputs: readonly ShipInput[], dt: number, even
 
 /** One ship's laser for this step: adds its beam and applies a damage tick to what it stops at. */
 function fireLaser(run: RunState, player: PlayerState, dt: number, events: RunEvent[]): void {
-  const { beam, target } = computeBeam(player, run.aliens, run.boss);
+  const { beam, target } = computeBeam(player, run.aliens, run.boss, run.bunkers);
   run.beams.push(beam);
   if (!target) return;
   if (target.blocked) {

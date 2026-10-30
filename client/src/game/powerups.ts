@@ -1,11 +1,12 @@
 import { ALIEN_SPECS } from './aliens';
 import { beamHitBoss } from './boss';
+import { beamStopY } from './bunkers';
 import { overlaps } from './collision';
 import { FIELD_HEIGHT } from './playfield';
 import { SHIP_BOX_OFFSET_Y, SHIP_TOP, SHIP_Y, isAlive, shipBox } from './player';
 import type { Rng } from './rng';
 import { VOLLEY_HIT } from './scoring';
-import type { Alien, AlienKind, Beam, BossPart, BossState, Box, Pickup, PlayerState, PowerUpKind, RunState, Shot } from './types';
+import type { Alien, AlienKind, Beam, BossPart, BossState, Box, Bunker, Pickup, PlayerState, PowerUpKind, RunState, Shot } from './types';
 
 // Power-ups: short, strong, timed boosts that fall as pickups. This file has the drop rules, the
 // falling and catching of pickups, the timers, and what each power-up does (a spread fan, a laser
@@ -195,10 +196,15 @@ export interface BeamTarget {
 }
 
 /**
- * The beam while the laser runs and fire is held: straight up from the nose to the first alien
- * or boss part it touches (the lowest bottom edge above the nose, using boss.ts's beamHitBoss for
- * the boss), or the top of the field. A null target means it hit nothing. Push `beam` onto
- * `run.beams` every step it fires and use laserDamage to apply hits to the target.
+ * The beam while the laser runs and fire is held: straight up from the nose to the first alien,
+ * boss part or solid bunker pixel it touches (the lowest bottom edge above the nose, using
+ * boss.ts's beamHitBoss for the boss and bunkers.ts's beamStopY for bunkers), or the top of the
+ * field. A null target means it hit no alien or boss part. A bunker lower than or level with
+ * them stops the beam first: the target is then null and `bunkerY` is the y it stopped at
+ * (otherwise `bunkerY` is null). Push `beam` onto `run.beams` every step it fires and use
+ * laserDamage to apply hits to the target; on a step laserDamage returns damage and `bunkerY`
+ * is set, burn the bunker with `erodeColumn(bunkers, beam.x, bunkerY, BEAM_HALF_WIDTH * 2)` so it
+ * erodes on damage ticks only, not every step.
  *
  * The laser replaces the ship's own shots, including lance and overcharge: while it fires, skip
  * the main volley of `tryFire`. Wingmen and the helper drone keep firing, so still fire the
@@ -208,7 +214,8 @@ export function computeBeam(
   player: PlayerState,
   aliens: readonly Alien[],
   boss: BossState | null,
-): { beam: Beam; target: BeamTarget | null } {
+  bunkers: readonly Bunker[],
+): { beam: Beam; target: BeamTarget | null; bunkerY: number | null } {
   let bottom = FIELD_HEIGHT / 2;
   let hit: Alien | null = null;
   for (const a of aliens) {
@@ -223,11 +230,18 @@ export function computeBeam(
     }
   }
 
+  let target: BeamTarget | null = hit ? { alienId: hit.id } : null;
   const onBoss = boss ? beamHitBoss(boss, player.x, SHIP_TOP) : null;
   if (onBoss && onBoss.y < bottom) {
-    return { beam: { playerId: player.id, x: player.x, topY: onBoss.y }, target: { part: onBoss.part, blocked: onBoss.blocked } };
+    bottom = onBoss.y;
+    target = { part: onBoss.part, blocked: onBoss.blocked };
   }
-  return { beam: { playerId: player.id, x: player.x, topY: bottom }, target: hit ? { alienId: hit.id } : null };
+
+  const wall = bunkers.length > 0 ? beamStopY(bunkers, player.x, SHIP_TOP, 'up') : null;
+  if (wall !== null && wall <= bottom) {
+    return { beam: { playerId: player.id, x: player.x, topY: wall }, target: null, bunkerY: wall };
+  }
+  return { beam: { playerId: player.id, x: player.x, topY: bottom }, target, bunkerY: null };
 }
 
 /** Counts the laser's tick timer down. Call once per step for every ship (the laser's timer is `laserTimer`, apart from `cooldown`). */

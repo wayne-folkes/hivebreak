@@ -723,3 +723,25 @@ describe('a simulated fight', () => {
     expect(base.seconds).toBeGreaterThan(45);
   });
 });
+
+describe('dispatch by kind', () => {
+  it('builds each kind from its own layout, with the Brood Mother untouched by the Hive Mind state', () => {
+    const brood = createBoss('broodMother', counter());
+    const hive = createBoss('hiveMind', counter());
+    expect(brood.parts.map((p) => p.kind)).toEqual(['plate', 'plate', 'plate', 'plate', 'core', 'bay', 'bay']);
+    expect(brood.ringAngle).toBeUndefined();
+    expect(brood.beams).toBeUndefined();
+    expect(hive.parts.filter((p) => p.kind === 'segment')).toHaveLength(8);
+    expect(hive.parts.filter((p) => p.kind === 'core')).toHaveLength(1);
+    expect(hive.ringAngle).toBe(0);
+  });
+
+  it('lands each at its own height and steps a Brood Mother exactly as before', () => {
+    const hive = createBoss('hiveMind', counter());
+    hive.y = BOSS_Y;
+    expect(bossEntering(hive)).toBe(true); // the Hive Mind lands lower than the Brood Mother
+    const brood = landed();
+    const out = stepBoss(brood, { players: [], rng: createRng(1), dt: DT, newId: counter() });
+    expect(out).toEqual({ launched: [], shots: [], events: [], shattered: [] });
+  });
+});

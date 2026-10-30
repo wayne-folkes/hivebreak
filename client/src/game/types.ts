@@ -338,6 +338,14 @@ export interface BossState {
   ringAngle?: number;
   /** Hive Mind: beams being telegraphed or firing. */
   beams?: BossBeam[];
+  /** Hive Mind: the ring's turning speed (signed, radians per second) and direction it is heading, 1 or -1. */
+  ringSpeed?: number;
+  ringDir?: 1 | -1;
+  /** Hive Mind: seconds until the ring next reverses (phase 2) and until the next beam wave (counts only while no beam is out). */
+  ringTimer?: number;
+  beamTimer?: number;
+  /** Hive Mind: the phase 3 spiral's current rotation, radians. */
+  spiralAngle?: number;
 }
 
 /**

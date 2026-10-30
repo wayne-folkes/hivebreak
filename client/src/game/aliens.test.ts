@@ -4,16 +4,22 @@ import {
   DIVE_END_Y,
   DIVE_SECONDS,
   HIT_FLASH_SECONDS,
+  MINI_SPREAD_VX,
+  PAIR_DIVE_SPREAD,
   RETURN_SPEED,
   alienBox,
   basePoints,
   createAlien,
   damageAlien,
   divePosition,
+  splitAlien,
   startDive,
+  startPairedDive,
   stepAlien,
 } from './aliens';
-import { SHIP_Y } from './player';
+import { freeAlienGone, stepFreeAlien } from './boss';
+import { overlaps } from './collision';
+import { SHIP_BOX_OFFSET_Y, SHIP_HALF_HEIGHT, SHIP_HALF_WIDTH, SHIP_Y } from './player';
 import { chooseSpecial, createRun, stepRun } from './run';
 import { WAVES } from './waves';
 
@@ -144,5 +150,93 @@ describe('carrier in a run', () => {
     } finally {
       wave.diveRate = saved;
     }
+  });
+});
+
+describe('splitter and mini specs', () => {
+  it('makes a splitter a bit bigger than a drone, with two hit points', () => {
+    expect(ALIEN_SPECS.splitter.hp).toBe(2);
+    expect(ALIEN_SPECS.splitter.halfWidth).toBeGreaterThan(ALIEN_SPECS.drone.halfWidth);
+    expect(ALIEN_SPECS.splitter.halfHeight).toBeGreaterThan(ALIEN_SPECS.drone.halfHeight);
+    expect(damageAlien(createAlien('splitter', 1, 0, 0, 0, 0))).toBe(false);
+  });
+
+  it('makes a mini small, one hit point and few points', () => {
+    expect(ALIEN_SPECS.mini.hp).toBe(1);
+    expect(ALIEN_SPECS.mini.halfWidth).toBeLessThan(ALIEN_SPECS.drone.halfWidth);
+    expect(ALIEN_SPECS.mini.halfHeight).toBeLessThan(ALIEN_SPECS.drone.halfHeight);
+    expect(ALIEN_SPECS.mini.points).toBeLessThanOrEqual(ALIEN_SPECS.drone.points);
+    expect(damageAlien(createAlien('mini', 1, -1, -1, 0, 0))).toBe(true);
+  });
+});
+
+describe('splitAlien', () => {
+  const splitter = () => createAlien('splitter', 7, 2, 1, 12, 60);
+
+  it('makes two free minis at the splitter, flying down and outward', () => {
+    let n = 100;
+    const minis = splitAlien(splitter(), () => ++n);
+    expect(minis).toHaveLength(2);
+    expect(minis.map((m) => m.id)).toEqual([101, 102]);
+    for (const m of minis) {
+      expect(m).toMatchObject({ kind: 'mini', hp: 1, mode: 'free', col: -1, row: -1 });
+      expect(m.y).toBe(60);
+      expect(Math.abs(m.x - 12)).toBeGreaterThan(0);
+      expect(Math.abs(m.x - 12)).toBeLessThan(8);
+      expect(m.vy).toBeLessThan(0);
+    }
+    const [left, right] = minis;
+    expect(left.vx).toBe(-MINI_SPREAD_VX);
+    expect(right.vx).toBe(MINI_SPREAD_VX);
+    expect(left.x).toBeLessThan(right.x);
+  });
+
+  it('flies the minis apart and down under stepFreeAlien, and they keep going until they leave', () => {
+    const [left, right] = splitAlien(splitter(), (() => { let n = 0; return () => ++n; })());
+    for (let i = 0; i < 60; i++) {
+      stepFreeAlien(left, null, DT * 2);
+      stepFreeAlien(right, null, DT * 2);
+    }
+    expect(right.x - left.x).toBeGreaterThan(10);
+    expect(left.y).toBeLessThan(60);
+    for (let i = 0; i < 120 * 10 && !freeAlienGone(left); i++) stepFreeAlien(left, null, DT);
+    expect(freeAlienGone(left)).toBe(true);
+  });
+
+  it('does not touch the splitter', () => {
+    const s = splitter();
+    splitAlien(s, () => 1);
+    expect(s).toMatchObject({ kind: 'splitter', hp: 2, mode: 'formation', x: 12, y: 60 });
+  });
+});
+
+describe('startPairedDive', () => {
+  it('sends two divers to either side of the target, mirrored', () => {
+    const a = createAlien('diver', 1, 1, 1, -12, 50);
+    const b = createAlien('diver', 2, 2, 1, 12, 50);
+    startPairedDive(a, b, 0);
+    expect(a.mode).toBe('diving');
+    expect(b.mode).toBe('diving');
+    expect(a.dive?.toX).toBe(-PAIR_DIVE_SPREAD);
+    expect(b.dive?.toX).toBe(PAIR_DIVE_SPREAD);
+    // Same moment, same path length, so they bottom out together side by side.
+    const end = [divePosition(a.dive!, 1), divePosition(b.dive!, 1)];
+    expect(end[0].y).toBeCloseTo(end[1].y, 6);
+    expect(end[1].x - end[0].x).toBeCloseTo(2 * PAIR_DIVE_SPREAD, 6);
+  });
+
+  it('boxes in a still ship at the target: at least one diver hits it along the way', () => {
+    const a = createAlien('diver', 1, 1, 1, -12, 50);
+    const b = createAlien('diver', 2, 2, 1, 12, 50);
+    startPairedDive(a, b, 0);
+    const ship = { x: 0, y: SHIP_Y + SHIP_BOX_OFFSET_Y, halfWidth: SHIP_HALF_WIDTH, halfHeight: SHIP_HALF_HEIGHT };
+    let hit = false;
+    for (let t = 0; t <= DIVE_SECONDS; t += DT) {
+      for (const d of [a, b]) {
+        const pos = divePosition(d.dive!, t / DIVE_SECONDS);
+        if (overlaps(ship, { x: pos.x, y: pos.y, halfWidth: ALIEN_SPECS.diver.halfWidth, halfHeight: ALIEN_SPECS.diver.halfHeight })) hit = true;
+      }
+    }
+    expect(hit).toBe(true);
   });
 });

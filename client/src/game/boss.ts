@@ -1,4 +1,13 @@
 import { ALIEN_SPECS, HIT_FLASH_SECONDS, createAlien } from './aliens';
+import {
+  HIVE_PARTS,
+  beamHitHive,
+  hiveEntering,
+  hiveHealth,
+  hitHive,
+  initHive,
+  stepHive,
+} from './hivemind';
 import { FIELD_HEIGHT, FIELD_WIDTH } from './playfield';
 import { SHIP_TOP, SHIP_Y, nearestPlayer } from './player';
 import type { Rng } from './rng';
@@ -33,6 +42,11 @@ import type { Alien, BossKind, BossPart, BossPartKind, BossState, Box, PlayerSta
 //   Special    damageBossFixed(boss, amount) for a Pulse Bomb, and `boss.stun = seconds` to stun
 //              it. Both leave the events to the caller, like hitBoss.
 //   HUD        bossHealth(boss) for the health bar (plates and core only, 0 to 1).
+//
+// The same calls serve the Hive Mind (wave 10), whose logic lives in hivemind.ts; its module
+// comment lists what is different: the core is shielded by a ring of segments instead of plates
+// (a shot is never `blocked`), `stepBoss` also returns the segments that `shattered` (emit
+// bossPartDestroyed for them), and beams hurt ships through `beamHitsBox` (hivemind.ts).
 
 /** Where the boss ends up, and where it starts so it can descend into view. */
 export const BOSS_Y = 112;
@@ -80,12 +94,11 @@ export const BROOD_PARTS: readonly PartSpec[] = [
 
 export const BOSS_SPECS: Record<BossKind, BossSpec> = {
   broodMother: { parts: BROOD_PARTS },
-  // Placeholder until the Hive Mind worker builds it.
-  hiveMind: { parts: BROOD_PARTS },
+  hiveMind: { parts: HIVE_PARTS },
 };
 
 /** Base points for destroying a part, before any combo multiplier. The core's is the boss kill. */
-export const BOSS_POINTS: Record<BossPartKind, number> = { plate: 100, bay: 150, core: 2000, segment: 80 };
+export const BOSS_POINTS: Record<BossPartKind, number> = { plate: 100, bay: 150, core: 2000, segment: 120 };
 
 /** Seconds between Drone launches and between volleys, by phase. Each wait varies by +-15%. */
 export const LAUNCH_INTERVAL = { 1: 5, 2: 3 } as const;
@@ -124,6 +137,9 @@ export const FREE_LOCK_HEIGHT = 60;
 /** Sideways speed range a Drone leaves the bay with. */
 const FREE_LAUNCH_VX = 15;
 
+/** The Hive Mind's beam helpers, re-exported so the fold-in can take everything boss-related from here. */
+export { beamBunkerContacts, beamHitsBox } from './hivemind';
+
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /** Builds a boss above the field, ready to descend. `newId` hands out a fresh id per part. */
@@ -139,7 +155,7 @@ export function createBoss(kind: BossKind, newId: () => number): BossState {
     halfHeight: spec.halfHeight,
     flash: 0,
   }));
-  return {
+  const boss: BossState = {
     kind,
     x: 0,
     y: BOSS_START_Y,
@@ -151,11 +167,13 @@ export function createBoss(kind: BossKind, newId: () => number): BossState {
     fireTimer: FIRST_FIRE_DELAY,
     stun: 0,
   };
+  if (kind === 'hiveMind') initHive(boss);
+  return boss;
 }
 
 /** True while the boss is still descending into view: it can't be hurt and doesn't attack. */
 export function bossEntering(boss: BossState): boolean {
-  return boss.y > BOSS_Y;
+  return boss.kind === 'hiveMind' ? hiveEntering(boss) : boss.y > BOSS_Y;
 }
 
 /** The parts of one kind that are still standing. */
@@ -185,8 +203,12 @@ export function platesStanding(boss: BossState): boolean {
   return false;
 }
 
-/** What is left of the fight, 0 to 1: the plates' and core's hit points together. Bays don't count. */
+/**
+ * What is left of the fight, 0 to 1. Brood Mother: the plates' and core's hit points together
+ * (bays don't count). Hive Mind: the core's alone, which is what its phases follow.
+ */
 export function bossHealth(boss: BossState): number {
+  if (boss.kind === 'hiveMind') return hiveHealth(boss);
   let hp = 0;
   let max = 0;
   for (const p of boss.parts) {
@@ -241,6 +263,7 @@ function partTouching(boss: BossState, x: number, y: number, halfWidth: number, 
  * Destroyed parts are ignored, so shots pass through their gaps.
  */
 export function hitBoss(boss: BossState, shotBox: Box, damage: number): BossHit | null {
+  if (boss.kind === 'hiveMind') return hitHive(boss, shotBox, damage);
   if (damage <= 0 || bossEntering(boss)) return null;
   // Most shots are nowhere near: skip the parts for those.
   if (Math.abs(shotBox.x - boss.x) >= BOSS_HALF_WIDTH + shotBox.halfWidth || Math.abs(shotBox.y - boss.y) >= BOSS_HALF_HEIGHT + shotBox.halfHeight) {
@@ -259,6 +282,7 @@ export function hitBoss(boss: BossState, shotBox: Box, damage: number): BossHit 
  * meets nothing, or the boss is still descending.
  */
 export function beamHitBoss(boss: BossState, x: number, bottomY: number): { part: BossPart; blocked: boolean; y: number } | null {
+  if (boss.kind === 'hiveMind') return beamHitHive(boss, x, bottomY);
   if (bossEntering(boss) || Math.abs(x - boss.x) >= BOSS_HALF_WIDTH) return null;
   let best: BossPart | null = null;
   let bestBottom = Infinity;
@@ -280,7 +304,7 @@ export function beamHitBoss(boss: BossState, x: number, bottomY: number): { part
  * Damage that ignores aim, for the Pulse Bomb: whole points shared between the standing plates
  * (any left over go to the first ones, and what a plate can't take spills over to the rest), then
  * whatever is left goes to the core. Bays are untouched. Returns every part it hurt, once each,
- * so the caller can emit events for them.
+ * so the caller can emit events for them. The Hive Mind's ring segments take the plates' place.
  */
 export function damageBossFixed(boss: BossState, amount: number): BossHit[] {
   let remaining = Math.floor(amount);
@@ -293,7 +317,8 @@ export function damageBossFixed(boss: BossState, amount: number): BossHit[] {
     dealt.set(part, (dealt.get(part) ?? 0) + d);
   };
 
-  for (let plates = standingParts(boss, 'plate'); plates.length > 0 && remaining >= 1; plates = standingParts(boss, 'plate')) {
+  const shield: BossPartKind = boss.kind === 'hiveMind' ? 'segment' : 'plate';
+  for (let plates = standingParts(boss, shield); plates.length > 0 && remaining >= 1; plates = standingParts(boss, shield)) {
     const base = Math.floor(remaining / plates.length);
     const extra = remaining % plates.length;
     plates.forEach((p, i) => take(p, base + (i < extra ? 1 : 0)));
@@ -322,8 +347,10 @@ export interface BossStep {
   launched: Alien[];
   /** Enemy shots fired this step, to add to the run's shots. */
   shots: Shot[];
-  /** bossLaunched, bossFired and bossPhase events only. */
+  /** bossLaunched, bossFired, bossPhase and (Hive Mind) bossBeam events only. */
   events: RunEvent[];
+  /** Hive Mind phase 3: the ring segments that shattered this step (now at 0 hit points), for bossPartDestroyed events. */
+  shattered: BossPart[];
 }
 
 const nextInterval = (base: number, rng: Rng) => base * rng.range(1 - INTERVAL_JITTER, 1 + INTERVAL_JITTER);
@@ -335,9 +362,13 @@ const nextInterval = (base: number, rng: Rng) => base * rng.range(1 - INTERVAL_J
  */
 export function stepBoss(boss: BossState, ctx: BossStepContext): BossStep {
   const { players, rng, dt, newId } = ctx;
-  const out: BossStep = { launched: [], shots: [], events: [] };
+  const out: BossStep = { launched: [], shots: [], events: [], shattered: [] };
   for (const p of boss.parts) p.flash = Math.max(0, p.flash - dt);
   if (dt <= 0) return out;
+  if (boss.kind === 'hiveMind') {
+    stepHive(boss, ctx, out);
+    return out;
+  }
   const standing = standingParts(boss);
   const core = standing.find((p) => p.kind === 'core');
   if (!core) return out;

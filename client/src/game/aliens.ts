@@ -21,10 +21,26 @@ export const ALIEN_SPECS: Record<AlienKind, AlienSpec> = {
   diver: { hp: 1, points: 40, halfWidth: 6, halfHeight: 6 },
   // Slow and tough, sits in the formation and never dives; always drops a power-up (see powerups.ts).
   carrier: { hp: 4, points: 60, halfWidth: 10, halfHeight: 7 },
-  // Placeholders until the sector 2 worker tunes them.
-  splitter: { hp: 2, points: 40, halfWidth: 8, halfHeight: 6 },
-  mini: { hp: 1, points: 15, halfWidth: 5, halfHeight: 4 },
+  // Sector 2. Sits in the formation a little bigger than a drone; when killed it splits into two
+  // minis (see splitAlien), so a Splitter is worth more than a warden but its minis are cheap.
+  splitter: { hp: 2, points: 50, halfWidth: 8, halfHeight: 6 },
+  // Small and fragile, always a free alien: it never has a slot, flies down like a launched Drone
+  // and crashes into ships like a diver.
+  mini: { hp: 1, points: 10, halfWidth: 5, halfHeight: 4 },
 };
+
+/** Sideways speed the two minis of a split Splitter fly apart at, art pixels per second. */
+export const MINI_SPREAD_VX = 32;
+/** Downward speed the minis start with (they speed up under stepFreeAlien's fall acceleration). */
+export const MINI_LAUNCH_VY = -55;
+/** How far from the Splitter's centre each mini starts, so the pair doesn't overlap, art pixels. */
+export const MINI_OFFSET_X = 4;
+/**
+ * A pair of divers heads for targets this far either side of the player's x, art pixels. Kept
+ * under the ship's half-width plus a diver's (14) so a still ship is boxed in: both diver boxes
+ * overlap it at the bottom of the swoop, and the player has to move to dodge.
+ */
+export const PAIR_DIVE_SPREAD = 8;
 
 /** Seconds of white flash after a hit. */
 export const HIT_FLASH_SECONDS = 0.08;
@@ -67,6 +83,36 @@ export function startDive(alien: Alien, targetX: number): void {
   alien.mode = 'diving';
   alien.modeTime = 0;
   alien.dive = { fromX: alien.x, fromY: alien.y, toX: Math.min(limit, Math.max(-limit, targetX)) };
+}
+
+/**
+ * Sends two neighbouring divers (from `pickDivePair`, in formation) swooping at the same moment
+ * towards a spot either side of `targetX`: the left one aims PAIR_DIVE_SPREAD (8) to the left, the
+ * right one PAIR_DIVE_SPREAD to the right, so their curves mirror each other and they arrive as
+ * a pair. Both dives start at modeTime 0 and take DIVE_SECONDS. The fold-in emits a `diveStart`
+ * event for each diver.
+ */
+export function startPairedDive(left: Alien, right: Alien, targetX: number): void {
+  startDive(left, targetX - PAIR_DIVE_SPREAD);
+  startDive(right, targetX + PAIR_DIVE_SPREAD);
+}
+
+/**
+ * What a killed Splitter breaks into: two minis in mode 'free' at the Splitter's position,
+ * flying down and outward (the left one with negative vx, the right one positive). They have no
+ * slot (col and row -1). `newId` hands out their ids. The fold-in, when it kills an alien of kind
+ * 'splitter' (any cause: a shot, the laser, a bomb), emits `alienSplit` for it and pushes these
+ * onto `run.aliens`. Minis then move with boss.ts's stepFreeAlien like launched Drones, and
+ * crash into ships like divers.
+ */
+export function splitAlien(alien: Alien, newId: () => number): Alien[] {
+  return [-1, 1].map((side) => {
+    const mini = createAlien('mini', newId(), -1, -1, alien.x + side * MINI_OFFSET_X, alien.y);
+    mini.mode = 'free';
+    mini.vx = side * MINI_SPREAD_VX;
+    mini.vy = MINI_LAUNCH_VY;
+    return mini;
+  });
 }
 
 /** Where a dive is after `u` of its way (0 to 1): a swing out and back while sweeping to the target. */

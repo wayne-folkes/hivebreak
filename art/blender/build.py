@@ -15,7 +15,8 @@ import common as C  # noqa: E402
 # (output name, module). shots builds two roots into one file.
 MODELS = [("player", "player"), ("drone", "drone"), ("warden", "warden"),
           ("diver", "diver"), ("shots", "shots"), ("carrier", "carrier"),
-          ("brood_mother", "brood_mother"), ("pickups", "pickups"), ("helper", "helper")]
+          ("brood_mother", "brood_mother"), ("pickups", "pickups"), ("helper", "helper"),
+          ("splitter", "splitter"), ("mini", "mini"), ("hive_mind", "hive_mind")]
 
 
 def main():

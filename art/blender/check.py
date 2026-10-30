@@ -14,9 +14,9 @@ sys.path.insert(0, str(HERE))
 import common as C  # noqa: E402
 
 NAMES = ["player", "drone", "warden", "diver", "shots", "carrier", "brood_mother", "pickups",
-         "helper"]
+         "helper", "splitter", "mini", "hive_mind"]
 TRI_LIMIT = 400
-TRI_LIMITS = {"brood_mother": 1200, "pickups": 800}  # bigger models / several roots in one file
+TRI_LIMITS = {"brood_mother": 1200, "pickups": 800, "hive_mind": 1500}  # bigger models / several roots in one file
 
 
 def run():

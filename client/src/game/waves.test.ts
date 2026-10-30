@@ -4,8 +4,9 @@ import { SLOT_SPACING_X } from './formation';
 import { WAVES, WAVE_COUNT, waveAlienCount, waveColumns } from './waves';
 
 describe('WAVES', () => {
-  it('has five waves', () => {
-    expect(WAVE_COUNT).toBe(5);
+  it('has ten waves: sector 1 is waves 1-5 and sector 2 is waves 6-10', () => {
+    expect(WAVE_COUNT).toBe(10);
+    WAVES.forEach((w, i) => expect(w.sector).toBe(i < 5 ? 1 : 2));
   });
 
   it('fits every formation in at most 6 columns and 5 rows, with room to march', () => {
@@ -17,7 +18,7 @@ describe('WAVES', () => {
   });
 
   it('uses only known alien letters', () => {
-    for (const w of WAVES) for (const row of w.rows) expect(row).toMatch(/^[dwvc.]+$/);
+    for (const w of WAVES) for (const row of w.rows) expect(row).toMatch(/^[dwvcs.]+$/);
   });
 
   it('brings in wardens, carriers and divers from wave 2', () => {
@@ -32,6 +33,18 @@ describe('WAVES', () => {
     expect(waveAlienCount(WAVES[4])).toBe(0);
     expect(waveColumns(WAVES[4])).toBe(0);
     for (const w of WAVES.slice(0, 4)) expect(w.boss).toBeUndefined();
+  });
+
+  it('makes wave 10 the Hive Mind: a boss and no formation, in sector 2', () => {
+    expect(WAVES[9]).toMatchObject({ boss: 'hiveMind', rows: [], sector: 2 });
+    for (const w of WAVES.slice(5, 9)) expect(w.boss).toBeUndefined();
+  });
+
+  it('keeps sector 1 as it was: no splitters and no behaviours', () => {
+    for (const w of WAVES.slice(0, 5)) {
+      expect(w.rows.join('')).not.toContain('s');
+      expect(w.behaviours).toBeUndefined();
+    }
   });
 
   it('has one or two carriers in waves 2 to 4', () => {
@@ -66,6 +79,41 @@ describe('WAVES', () => {
       expect(waveAlienCount(WAVES[i])).toBeGreaterThanOrEqual(waveAlienCount(WAVES[i - 1]));
       expect(WAVES[i].marchSpeed).toBeGreaterThan(WAVES[i - 1].marchSpeed);
       expect(WAVES[i].fireRate).toBeGreaterThan(WAVES[i - 1].fireRate);
+    }
+  });
+});
+
+describe('sector 2 waves', () => {
+  const sector2 = WAVES.slice(5, 9);
+  const withBehaviour = (b: 'split' | 'pairedDives') => sector2.filter((w) => w.behaviours?.includes(b));
+
+  it('puts Splitters in several waves', () => {
+    expect(sector2.filter((w) => w.rows.join('').includes('s')).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("has the 'split' behaviour on at least two waves and 'pairedDives' on at least two", () => {
+    expect(withBehaviour('split').length).toBeGreaterThanOrEqual(2);
+    expect(withBehaviour('pairedDives').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('gives every behaviour wave something to work with: split halves, and adjacent divers', () => {
+    for (const w of withBehaviour('split')) expect(waveColumns(w)).toBeGreaterThanOrEqual(4);
+    for (const w of withBehaviour('pairedDives')) expect(w.rows.some((r) => r.includes('vv'))).toBe(true);
+  });
+
+  it('brings Carriers here and there', () => {
+    expect(sector2.filter((w) => w.rows.join('').includes('c')).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('is harder than wave 4 in march, fire and dive pressure, and gets harder wave to wave', () => {
+    for (const w of sector2) {
+      expect(w.marchSpeed).toBeGreaterThan(WAVES[3].marchSpeed);
+      expect(w.fireRate).toBeGreaterThan(WAVES[3].fireRate);
+      expect(w.diveRate).toBeGreaterThan(0);
+    }
+    for (let i = 1; i < sector2.length; i++) {
+      expect(sector2[i].marchSpeed).toBeGreaterThan(sector2[i - 1].marchSpeed);
+      expect(sector2[i].fireRate).toBeGreaterThan(sector2[i - 1].fireRate);
     }
   });
 });

@@ -1,8 +1,12 @@
 import type { WaveDef } from './types';
 
 // The waves of a run, as data. Rows run top to bottom, one character per column:
-// 'd' drone, 'w' warden, 'v' diver, 'c' carrier, '.' empty slot. At most 6 columns by 5 rows, so
-// a formation always fits the field with room to march.
+// 'd' drone, 'w' warden, 'v' diver, 'c' carrier, 's' splitter, '.' empty slot. At most 6 columns by
+// 5 rows, so a formation always fits the field with room to march.
+//
+// A run is ten waves in two sectors of five, each ending in a boss (waves 5 and 10). The run loop
+// (run.ts) is folded in to play all ten and win after wave 10's Hive Mind; WAVE_COUNT is the length
+// of this list, so it follows.
 
 /**
  * Tuning intent (slice 2a retune): one step harder than slice 1. March speed is about 25% up,
@@ -11,7 +15,7 @@ import type { WaveDef } from './types';
  * no formation. The scripted bot wins fewer runs with 3 lives than in slice 1,
  * but still clears every wave when it has lives to spare.
  */
-export const WAVE_TUNING_NOTES = 'Slice 2a: ~25% faster march, ~30% more fire, divers from wave 2, carriers in waves 2-4.';
+export const WAVE_TUNING_NOTES = 'Slice 2a: ~25% faster march, ~30% more fire, divers from wave 2, carriers in waves 2-4. Slice 2b: sector 2 (waves 6-9) marches, fires and dives faster still, each with a twist.';
 
 export const WAVES: readonly WaveDef[] = [
   // 1: drones only, a little brisker than before.
@@ -25,6 +29,39 @@ export const WAVES: readonly WaveDef[] = [
   // 5: the Brood Mother. No formation; the boss launches its own Drones, so the march, fire and
   // dive numbers are unused.
   { rows: [], boss: 'broodMother', marchSpeed: 0, fireRate: 0, diveRate: 0, sector: 1 },
+
+  // Sector 2: the hive. Every formation wave is faster and busier than wave 4 (23, 0.85, 0.22).
+  // 6: the Splitters arrive. Kill one and two minis drop out of it, so the fire is the twist.
+  { rows: ['.ssss.', 'wddddw', 'dvddvd', 'dddddd'], marchSpeed: 25, fireRate: 0.95, diveRate: 0.22, sector: 2 },
+  // 7: the formation splits in two, marches apart and closes up again; shoot through the gap.
+  {
+    rows: ['.www.', 'sdsds', 'dvdvd', 'ddddd'],
+    marchSpeed: 27,
+    fireRate: 1.05,
+    diveRate: 0.2,
+    sector: 2,
+    behaviours: ['split'],
+  },
+  // 8: Divers dive in pairs, with Carriers up front and Splitters on the flanks.
+  {
+    rows: ['swccws', 'dvvvvd', 'dsddsd', 'dddddd'],
+    marchSpeed: 29,
+    fireRate: 1.15,
+    diveRate: 0.28,
+    sector: 2,
+    behaviours: ['pairedDives'],
+  },
+  // 9: everything at once, five rows deep: it splits, its divers pair up, Splitters and a Carrier.
+  {
+    rows: ['wwcww', 'sdsds', 'dvvvd', 'dsdsd', 'ddddd'],
+    marchSpeed: 31,
+    fireRate: 1.3,
+    diveRate: 0.3,
+    sector: 2,
+    behaviours: ['split', 'pairedDives'],
+  },
+  // 10: the Hive Mind. No formation; the boss has its own shots, so these numbers are unused.
+  { rows: [], boss: 'hiveMind', marchSpeed: 0, fireRate: 0, diveRate: 0, sector: 2 },
 ];
 
 export const WAVE_COUNT = WAVES.length;
