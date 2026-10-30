@@ -1,0 +1,623 @@
+<meta charset="utf-8">
+<title>Hivebreak Slice 2</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Barlow:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; concept renders break out into rows of phone frames. Single dark arcade look by choice, same system as the slice 1 page. */
+:root {
+  --void: #0c0918;
+  --panel: #161128;
+  --line: #2c2450;
+  --ink: #ece8ff;
+  --muted: #9a92c4;
+  --hive: #ff4fd8;
+  --pilot: #4ff0ff;
+  --warm: #ffb04f;
+  --rare: #ffe14f;
+  --blood: #ff5a5a;
+  --f-display: 'Silkscreen', ui-monospace, monospace;
+  --f-body: 'Barlow', system-ui, -apple-system, sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+body { background: var(--void); color: var(--ink); font-family: var(--f-body); font-size: 17px; line-height: 1.55; }
+.wrap { max-width: 1060px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 56px; }
+.prose { max-width: 66ch; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 400; text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(2.2rem, 7vw, 3.6rem); letter-spacing: 0.02em; }
+h1 .hive { color: var(--hive); }
+h2 { font-size: 1.45rem; margin-bottom: 14px; }
+h3 { font-size: 1rem; margin-bottom: 6px; }
+p { margin: 0 0 12px; }
+.eyebrow { font-family: var(--f-mono); font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+.lede { font-size: 1.2rem; }
+.muted { color: var(--muted); }
+section { display: grid; gap: 4px; }
+code, kbd { font-family: var(--f-mono); font-size: 0.85em; background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; }
+
+.release { display: inline-block; font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 1px 7px; }
+.release.a { color: var(--pilot); }
+.release.b { color: var(--blood); }
+
+.concepts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 32px; align-items: start; }
+figure { margin: 0; display: grid; gap: 10px; min-width: 0; }
+figcaption { font-size: 0.92rem; color: var(--muted); max-width: 46ch; }
+figcaption b { color: var(--ink); font-weight: 600; }
+.tag { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--hive); }
+
+.phone { position: relative; width: 100%; max-width: 360px; background: #000; border: 2px solid var(--line); border-radius: 26px; padding: 14px 10px 0; overflow: hidden; }
+.field { position: relative; width: 100%; aspect-ratio: 9 / 16; }
+canvas.px { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
+.strip { height: 64px; background: #07050f; display: grid; place-items: center; font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+.hud { position: absolute; inset: 0; pointer-events: none; font-family: var(--f-display); font-size: clamp(9px, 3vw, 11px); line-height: 1.2; color: var(--ink); padding: 6px 8px; }
+.hud .row { display: flex; justify-content: space-between; align-items: flex-start; }
+.hud .right { text-align: right; }
+.hud .lives { color: var(--pilot); letter-spacing: 2px; }
+.bossbar { margin: 0 auto 6px; width: 78%; text-align: center; font-size: clamp(8px, 2.6vw, 10px); color: var(--hive); }
+.bossbar .bar { margin-top: 3px; height: 6px; border: 1px solid var(--hive); background: #1a0a20; }
+.bossbar .fill { height: 100%; background: var(--hive); }
+.bossbar.red { color: var(--blood); }
+.bossbar.red .bar { border-color: var(--blood); }
+.bossbar.red .fill { background: var(--blood); }
+.hud .bottom { position: absolute; left: 8px; right: 8px; bottom: 6px; display: flex; justify-content: space-between; align-items: end; gap: 6px; }
+.chip { border: 1px solid var(--line); background: rgb(12 9 24 / 0.8); border-radius: 3px; padding: 2px 5px; font-size: clamp(8px, 2.6vw, 10px); }
+.chip.power { color: var(--warm); border-color: var(--warm); }
+.meter { display: grid; gap: 2px; }
+.meter .cells { display: flex; gap: 2px; }
+.meter .cells i { width: 9px; height: 5px; background: var(--pilot); box-shadow: 0 0 4px var(--pilot); }
+.meter .ready { color: var(--pilot); }
+
+.overlay { position: absolute; inset: 0; display: grid; align-content: center; gap: 8px; padding: 0 8%; background: rgb(12 9 24 / 0.64); }
+.overlay h4 { margin: 0 0 4px; font-family: var(--f-display); font-weight: 400; font-size: clamp(11px, 3.6vw, 15px); text-align: center; line-height: 1.3; }
+.overlay h4 span { color: var(--hive); display: block; }
+.card { border: 2px solid var(--line); background: var(--panel); border-radius: 4px; padding: 7px 10px; display: grid; gap: 2px; }
+.card.focus { border-color: var(--pilot); box-shadow: 0 0 0 2px rgb(79 240 255 / 0.25); }
+.card.rare { border-color: var(--rare); box-shadow: 0 0 10px rgb(255 225 79 / 0.3); }
+.card .name { font-family: var(--f-display); font-size: clamp(10px, 3.3vw, 13px); }
+.card .what { font-size: clamp(11px, 3.3vw, 13px); color: var(--muted); line-height: 1.3; }
+.card .meta { display: flex; justify-content: space-between; gap: 6px; font-family: var(--f-mono); font-size: 10px; }
+.r-common { color: var(--muted); } .r-uncommon { color: var(--warm); } .r-rare { color: var(--rare); }
+.syn { color: var(--pilot); }
+
+.lineup { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
+.lineup.wide { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.unit { display: grid; gap: 6px; justify-items: start; min-width: 0; }
+.unit .stage { width: 100%; aspect-ratio: 1; background: radial-gradient(circle at 50% 55%, #1d1638, var(--void) 70%); border: 1px solid var(--line); border-radius: 6px; }
+.unit .stage.wide { aspect-ratio: 2; }
+.unit .nm { font-family: var(--f-display); font-size: 0.95rem; color: var(--hive); }
+.unit .nm.pick { color: var(--warm); }
+.unit p { font-size: 0.9rem; color: var(--muted); margin: 0; }
+
+.desk { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border: 2px solid var(--line); border-radius: 10px; overflow: hidden; display: grid; grid-template-columns: 1fr auto 1fr; }
+.desk .side { padding: 6% 7%; font-family: var(--f-display); font-size: clamp(8px, 1.5vw, 14px); color: var(--muted); display: grid; align-content: start; gap: 1.2em; }
+.desk .side b { display: block; color: var(--ink); font-weight: 400; font-size: 1.35em; }
+.desk .side .red b { color: var(--blood); }
+.desk .side .cy b { color: var(--pilot); }
+.desk .fieldwrap { position: relative; height: 100%; aspect-ratio: 9 / 16; }
+.desk .fieldwrap .hud { font-size: clamp(6px, 1.2vw, 10px); }
+
+ul.ticks { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+ul.ticks li { padding-left: 22px; position: relative; }
+ul.ticks li::before { content: ""; position: absolute; left: 2px; top: 0.55em; width: 8px; height: 8px; background: var(--pilot); }
+ul.ticks.b li::before { background: var(--blood); }
+ul.later li::before { background: var(--line); }
+.done { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px 32px; }
+
+ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 0; display: grid; border-top: 1px solid var(--line); }
+ol.steps > li { counter-increment: step; display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 4px 16px; padding-block: 18px; border-bottom: 1px solid var(--line); }
+ol.steps > li::before { content: counter(step); font-family: var(--f-display); font-size: 1.6rem; color: var(--muted); line-height: 1; }
+ol.steps > li.par::before { color: var(--pilot); }
+.step-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
+.badge { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 1px 6px; }
+.badge.p { color: var(--pilot); } .badge.m { color: var(--muted); }
+ol.steps ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+ol.steps ul li::marker { color: var(--muted); }
+.who { font-family: var(--f-mono); font-size: 0.8rem; color: var(--muted); }
+.who b { color: var(--ink); font-weight: 500; }
+
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 0.93rem; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; background: var(--panel); }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-family: var(--f-display); white-space: nowrap; }
+.foot { font-size: 0.9rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 18px; }
+</style>
+
+<div class="wrap">
+
+<header class="prose">
+  <div class="eyebrow">Plan · slice 2 of Hivebreak · approved 30 Oct 2026</div>
+  <h1>Hive<span class="hive">break</span> slice 2</h1>
+  <p class="lede" style="margin-top:16px">Make a run worth repeating: upgrades you can feel, power-ups and a Special for the big moments, a boss at the end of each sector, and a second sector that looks and plays differently.</p>
+  <p class="muted">It ships in two releases, each deployed and play-tested before the next. <span class="release a">2a</span> deepens sector 1 and ends it with the Brood Mother. <span class="release b">2b</span> adds sector 2 and the Hive Mind, making a run ten waves. The pictures are concept renders drawn live with Three.js at the game's 180 × 320 resolution; the shapes are stand-ins for the Blender models.</p>
+</header>
+
+<section>
+  <h2>Release 2a: sector 1 deepened</h2>
+  <div class="concepts">
+    <figure>
+      <div class="phone">
+        <div class="field"><canvas class="px" id="c-boss" width="180" height="320" aria-label="Concept: the Brood Mother boss fight"></canvas>
+          <div class="hud">
+            <div class="bossbar">BROOD MOTHER<div class="bar"><div class="fill" style="width:62%"></div></div></div>
+            <div class="row"><div>SCORE<br>012450</div><div class="right">WAVE 5/10<br><span class="lives">▲▲</span></div></div>
+            <div class="bottom">
+              <div class="meter"><span class="ready">PULSE READY</span><span class="cells"><i></i><i></i><i></i><i></i><i></i></span></div>
+              <span class="chip power">SPREAD 6s</span>
+            </div>
+          </div>
+        </div>
+        <div class="strip">Special button sits here on touch</div>
+      </div>
+      <figcaption><span class="tag">Concept · wave 5</span><br><b>The Brood Mother.</b> Shoot the armour plates off to expose the core while it launches Drones from its bays. Spread Shot is active (6 s left), a Laser pickup is falling, and the Pulse Bomb is charged.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone">
+        <div class="field"><canvas class="px" id="c-special" width="180" height="320" aria-label="Concept: choosing a Special at the start of a run"></canvas>
+          <div class="overlay">
+            <h4>CHOOSE YOUR SPECIAL<span>FOR THIS RUN</span></h4>
+            <div class="card focus"><span class="name">PULSE BOMB</span><span class="what">Clear enemy shots and blast nearby aliens. Stuns the formation.</span></div>
+            <div class="card"><span class="name">SHIELD BURST</span><span class="what">3 s untouchable. Shots that hit you bounce back.</span></div>
+            <div class="card"><span class="name">TIME STOP</span><span class="what">Freeze aliens and their shots for 2.5 s.</span></div>
+          </div>
+        </div>
+        <div class="strip">Meter fills from kills and combo</div>
+      </div>
+      <figcaption><span class="tag">Concept · run start</span><br><b>Choose a Special.</b> One per run, picked before wave 1. Fire it with X, B / LT, or the touch button when the meter is full.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone">
+        <div class="field"><canvas class="px" id="c-pick" width="180" height="320" aria-label="Concept: upgrade pick after the boss with a rare card and a synergy hint"></canvas>
+          <div class="overlay">
+            <h4>BROOD MOTHER DOWN<span>PICK ONE</span></h4>
+            <div class="card rare"><span class="name">WINGMAN</span><span class="what">A second ship flies beside you and fires with you.</span><span class="meta"><span class="r-rare">rare</span><span>0/1</span></span></div>
+            <div class="card focus"><span class="name">PIERCING</span><span class="what">Shots pass through one more alien.</span><span class="meta"><span class="syn">completes LANCE</span><span>0/2</span></span></div>
+            <div class="card"><span class="name">HOMING</span><span class="what">Shots curve toward the nearest alien.</span><span class="meta"><span class="r-uncommon">uncommon</span><span>0/2</span></span></div>
+          </div>
+        </div>
+        <div class="strip">One rare is guaranteed after a boss</div>
+      </div>
+      <figcaption><span class="tag">Concept · after the boss</span><br><b>Upgrades with teeth.</b> Bigger numbers, six new upgrades, a rare tier, and synergies: you hold Twin Shot, so Piercing would complete <b>Lance</b>.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <h2>Release 2b: sector 2</h2>
+  <div class="concepts">
+    <figure>
+      <div class="phone">
+        <div class="field"><canvas class="px" id="c-sector" width="180" height="320" aria-label="Concept: sector 2 with a red nebula, Splitters, Carriers and eroding shields"></canvas>
+          <div class="hud"><div class="row"><div>SCORE<br>031980</div><div class="right">WAVE 7/10<br><span class="lives">▲▲▲</span></div></div></div>
+        </div>
+        <div class="strip">SECTOR 2</div>
+      </div>
+      <figcaption><span class="tag">Concept · wave 7</span><br><b>Deeper in the hive.</b> A red nebula palette, Splitters (orange seams) that break in two, a Carrier holding a power-up, Divers swooping in pairs, and shields eroded by both sides' fire.</figcaption>
+    </figure>
+    <figure style="grid-column: 1 / -1; min-width: 0;">
+      <div class="desk">
+        <div class="side"><div>SCORE<b>058300</b></div><div>COMBO<b>x6</b></div><div class="cy">SPECIAL<b>TIME STOP</b></div></div>
+        <div class="fieldwrap"><canvas class="px" id="c-hive" width="180" height="320" aria-label="Concept: the Hive Mind boss on desktop"></canvas>
+          <div class="hud"><div class="bossbar red">HIVE MIND · PHASE 2<div class="bar"><div class="fill" style="width:44%"></div></div></div></div>
+        </div>
+        <div class="side"><div>WAVE<b>10/10</b></div><div class="cy">LIVES<b>▲▲</b></div><div>UPGRADES<b style="font-size:1em">LANCE<br>HOMING<br>WINGMAN</b></div></div>
+      </div>
+      <figcaption><span class="tag">Concept · wave 10, desktop</span><br><b>The Hive Mind.</b> A core inside a rotating ring of shield segments. Phase 2 telegraphs its beam sweeps (dashed red) before they fire, and sends Divers. Phase 3 drops the ring and the core comes for you.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <h2>New cast</h2>
+  <div class="lineup">
+    <div class="unit"><canvas class="px stage" id="m-carrier" width="48" height="48" aria-label="Concept: Carrier alien"></canvas><span class="nm">Carrier <span class="release a">2a</span></span><p>Slow and tough. Always drops a power-up.</p></div>
+    <div class="unit"><canvas class="px stage" id="m-splitter" width="48" height="48" aria-label="Concept: Splitter alien"></canvas><span class="nm">Splitter <span class="release b">2b</span></span><p>Breaks into two mini-drones when killed.</p></div>
+    <div class="unit"><canvas class="px stage" id="m-pickups" width="48" height="48" aria-label="Concept: the four power-up pickups"></canvas><span class="nm pick">Pickups <span class="release a">2a</span></span><p>Spread, Laser, Slow, Helper drone. 8–10 s each.</p></div>
+  </div>
+  <div class="lineup wide" style="margin-top:16px">
+    <div class="unit"><canvas class="px stage wide" id="m-brood" width="128" height="64" aria-label="Concept: Brood Mother boss"></canvas><span class="nm">Brood Mother <span class="release a">2a</span></span><p>Wave 5. Armour plates over the core, Drone bays underneath, a faster second phase.</p></div>
+    <div class="unit"><canvas class="px stage wide" id="m-hive" width="128" height="64" aria-label="Concept: Hive Mind boss"></canvas><span class="nm">Hive Mind <span class="release b">2b</span></span><p>Wave 10. Rotating shield ring, beam sweeps, a desperation phase.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Upgrades, reworked</h2>
+  <p class="prose muted" style="margin-bottom:12px">Play-testing found the upgrades weak and the run a little easy. Every pick should change how a run plays.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Change</th><th>What</th><th>Examples</th></tr></thead>
+      <tbody>
+        <tr><td>Bigger numbers</td><td>Retune the six existing upgrades so one pick is felt.</td><td>Rapid fire ×0.65 interval · thrusters ×1.3 · twin shot fans out</td></tr>
+        <tr><td>New upgrades</td><td>Six more in the pool.</td><td>Homing · ricochet · combo guard · magnet · bomb on kill · overcharge</td></tr>
+        <tr><td>Rare tier</td><td>Stronger picks; one guaranteed after a boss, a small chance otherwise.</td><td>Wingman · slow field · double-damage shots</td></tr>
+        <tr><td>Synergies</td><td>Hold a pair and it upgrades into a stronger form. The pick card says when one would complete.</td><td>Twin shot + piercing = Lance · rapid fire + thrusters = Afterburner · shield pulse + extra life = Bulwark</td></tr>
+        <tr><td>Difficulty</td><td>Baseline up a step, checked with the scripted bot's win rate.</td><td>Faster march · more fire · Divers from wave 2</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="prose" style="max-width:none">
+  <h2>Done means</h2>
+  <div class="done">
+    <div><h3 style="margin-bottom:10px"><span class="release a">2a</span></h3>
+      <ul class="ticks">
+        <li>Five waves end in a Brood Mother fight.</li>
+        <li>You pick a Special at the start and can fire it from a full meter with keys, pad and touch.</li>
+        <li>Power-ups drop and work; the Carrier always drops one.</li>
+        <li>New upgrades, the rare tier and synergies are in, and the pick card shows synergy hints.</li>
+      </ul></div>
+    <div><h3 style="margin-bottom:10px"><span class="release b">2b</span></h3>
+      <ul class="ticks b">
+        <li>A run is ten waves in two sectors, and sector 2 has its own palette.</li>
+        <li>Splitters, paired dives and split formations appear in sector 2.</li>
+        <li>Shields erode in both sectors.</li>
+        <li>The Hive Mind's three phases end the run.</li>
+      </ul></div>
+    <div><h3 style="margin-bottom:10px">Both</h3>
+      <ul class="ticks">
+        <li>The scripted bot clears every wave and boss with spare lives; with 3 lives it wins less often than in slice 1.</li>
+        <li>Tests, typecheck and build pass; CI is green; it's live and you've played it.</li>
+      </ul></div>
+  </div>
+</section>
+
+<section>
+  <h2>Steps</h2>
+  <p class="prose muted" style="margin-bottom:12px">Same way of working as slice 1: I write each release's shared types, smaller models build in parallel on separate files, a reviewer agent checks every batch and re-checks the fixes, and I play-test before each commit. Blue numbers run as parallel workers.</p>
+  <ol class="steps">
+    <li><div><div class="step-head"><h3>2a contract</h3><span class="badge m">main session</span></div>
+      <p>Types for power-ups and pickups, the Special choice and meter, the rare tier and synergies, the Carrier, the Brood Mother's parts and phases, the new events, and a Special-choice phase before wave 1.</p></div></li>
+    <li class="par"><div><div class="step-head"><h3>2a game logic and models</h3><span class="badge p">4 in parallel</span></div>
+      <ul>
+        <li><span class="who"><b>Sonnet</b></span> upgrades and tuning: retuned numbers, new upgrades, rare tier, synergies, bot win-rate report.</li>
+        <li><span class="who"><b>Sonnet</b></span> power-ups, the three Specials, the Carrier and drop rules.</li>
+        <li><span class="who"><b>Sonnet</b></span> the Brood Mother: movement, plates, bays, phases.</li>
+        <li><span class="who"><b>Sonnet</b></span> Blender models: Carrier, Brood Mother, pickups, Special effects.</li>
+      </ul>
+      <p class="muted" style="margin-top:8px">Then one Sonnet worker folds them into <code>run.ts</code>, where they would otherwise collide.</p></div></li>
+    <li class="par"><div><div class="step-head"><h3>2a renderer, UI and sound</h3><span class="badge p">3 in parallel</span></div>
+      <ul>
+        <li><span class="who"><b>Sonnet</b></span> renderer: boss damage states, pickups, power-up visuals, Special effects.</li>
+        <li><span class="who"><b>Sonnet</b></span> UI: Special choice, meter, power-up timer, boss bar, rare and synergy labels, touch Special button.</li>
+        <li><span class="who"><b>Haiku</b></span> sound for pickups, power-ups, Specials and the boss.</li>
+      </ul></div></li>
+    <li><div><div class="step-head"><h3>2a wiring, review, ship</h3></div>
+      <p>Wire it into <code>main.ts</code>, review and fix, play-test the boss and each Special on phone and desktop, push, follow CI and Vercel, then you play it.</p></div></li>
+    <li><div><div class="step-head"><h3>2b contract</h3><span class="badge m">main session</span></div>
+      <p>Types for sectors and palettes, the Splitter, formation behaviours, shield masks, and the Hive Mind's ring, beams and phases.</p></div></li>
+    <li class="par"><div><div class="step-head"><h3>2b game logic and models</h3><span class="badge p">4 in parallel</span></div>
+      <ul>
+        <li><span class="who"><b>Sonnet</b></span> waves 6–10, the Splitter, split formations and paired dives.</li>
+        <li><span class="who"><b>Sonnet</b></span> shields: pixel masks eroded by both sides' shots.</li>
+        <li><span class="who"><b>Sonnet</b></span> the Hive Mind's three phases.</li>
+        <li><span class="who"><b>Sonnet</b></span> Blender models: Splitter, mini-drone, Hive Mind.</li>
+      </ul>
+      <p class="muted" style="margin-top:8px">Then the <code>run.ts</code> fold-in: ten waves, two sectors, a win after wave 10.</p></div></li>
+    <li class="par"><div><div class="step-head"><h3>2b renderer, UI and sound</h3><span class="badge p">2 in parallel</span></div>
+      <ul>
+        <li><span class="who"><b>Sonnet</b></span> renderer: sector 2 palette and red nebula, eroding shield textures, the Hive Mind with beam telegraphs.</li>
+        <li><span class="who"><b>Haiku</b></span> sector banner, wave counter to 10, records to wave 10, new sounds.</li>
+      </ul></div></li>
+    <li><div><div class="step-head"><h3>2b wiring, review, ship</h3></div>
+      <p>As for 2a.</p></div></li>
+  </ol>
+</section>
+
+<section class="prose">
+  <h2>Open for later</h2>
+  <ul class="ticks later">
+    <li>Music: chiptune tracks per sector, and whether bosses get their own.</li>
+    <li>Online leaderboard on Supabase: names, daily seeded runs, score checks.</li>
+    <li>Unlocks: which upgrades and ships finishing runs should unlock.</li>
+  </ul>
+</section>
+
+<p class="foot">Full requirements: <code>docs/requirements.md</code> · This plan as Markdown: <code>docs/plan-slice-2.md</code> · Slice 1 is live at hivebreak.folkes.dev</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  if (!window.THREE) return;
+  const T = THREE;
+  const W = 180, H = 320;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let renderer;
+  try { renderer = new T.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true }); } catch (e) { return; }
+  renderer.setPixelRatio(1);
+  renderer.setSize(W, H, false);
+  renderer.setClearColor(0x000000, 0);
+  const gl = renderer.domElement;
+
+  // Shared look: three-step toon ramp and a back-face outline, as on the slice 1 page.
+  const grad = new T.DataTexture(new Uint8Array([70, 70, 70, 150, 150, 150, 255, 255, 255]), 3, 1, T.RGBFormat);
+  grad.minFilter = grad.magFilter = T.NearestFilter; grad.generateMipmaps = false; grad.needsUpdate = true;
+  const outlineMat = new T.MeshBasicMaterial({ color: 0x07040f, side: T.BackSide });
+  const toon = (c) => new T.MeshToonMaterial({ color: c, gradientMap: grad });
+  const glow = (c) => new T.MeshBasicMaterial({ color: c });
+  function part(geo, mat, x, y, z, outline) {
+    const m = new T.Mesh(geo, mat);
+    m.position.set(x || 0, y || 0, z || 0);
+    if (outline !== false) { const o = new T.Mesh(geo, outlineMat); o.scale.setScalar(1.16); m.add(o); }
+    return m;
+  }
+
+  function makePlayer() {
+    const g = new T.Group();
+    const hull = part(new T.ConeGeometry(4, 16, 4), toon(0xd8f6ff), 0, 2, 0); hull.rotation.y = Math.PI / 4; g.add(hull);
+    g.add(part(new T.BoxGeometry(18, 5, 2.4), toon(0x2bb6d9), 0, -4, 0));
+    g.add(part(new T.BoxGeometry(2.4, 7, 2.6), toon(0xffb04f), -9, -4, 0));
+    g.add(part(new T.BoxGeometry(2.4, 7, 2.6), toon(0xffb04f), 9, -4, 0));
+    g.add(part(new T.SphereGeometry(1.8, 8, 6), glow(0x4ff0ff), 0, 3, 2.6, false));
+    for (const x of [-3.5, 3.5]) { const f = part(new T.ConeGeometry(1.6, 5, 5), glow(0xffd36a), x, -9.5, 0, false); f.rotation.z = Math.PI; g.add(f); }
+    return g;
+  }
+  function makeDrone(body) {
+    const g = new T.Group();
+    const b = part(new T.OctahedronGeometry(6), toon(body || 0xb04cff), 0, 0, 0); b.scale.set(1.3, 0.8, 0.8); g.add(b);
+    g.add(part(new T.BoxGeometry(2.2, 1.6, 1), glow(0xffe14f), -2.4, 0.6, 4.4, false));
+    g.add(part(new T.BoxGeometry(2.2, 1.6, 1), glow(0xffe14f), 2.4, 0.6, 4.4, false));
+    for (const x of [-4.5, 0, 4.5]) g.add(part(new T.BoxGeometry(1.4, 4.5, 1.4), toon(0x6a2bb0), x, -5.5, 0));
+    for (const s of [-1, 1]) { const a = part(new T.BoxGeometry(1, 4, 1), toon(0x6a2bb0), s * 3, 5.5, 0); a.rotation.z = -s * 0.5; g.add(a); }
+    return g;
+  }
+  function makeWarden() {
+    const g = new T.Group();
+    g.add(part(new T.BoxGeometry(14, 8, 7), toon(0x6b56c2), 0, -1, 0));
+    g.add(part(new T.BoxGeometry(16, 3, 8), toon(0xc9c2e8), 0, 4, 0));
+    g.add(part(new T.DodecahedronGeometry(2.6), glow(0xff4fd8), 0, -1, 4.2, false));
+    for (const s of [-1, 1]) { const sp = part(new T.ConeGeometry(1.6, 5, 4), toon(0xc9c2e8), s * 8.5, 6, 0); sp.rotation.z = -s * 0.4; g.add(sp); }
+    return g;
+  }
+  function makeDiver() {
+    const g = new T.Group();
+    const b = part(new T.ConeGeometry(3.6, 13, 3), toon(0xff6a3d), 0, -1, 0); b.rotation.z = Math.PI; g.add(b);
+    for (const s of [-1, 1]) { const w = part(new T.BoxGeometry(9, 2, 1.6), toon(0xffb04f), s * 5, 2.5, 0); w.rotation.z = s * 0.6; g.add(w); }
+    g.add(part(new T.SphereGeometry(1.7, 8, 6), glow(0xfff27a), 0, 1, 3, false));
+    return g;
+  }
+  function makeCarrier() {
+    const g = new T.Group();
+    const hull = part(new T.CylinderGeometry(7, 9, 9, 6), toon(0x3fd6a0), 0, 1, 0); hull.rotation.x = Math.PI / 2; hull.scale.set(1.25, 1, 0.8); g.add(hull);
+    g.add(part(new T.BoxGeometry(22, 3, 6), toon(0x1f7a66), 0, 1, 0));
+    const pod = part(new T.OctahedronGeometry(3.2), glow(0xffb04f), 0, -6, 2, false); g.add(pod);
+    g.add(part(new T.TorusGeometry(4.4, 0.8, 4, 10), toon(0x1f7a66), 0, -6, 2));
+    for (const s of [-1, 1]) g.add(part(new T.BoxGeometry(2, 2, 1), glow(0xffe14f), s * 3, 3, 5.5, false));
+    g.userData.pod = pod;
+    return g;
+  }
+  function makeSplitter() {
+    const g = new T.Group();
+    for (const s of [-1, 1]) { const h = part(new T.OctahedronGeometry(5), toon(0xc0392b), s * 3.6, 0, 0); h.scale.set(0.9, 1, 0.8); g.add(h); }
+    g.add(part(new T.BoxGeometry(1.4, 10, 2), glow(0xff8a3d), 0, 0, 2.5, false));
+    for (const s of [-1, 1]) g.add(part(new T.BoxGeometry(1.8, 1.8, 1), glow(0xffe14f), s * 3.6, 1, 4, false));
+    return g;
+  }
+  function makeBrood() {
+    const g = new T.Group();
+    g.add(part(new T.BoxGeometry(104, 18, 14), toon(0x4a3a8c), 0, 0, 0));
+    const dome = part(new T.SphereGeometry(16, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), toon(0x6b56c2), 0, 7, 0); dome.scale.set(1.6, 0.8, 0.7); g.add(dome);
+    for (const s of [-1, 1]) { const wing = part(new T.ConeGeometry(6, 26, 4), toon(0x6b56c2), s * 58, 2, 0); wing.rotation.z = s * Math.PI / 2; g.add(wing); }
+    const core = part(new T.DodecahedronGeometry(6), glow(0xff4fd8), -14, 0, 7, false); g.add(core);
+    // Four armour plates across the front; the second has been shot off, exposing the core behind it.
+    const plates = [];
+    [-40, -14, 14, 40].forEach((x, i) => { if (i === 1) return; const p = part(new T.BoxGeometry(22, 12, 4), toon(0xc9c2e8), x, 0, 8); g.add(p); plates.push(p); });
+    for (const s of [-1, 1]) {
+      g.add(part(new T.BoxGeometry(14, 6, 10), toon(0x2c2450), s * 28, -11, 0));
+      g.add(part(new T.BoxGeometry(9, 2, 1), glow(0xffb04f), s * 28, -14, 4, false));
+    }
+    g.userData.core = core;
+    return g;
+  }
+  function makeHive() {
+    const g = new T.Group();
+    const core = part(new T.IcosahedronGeometry(11, 0), toon(0xff4fd8), 0, 0, 0); g.add(core);
+    g.add(part(new T.IcosahedronGeometry(5, 0), glow(0xffe14f), 0, 0, 9, false));
+    const ring = new T.Group();
+    for (let i = 0; i < 10; i++) {
+      if (i === 2 || i === 7) continue; // gaps the player shoots through
+      const a = (i / 10) * Math.PI * 2;
+      const seg = part(new T.BoxGeometry(12, 5, 6), toon(0xd04a64),Math.cos(a) * 26, Math.sin(a) * 26, 0);
+      seg.rotation.z = a + Math.PI / 2; ring.add(seg);
+    }
+    g.add(ring);
+    for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.3; const sp = part(new T.ConeGeometry(2, 9, 4), toon(0x4a0f20), Math.cos(a) * 38, Math.sin(a) * 38, 0); sp.rotation.z = a - Math.PI / 2; g.add(sp); }
+    g.userData.ring = ring; g.userData.core = core;
+    return g;
+  }
+  const PICK_COLORS = [0xffb04f, 0x4ff0ff, 0x9b7bff, 0x4fff9b];
+  function makePickup(i) {
+    const g = new T.Group();
+    g.add(part(new T.OctahedronGeometry(3), glow(PICK_COLORS[i]), 0, 0, 0, false));
+    g.add(part(new T.TorusGeometry(5, 0.9, 4, 12), toon(0x2c2450), 0, 0, 0));
+    return g;
+  }
+  function lights(scene, warm) {
+    scene.add(new T.HemisphereLight(warm ? 0xffb8a0 : 0x9ab8ff, warm ? 0x2e0f14 : 0x1a0f2e, 0.9));
+    const sun = new T.DirectionalLight(0xffffff, 1.1); sun.position.set(-2, 3, 4); scene.add(sun);
+  }
+  function tiltCam(w, h) { const c = new T.OrthographicCamera(-w / 2, w / 2, h / 2, -h / 2, 1, 1000); c.position.set(0, -110, 300); c.lookAt(0, 0, 0); return c; }
+  const shotGeo = new T.BoxGeometry(1.6, 7, 1.6), eGeo = new T.OctahedronGeometry(2.2);
+
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  function starfield(n) { const s = []; for (let i = 0; i < n; i++) s.push([Math.floor(rnd() * W), rnd() * H, rnd() < 0.2 ? 2 : 1, rnd() < 0.15]); return s; }
+
+  // ---- Boss scene (2a): Brood Mother, launched Drones, spread shots, a falling pickup ----
+  const boss = new T.Scene(); lights(boss);
+  const brood = makeBrood(); brood.position.set(0, 106, 0); boss.add(brood);
+  const launched = [[-44, 66, 0.3], [40, 58, -0.2], [-12, 40, 0.1], [18, 74, 0]].map(([x, y, r]) => { const d = makeDrone(); d.position.set(x, y, 0); d.rotation.z = r; boss.add(d); return d; });
+  const ship = makePlayer(); ship.position.set(-6, -128, 0); boss.add(ship);
+  const spread = [];
+  for (let v = 0; v < 3; v++) for (let k = -1; k <= 1; k++) { const s = part(shotGeo, glow(0x9ffbff), 0, 0, 0, false); s.rotation.z = -k * 0.22; s.userData.k = k; s.userData.v = v; boss.add(s); spread.push(s); }
+  const bShots = [[-28, 20], [30, -10], [-30, -60], [8, 0]].map(([x, y]) => { const s = part(eGeo, glow(0xff4fd8), x, y, 0, false); boss.add(s); return s; });
+  const fallPick = makePickup(1); fallPick.position.set(44, -40, 0); boss.add(fallPick);
+  const sparks = [];
+  for (let i = 0; i < 12; i++) { const s = part(new T.BoxGeometry(2, 2, 2), glow(i % 3 ? 0xffb04f : 0xfff27a), 0, 0, 0, false); const a = (i / 12) * Math.PI * 2; s.userData.d = [Math.cos(a), Math.sin(a), 0.7 + (i % 3) * 0.3]; boss.add(s); sparks.push(s); }
+  const bossCam = tiltCam(W, H);
+  const stars1 = starfield(90);
+
+  // ---- Sector 2 scene (2b): red nebula, Splitters, Carriers, Wardens, paired Divers ----
+  const sector = new T.Scene(); lights(sector, true);
+  const s2 = [];
+  for (let i = 0; i < 5; i++) { const a = makeSplitter(); a.position.set(-48 + i * 24, 104, 0); sector.add(a); s2.push(a); }
+  [-36, 36].forEach((x) => { const c = makeCarrier(); c.position.set(x, 82, 0); sector.add(c); s2.push(c); });
+  for (let i = 0; i < 5; i++) { if (i === 2) continue; const w = makeWarden(); w.position.set(-48 + i * 24, 60, 0); sector.add(w); s2.push(w); }
+  const pair = [makeDiver(), makeDiver()]; pair[0].position.set(-30, -10, 0); pair[1].position.set(-14, -22, 0); pair.forEach((d) => { d.rotation.z = -0.6; sector.add(d); });
+  const minis = [[6, 66], [-2, 58]].map(([x, y]) => { const m = makeDrone(0xc0392b); m.scale.setScalar(0.6); m.position.set(x, y, 0); sector.add(m); return m; });
+  const ship2 = makePlayer(); ship2.position.set(20, -128, 0); sector.add(ship2);
+  const s2shots = [-100, -50, 0].map((y) => { const s = part(shotGeo, glow(0x9ffbff), 20, y, 0, false); sector.add(s); return s; });
+  const s2enemy = [[-40, -40], [44, -60]].map(([x, y]) => { const s = part(eGeo, glow(0xff8a3d), x, y, 0, false); sector.add(s); return s; });
+  const sectorCam = tiltCam(W, H);
+  const stars2 = starfield(80);
+  // Shields: 4 bunkers in art pixels with eroded holes (2D, drawn over the 3D layer).
+  const bunkers = [];
+  for (let b = 0; b < 4; b++) {
+    const m = [];
+    for (let y = 0; y < 10; y++) for (let x = 0; x < 20; x++) {
+      const arch = y >= 6 && x >= 6 && x < 14;
+      const corner = (y === 0 && (x < 2 || x > 17)) || (y === 1 && (x < 1 || x > 18));
+      if (arch || corner) continue;
+      const bite = (y < 3 && rnd() < 0.25 + b * 0.06) || (y > 6 && rnd() < 0.18) || rnd() < 0.05;
+      if (!bite) m.push([x, y]);
+    }
+    bunkers.push({ x: 12 + b * 42, y: 236, px: m });
+  }
+
+  // ---- Hive Mind scene (2b) ----
+  const hiveS = new T.Scene(); lights(hiveS, true);
+  const hive = makeHive(); hive.position.set(0, 64, 0); hiveS.add(hive);
+  const ship3 = makePlayer(); ship3.position.set(-24, -128, 0); hiveS.add(ship3);
+  const hiveDivers = [[50, -20, 0.7], [-56, 10, -0.5]].map(([x, y, r]) => { const d = makeDiver(); d.position.set(x, y, 0); d.rotation.z = r; hiveS.add(d); return d; });
+  const hiveShots = [[-10, 10], [20, -30], [-40, -70], [4, -100]].map(([x, y]) => { const s = part(eGeo, glow(0xff5a5a), x, y, 0, false); hiveS.add(s); return s; });
+  const lance = part(new T.BoxGeometry(3, 26, 2), glow(0x9ffbff), -24, -60, 0, false); hiveS.add(lance);
+  const hiveCam = tiltCam(W, H);
+
+  // ---- Model stages ----
+  const stage = new T.Scene(); lights(stage);
+  const stageCam = new T.OrthographicCamera(-24, 24, 24, -24, 1, 1000); stageCam.position.set(0, -90, 300); stageCam.lookAt(0, 0, 0);
+  const wideCam = new T.OrthographicCamera(-64, 64, 32, -32, 1, 1000); wideCam.position.set(0, -90, 300); wideCam.lookAt(0, 0, 0);
+  const pickupGroup = new T.Group(); for (let i = 0; i < 4; i++) { const p = makePickup(i); p.position.set(i % 2 ? 9 : -9, i < 2 ? 9 : -9, 0); p.scale.setScalar(1.3); pickupGroup.add(p); }
+  const stageModels = {
+    'm-carrier': { m: makeCarrier(), cam: stageCam, w: 48, h: 48, s: 1.4 },
+    'm-splitter': { m: makeSplitter(), cam: stageCam, w: 48, h: 48, s: 1.8 },
+    'm-pickups': { m: pickupGroup, cam: stageCam, w: 48, h: 48, s: 1 },
+    'm-brood': { m: makeBrood(), cam: wideCam, w: 128, h: 64, s: 0.82 },
+    'm-hive': { m: makeHive(), cam: wideCam, w: 128, h: 64, s: 0.8 },
+  };
+  for (const k in stageModels) { const e = stageModels[k]; e.m.scale.setScalar(e.s); e.m.visible = false; stage.add(e.m); }
+
+  const ctx = (id) => { const c = document.getElementById(id); const x = c && c.getContext('2d'); if (x) x.imageSmoothingEnabled = false; return x; };
+  const cBoss = ctx('c-boss'), cSpecial = ctx('c-special'), cPick = ctx('c-pick'), cSector = ctx('c-sector'), cHive = ctx('c-hive');
+  for (const k in stageModels) stageModels[k].ctx = ctx(k);
+
+  function full(scene, cam) {
+    renderer.setViewport(0, 0, W, H); renderer.setScissor(0, 0, W, H); renderer.setScissorTest(true);
+    renderer.clear(); renderer.render(scene, cam);
+  }
+  function paintStars(c, stars, t, colors) {
+    for (const [x, y, sz, tw] of stars) {
+      const yy = Math.floor((y + t * (sz === 2 ? 14 : 7)) % H);
+      c.fillStyle = tw && Math.sin(t * 5 + x) > 0.5 ? '#ffffff' : sz === 2 ? colors[0] : colors[1];
+      c.fillRect(x, yy, 1, sz);
+    }
+  }
+  function bloom(c) { if ('filter' in c) { c.save(); c.filter = 'blur(2px)'; c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.45; c.drawImage(gl, 0, 0); c.restore(); } }
+  function nebula(c) {
+    const g1 = c.createRadialGradient(40, 90, 0, 40, 90, 120); g1.addColorStop(0, 'rgba(160,30,60,0.45)'); g1.addColorStop(1, 'rgba(160,30,60,0)');
+    const g2 = c.createRadialGradient(150, 210, 0, 150, 210, 110); g2.addColorStop(0, 'rgba(255,90,60,0.22)'); g2.addColorStop(1, 'rgba(255,90,60,0)');
+    c.fillStyle = g1; c.fillRect(0, 0, W, H); c.fillStyle = g2; c.fillRect(0, 0, W, H);
+    // Quantize the nebula to chunky 4-pixel blocks so it reads as pixel art.
+    const img = c.getImageData(0, 0, W, H), d = img.data;
+    for (let y = 0; y < H; y += 4) for (let x = 0; x < W; x += 4) {
+      const i = (y * W + x) * 4;
+      for (let dy = 0; dy < 4; dy++) for (let dx = 0; dx < 4; dx++) { const j = ((y + dy) * W + x + dx) * 4; if (j < d.length) { d[j] = d[i] & 0xf0; d[j + 1] = d[i + 1] & 0xf0; d[j + 2] = d[i + 2] & 0xf0; } }
+    }
+    c.putImageData(img, 0, 0);
+  }
+
+  function drawBoss(t) {
+    brood.position.x = Math.sin(t * 0.5) * 18;
+    brood.userData.core.rotation.y = t * 1.5;
+    launched.forEach((d, i) => { d.position.y += Math.sin(t * 2 + i) * 0.05; d.rotation.y = Math.sin(t * 2 + i) * 0.3; });
+    ship.position.x = -6 + Math.sin(t * 0.9) * 14; ship.rotation.y = Math.cos(t * 0.9) * 0.4;
+    spread.forEach((s) => { const k = s.userData.k, v = s.userData.v; const dist = ((t * 130 + v * 70) % 210); s.position.set(ship.position.x + k * dist * 0.22, -112 + dist, 0); });
+    bShots.forEach((s, i) => { s.position.y = 30 - ((t * 50 + i * 45) % 170); s.rotation.y = t * 4; });
+    fallPick.position.y = -40 - ((t * 10) % 60); fallPick.rotation.y = t * 2; fallPick.position.x = 44 + Math.sin(t * 2) * 2;
+    const k = (t * 0.9) % 1.3; sparks.forEach((s) => { const d = s.userData.d; s.position.set(brood.position.x - 14 + d[0] * k * 16 * d[2], 106 + d[1] * k * 12 * d[2], 6); s.visible = k < 1; });
+    full(boss, bossCam);
+    for (const c of [cBoss, cSpecial, cPick]) {
+      if (!c) continue;
+      c.fillStyle = '#05030f'; c.fillRect(0, 0, W, H);
+      paintStars(c, stars1, t, ['#8f86c9', '#463e7a']);
+      c.drawImage(gl, 0, 0); bloom(c);
+    }
+  }
+  let nebulaLayer = null;
+  function drawSector(t) {
+    s2.forEach((a, i) => { a.rotation.y = Math.sin(t * 2 + i) * 0.25; });
+    s2.forEach((a, i) => { a.userData.bx = a.userData.bx ?? a.position.x; a.position.x = a.userData.bx + Math.sin(t * 0.6) * 5; if (a.userData.pod) a.userData.pod.rotation.y = t * 3; });
+    pair.forEach((d, i) => { d.position.x = -30 + i * 16 + Math.sin(t * 1.2) * 10; d.position.y = -10 - i * 12 + Math.cos(t * 1.2) * 6; });
+    minis.forEach((m, i) => { m.position.x = (i ? -2 : 6) + Math.sin(t * 3 + i) * 3; });
+    ship2.position.x = 20 + Math.sin(t * 0.8) * 10; ship2.rotation.y = Math.cos(t * 0.8) * 0.4;
+    s2shots.forEach((s, i) => { s.position.y = -110 + ((t * 120 + i * 52) % 156); s.position.x = ship2.position.x; });
+    s2enemy.forEach((s, i) => { s.position.y = 30 - ((t * 45 + i * 60) % 150); });
+    full(sector, sectorCam);
+    if (!cSector) return;
+    if (!nebulaLayer) { nebulaLayer = document.createElement('canvas'); nebulaLayer.width = W; nebulaLayer.height = H; const n = nebulaLayer.getContext('2d'); n.fillStyle = '#0f0308'; n.fillRect(0, 0, W, H); nebula(n); }
+    cSector.drawImage(nebulaLayer, 0, 0);
+    paintStars(cSector, stars2, t, ['#d9826b', '#6b2a3a']);
+    cSector.drawImage(gl, 0, 0); bloom(cSector);
+    for (const b of bunkers) { cSector.fillStyle = '#3fd6a0'; for (const [x, y] of b.px) cSector.fillRect(b.x + x, b.y + y, 1, 1); cSector.fillStyle = '#1f7a66'; for (const [x, y] of b.px) if (y === 9) cSector.fillRect(b.x + x, b.y + y, 1, 1); }
+  }
+  function drawHive(t) {
+    hive.userData.ring.rotation.z = t * 0.5;
+    hive.userData.core.rotation.y = t * 0.8; hive.userData.core.rotation.x = t * 0.3;
+    hive.position.x = Math.sin(t * 0.4) * 10;
+    ship3.position.x = -24 + Math.sin(t * 1.1) * 18; ship3.rotation.y = Math.cos(t * 1.1) * 0.4;
+    lance.position.set(ship3.position.x, -100 + ((t * 160) % 170), 0);
+    hiveShots.forEach((s, i) => { s.position.y = 30 - ((t * 55 + i * 40) % 160); s.position.x += Math.sin(t + i) * 0.1; });
+    hiveDivers.forEach((d, i) => { d.position.y = (i ? 10 : -20) + Math.sin(t * 1.4 + i) * 8; });
+    full(hiveS, hiveCam);
+    if (!cHive) return;
+    cHive.fillStyle = '#0f0308'; cHive.fillRect(0, 0, W, H);
+    if (nebulaLayer) cHive.drawImage(nebulaLayer, 0, 0);
+    paintStars(cHive, stars2, t, ['#d9826b', '#6b2a3a']);
+    // Beam telegraphs: dashed red lines from the core, sweeping slowly before they fire.
+    const cx = 90 + hive.position.x, cy = 160 - 64 * 0.94;
+    cHive.fillStyle = '#ff5a5a';
+    for (const base of [1.95, 2.25]) {
+      const a = base + Math.sin(t * 0.6) * 0.25;
+      for (let r = 40; r < 330; r += 6) { if ((r / 6) % 2 < 1) continue; const x = Math.round(cx + Math.cos(a) * r * 0.6), y = Math.round(cy + Math.sin(a) * r); if (y > 0 && y < H) cHive.fillRect(x, y, 2, 3); }
+    }
+    cHive.drawImage(gl, 0, 0); bloom(cHive);
+  }
+  function drawStages(t) {
+    let i = 0;
+    for (const k in stageModels) {
+      const e = stageModels[k]; if (!e.ctx) continue;
+      for (const kk in stageModels) stageModels[kk].m.visible = kk === k;
+      e.m.rotation.y = Math.sin(t * 0.8 + i) * (e.w > 48 ? 0.12 : 0.7);
+      if (e.m.userData.ring) e.m.userData.ring.rotation.z = t * 0.5;
+      renderer.setViewport(0, H - e.h, e.w, e.h); renderer.setScissor(0, H - e.h, e.w, e.h); renderer.setScissorTest(true);
+      renderer.clear(); renderer.render(stage, e.cam);
+      e.ctx.clearRect(0, 0, e.w, e.h);
+      e.ctx.drawImage(gl, 0, 0, e.w, e.h, 0, 0, e.w, e.h);
+      i++;
+    }
+  }
+
+  let last = -1;
+  function frame(ms) {
+    const t = ms / 1000;
+    if (ms - last > 30) { last = ms; drawStages(t); drawBoss(t); drawSector(t); drawHive(t); }
+    if (!reduce) requestAnimationFrame(frame);
+  }
+  if (reduce) frame(1600); else requestAnimationFrame(frame);
+})();
+</script>

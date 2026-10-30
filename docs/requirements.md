@@ -28,8 +28,9 @@ slices but shapes the design now.
 - Models stay low-poly with flat-coloured materials by role (hull, accent, glow), so the palette
   pass can recolour them and enemies can come in variants.
 - Moving parts (wings, claws, cores) are separate named nodes, animated in code.
-- Needs Blender installed locally (`brew install --cask blender`); not yet installed.
+- Needs Blender on the PATH (installed).
 - Slice 1: player ship, three alien types, player and enemy shots.
+- Slice 2: Carrier, Splitter, the two bosses, and the power-up pickups.
 
 ## Gameplay
 
@@ -45,10 +46,29 @@ slices but shapes the design now.
 
 - A run is a sequence of waves. After each cleared wave you **pick one of three upgrades** offered
   at random from a pool. Upgrades stack, so runs build differently each time.
-- Slice 1: 5 waves, a pool of about 6 upgrades (e.g. twin shot, rapid fire, piercing shots, extra
-  life, shield that absorbs one hit per wave, faster thrusters). Clearing wave 5 ends the run as a
-  win.
-- Later: longer runs in sectors, rarer upgrades, upgrade synergies.
+- Slice 1 (shipped): 5 waves, a pool of 6 upgrades. Clearing wave 5 ends the run as a win.
+- Slice 2: a run is **10 waves in two sectors** of five, each sector ending in a boss (waves 5 and
+  10). Clearing the wave-10 boss wins the run.
+- Slice 2 makes upgrades matter more (play-testing found them weak and the run a little easy):
+  - **Bigger numbers:** each existing upgrade is retuned so one pick is felt (e.g. rapid fire x0.65
+    interval, thrusters x1.3, twin shot fans out).
+  - **New upgrades:** homing, ricochet, combo guard, magnet, bomb on kill, overcharge.
+  - **Rare tier:** stronger picks (e.g. a wingman, a slow field, double-damage shots), with one rare
+    guaranteed in the offer after a boss and a small chance otherwise.
+  - **Synergies:** holding a pair unlocks a stronger form (e.g. twin shot + piercing = Lance). The
+    pick card says when an upgrade would complete one.
+- Slice 2 retunes the baseline difficulty up a step (marching speed, fire rate, earlier divers),
+  checked with the scripted bot's win rate.
+
+### Power-ups and the Special
+
+- **Power-ups (slice 2):** short, strong, timed drops (8-10 s) that fall as pickups: spread shot,
+  laser beam, time slow, helper drone. They come from Carrier aliens (always), rarely from any kill,
+  and from boss phase changes. Upgrades stay permanent; power-ups are the burst moments.
+- **The Special (slice 2):** you choose one per run, before wave 1: **Pulse Bomb** (clears enemy
+  shots, damages and stuns nearby aliens), **Shield Burst** (a few seconds of invulnerability that
+  reflects shots) or **Time Stop** (freezes aliens and their shots briefly). A meter fills from kills
+  and combo; when full, the Special button fires it. Bosses take fixed damage from it.
 
 ### Enemies
 
@@ -56,17 +76,33 @@ slices but shapes the design now.
   - **Drone:** the basic formation alien, one hit, fires rarely.
   - **Warden:** armoured, two hits, fires shots aimed at you.
   - **Diver:** breaks from the formation now and then and swoops at you before returning.
-- Wave definitions are data (formation shape, mix of types, speed, fire rate), so new waves are
-  cheap to add.
+- Slice 2 adds:
+  - **Carrier:** slow and tough; always drops a power-up.
+  - **Splitter:** breaks into two mini-drones when killed (sector 2).
+  - New formation behaviours in sector 2: formations that split and regroup, and Divers that dive
+    in pairs.
+- **Bosses (slice 2):**
+  - **Brood Mother** (wave 5): a wide carrier that launches Drones from its bays. Armour plates
+    shield its core; shoot them off to expose it. A faster second phase once the plates are gone.
+  - **Hive Mind** (wave 10): a core inside rotating shield segments. Three phases: aimed shots
+    through the gaps, then telegraphed beam sweeps with divers, then a desperation phase with the
+    shield gone and the core on the move.
+  - Each has its own Blender model and a health bar.
+- Wave definitions are data (formation shape, mix of types, speed, fire rate, behaviour), so new
+  waves are cheap to add.
+
+### Sectors and shields
+
+- **Sector 2** (waves 6-10) has its own look: a different palette and starfield (a red nebula), so
+  it feels like going deeper into the hive.
+- **Destructible shields** (slice 2): bunkers above the ship's row that erode pixel by pixel from
+  both sides' fire, in both sectors.
 
 ### Later slices
 
-- **Bosses:** a hive mothership every few waves, with phases and weak points.
-- **Power-ups:** timed drops from special aliens (spread shot, rapid fire, shield, helper drone),
-  separate from the permanent per-run upgrades.
-- **Destructible shields:** bunkers that erode pixel by pixel from both sides' fire.
 - **Unlocks:** finishing runs unlocks new upgrades and ships for the pool. No permanent stat boosts;
   each run is fair.
+- Music, the online leaderboard, and local co-op.
 
 ## Players
 
@@ -90,7 +126,7 @@ layer (ported from rc-racer).
 |---|---|---|---|
 | Move | ← → or A / D | Left stick or d-pad | Drag anywhere in the lower part of the screen; the ship moves by your thumb's offset, never under it |
 | Fire (hold to auto-fire) | Space, Z or ↑ | A (Cross) or RT | Automatic while a thumb is down |
-| Special (later slice) | X or Shift | B (Circle) or LT | Button for the second thumb |
+| Special (slice 2) | X or Shift | B (Circle) or LT | Button for the second thumb |
 | Pause | Esc or P | Start | ⏸ in the corner |
 | Mute | M | | 🔊 in the HUD |
 | Menus and upgrade picks | Arrows, Enter | D-pad or stick, A | Tap |
