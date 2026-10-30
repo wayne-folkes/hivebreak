@@ -3,7 +3,7 @@ import { injectSpeedInsights } from '@vercel/speed-insights';
 import './style.css';
 import { autopilot } from './app/autopilot';
 import { safeStorage } from './app/storage';
-import { Sound, loadSoundSettings, saveSoundSettings } from './game/audio';
+import { Sound, loadMusicSettings, loadSoundSettings, saveMusicSettings, saveSoundSettings } from './game/audio';
 import { Controls } from './game/controls';
 import { GamepadInput } from './game/gamepad';
 import { Keyboard } from './game/input';
@@ -17,6 +17,7 @@ import { SPECIAL_IDS } from './game/special';
 import { completesSynergy } from './game/synergies';
 import { stackCount } from './game/upgrades';
 import { WAVES } from './game/waves';
+import { Music } from './music/music';
 import { GameView } from './render/view';
 import {
   Banner,
@@ -66,6 +67,8 @@ function screenView(path: string): void {
 
 const storage = safeStorage();
 const sound = new Sound(loadSoundSettings(storage));
+const music = new Music(loadMusicSettings(storage));
+music.soundOn = sound.enabled;
 const view = new GameView(document.getElementById('app')!);
 
 const keyboard = new Keyboard();
@@ -83,8 +86,13 @@ function saveSound(): void {
   saveSoundSettings(storage, { enabled: sound.enabled, volume: sound.volume });
 }
 
+function saveMusic(): void {
+  saveMusicSettings(storage, { enabled: music.enabled, volume: music.volume });
+}
+
 function setSoundOn(on: boolean): void {
   sound.enabled = on;
+  music.soundOn = on;
   saveSound();
   hud.setMuted(!on);
   // M can be pressed with Settings open; its button would keep the old label.
@@ -122,8 +130,11 @@ function enter(screen: Screen): void {
 function leave(): void {
   const closed = stack.pop();
   closed?.card.hide();
-  // Keys and the d-pad move the volume slider without a 'change' event; save as the card closes.
-  if (closed === settingsScreen) saveSound();
+  // Keys and the d-pad move the volume sliders without a 'change' event; save as the card closes.
+  if (closed === settingsScreen) {
+    saveSound();
+    saveMusic();
+  }
   const below = topScreen();
   if (!below) return;
   below.open();
@@ -323,6 +334,16 @@ const settingsCard = new SettingsCard(
     setVolume: (volume) => {
       sound.volume = volume;
     },
+    getMusic: () => music.enabled,
+    setMusic: (on) => {
+      music.enabled = on;
+      saveMusic();
+    },
+    getMusicVolume: () => music.volume,
+    // Saved on the slider's 'change' event and when the card closes, like the sound volume.
+    setMusicVolume: (volume) => {
+      music.volume = volume;
+    },
     resetRecords: () => {
       storage.setItem(RECORDS_KEY, '[]');
       hud.setBest(0);
@@ -331,6 +352,7 @@ const settingsCard = new SettingsCard(
   leave,
 );
 document.getElementById('settings-volume')?.addEventListener('change', saveSound);
+document.getElementById('settings-music-volume')?.addEventListener('change', saveMusic);
 const recordsCard = new RecordsCard(() => loadRecords(storage), leave);
 const pauseCard = new PauseCard({ resume: resumeRun, settings: () => enter(settingsScreen), quit: showTitle });
 const specialCard = new SpecialCard(takeSpecial);

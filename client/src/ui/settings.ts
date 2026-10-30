@@ -1,12 +1,14 @@
 import { byId, MenuCard } from './card';
 
-// Sound on or off, the volume, and erasing the saved records (asking first, inside the card).
-// The card keeps no sound state of its own: it reads and writes through these callbacks.
+// Sound on or off and its volume, music on or off and its volume, and erasing the saved records
+// (asking first, inside the card). The card keeps no sound or music state of its own: it reads and
+// writes through these callbacks.
 //
-// main.ts: `new SettingsCard({ getSound, setSound, getVolume, setVolume, resetRecords }, onBack)`;
-// `show()` from the title and from the pause menu (it reads the current values each time, so a
-// mute from the HUD shows up); `handle(controls)` each frame while on top; Esc or pause calls
-// `dismiss()` first, which closes an open Erase confirmation.
+// main.ts: `new SettingsCard({ getSound, setSound, getVolume, setVolume, getMusic, setMusic,
+// getMusicVolume, setMusicVolume, resetRecords }, onBack)`; `show()` from the title and from the
+// pause menu (it reads the current values each time, so a mute from the HUD shows up);
+// `handle(controls)` each frame while on top; Esc or pause calls `dismiss()` first, which closes an
+// open Erase confirmation.
 
 export interface SettingsOptions {
   getSound(): boolean;
@@ -14,6 +16,11 @@ export interface SettingsOptions {
   /** Volume from 0 (silent) to 1 (full). The slider shows it as 0 to 100. */
   getVolume(): number;
   setVolume(volume: number): void;
+  getMusic(): boolean;
+  setMusic(on: boolean): void;
+  /** Music volume from 0 (silent) to 1 (full). The slider shows it as 0 to 100. */
+  getMusicVolume(): number;
+  setMusicVolume(volume: number): void;
   /** Erases the saved records. */
   resetRecords(): void;
 }
@@ -24,6 +31,9 @@ export class SettingsCard extends MenuCard {
   private readonly soundButton = byId<HTMLButtonElement>('settings-sound');
   private readonly volume = byId<HTMLInputElement>('settings-volume');
   private readonly volumeValue = byId('settings-volume-value');
+  private readonly musicButton = byId<HTMLButtonElement>('settings-music');
+  private readonly musicVolume = byId<HTMLInputElement>('settings-music-volume');
+  private readonly musicVolumeValue = byId('settings-music-volume-value');
   private readonly resetButton = byId<HTMLButtonElement>('settings-reset');
   private readonly cancelButton = byId<HTMLButtonElement>('settings-reset-no');
   private readonly note = byId('settings-note');
@@ -40,6 +50,14 @@ export class SettingsCard extends MenuCard {
     this.volume.addEventListener('input', () => {
       this.options.setVolume(Number(this.volume.value) / 100);
       this.syncVolume();
+    });
+    this.musicButton.addEventListener('click', () => {
+      this.options.setMusic(!this.options.getMusic());
+      this.syncMusic();
+    });
+    this.musicVolume.addEventListener('input', () => {
+      this.options.setMusicVolume(Number(this.musicVolume.value) / 100);
+      this.syncMusicVolume();
     });
     this.resetButton.addEventListener('click', () => this.askReset(true));
     this.cancelButton.addEventListener('click', () => this.askReset(false));
@@ -71,6 +89,9 @@ export class SettingsCard extends MenuCard {
     this.syncSound();
     this.volume.value = String(Math.round(this.options.getVolume() * 100));
     this.syncVolume();
+    this.syncMusic();
+    this.musicVolume.value = String(Math.round(this.options.getMusicVolume() * 100));
+    this.syncMusicVolume();
     this.note.hidden = true;
     this.main.hidden = false;
     this.confirmBox.hidden = true;
@@ -89,6 +110,16 @@ export class SettingsCard extends MenuCard {
 
   private syncVolume(): void {
     this.volumeValue.textContent = `${this.volume.value}%`;
+  }
+
+  private syncMusic(): void {
+    const on = this.options.getMusic();
+    this.musicButton.textContent = `Music: ${on ? 'On' : 'Off'}`;
+    this.musicButton.setAttribute('aria-pressed', String(on));
+  }
+
+  private syncMusicVolume(): void {
+    this.musicVolumeValue.textContent = `${this.musicVolume.value}%`;
   }
 
   private askReset(on: boolean): void {

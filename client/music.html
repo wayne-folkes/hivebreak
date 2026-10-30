@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>Hivebreak music audition</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #07050f;
+        --panel: #120d24;
+        --line: #2b2150;
+        --text: #e8e4ff;
+        --dim: #8c84b8;
+        --accent: #6df0c2;
+        --accent-ink: #04120d;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 24px 16px 48px;
+        background: var(--bg);
+        color: var(--text);
+        font: 15px/1.4 ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      }
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 20px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      h2 {
+        margin: 0 0 10px;
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--dim);
+      }
+      p {
+        margin: 0 0 16px;
+        color: var(--dim);
+      }
+      section {
+        margin: 0 0 14px;
+        padding: 14px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      button {
+        font: inherit;
+        padding: 8px 14px;
+        color: var(--text);
+        background: transparent;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: var(--accent);
+      }
+      button[aria-pressed='true'] {
+        color: var(--accent-ink);
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+      button.primary {
+        color: var(--accent-ink);
+        background: var(--accent);
+        border-color: var(--accent);
+        font-weight: 700;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      input[type='range'] {
+        flex: 1;
+        min-width: 160px;
+        accent-color: var(--accent);
+      }
+      #status {
+        margin-top: 10px;
+        color: var(--dim);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Hivebreak music audition</h1>
+      <p>Dev only. Start the audio first (browsers need a click), then try the tracks and the game controls.</p>
+
+      <section>
+        <div class="row">
+          <button id="start" class="primary" type="button">Start audio</button>
+          <button id="stop" type="button">Stop</button>
+          <label class="row" for="volume">Music volume <input id="volume" type="range" min="0" max="100" value="60" /></label>
+          <span id="volume-value">60%</span>
+        </div>
+        <div id="status" role="status">Audio not started.</div>
+      </section>
+
+      <section>
+        <h2>Tracks</h2>
+        <div id="tracks" class="row"></div>
+      </section>
+
+      <section>
+        <h2>Stingers</h2>
+        <div id="stingers" class="row"></div>
+      </section>
+
+      <section>
+        <h2>Intensity</h2>
+        <div id="intensity" class="row"></div>
+      </section>
+
+      <section>
+        <h2>Danger (last life)</h2>
+        <div id="danger" class="row"></div>
+      </section>
+
+      <section>
+        <h2>Boss phase</h2>
+        <div id="phase" class="row"></div>
+      </section>
+
+      <section>
+        <h2>Other</h2>
+        <div class="row">
+          <button id="duck" type="button">Duck (2 s)</button>
+        </div>
+        <h2 style="margin-top: 14px">Time scale</h2>
+        <div id="scale" class="row"></div>
+        <h2 style="margin-top: 14px">Pause menu</h2>
+        <div id="pause" class="row"></div>
+      </section>
+    </main>
+    <script type="module" src="/src/music/audition.ts"></script>
+  </body>
+</html>

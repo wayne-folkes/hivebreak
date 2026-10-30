@@ -494,6 +494,39 @@ export function saveSoundSettings(storage: StorageLike, settings: SoundSettings)
   }
 }
 
+/**
+ * The saved music settings, under the same key as the sound ones. Missing, corrupt or unreadable
+ * storage gives the defaults; a value of the wrong type falls back to its default, and a volume is
+ * kept within 0 to 1.
+ */
+export function loadMusicSettings(storage: StorageLike): MusicSettings {
+  const saved = readSettings(storage);
+  return {
+    enabled: typeof saved.music === 'boolean' ? saved.music : DEFAULT_MUSIC_SETTINGS.enabled,
+    volume:
+      typeof saved.musicVolume === 'number' && Number.isFinite(saved.musicVolume)
+        ? clamp(saved.musicVolume, 0, 1)
+        : DEFAULT_MUSIC_SETTINGS.volume,
+  };
+}
+
+/**
+ * Saves the music settings. Other settings already under the key are kept, the sound ones
+ * included. If storage is full or blocked, the settings still apply for this visit.
+ */
+export function saveMusicSettings(storage: StorageLike, settings: MusicSettings): void {
+  try {
+    const value = {
+      ...readSettings(storage),
+      music: settings.enabled,
+      musicVolume: clamp(settings.volume, 0, 1),
+    };
+    storage.setItem(SETTINGS_KEY, JSON.stringify(value));
+  } catch {
+    // Can't remember the settings; they still apply for this visit.
+  }
+}
+
 /** The saved settings object, or an empty one if there is nothing readable. */
 function readSettings(storage: StorageLike): Record<string, unknown> {
   try {

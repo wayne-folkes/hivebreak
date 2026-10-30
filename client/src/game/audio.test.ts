@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  DEFAULT_MUSIC_SETTINGS,
   DEFAULT_SOUND_SETTINGS,
   MAX_VOICES,
   PLAYER_FIRE_GAP,
@@ -8,11 +9,13 @@ import {
   admitVoice,
   attackTime,
   killPitch,
+  loadMusicSettings,
   loadSoundSettings,
   partsFor,
   pickupPitch,
   playerFirePitch,
   playerFireReady,
+  saveMusicSettings,
   saveSoundSettings,
   soundLength,
   uiParts,
@@ -280,6 +283,99 @@ describe('saveSoundSettings', () => {
 
   it('does not throw when storage is blocked', () => {
     expect(() => saveSoundSettings(broken, { enabled: true, volume: 0.75 })).not.toThrow();
+  });
+});
+
+describe('loadMusicSettings', () => {
+  it('uses the defaults when nothing is saved', () => {
+    expect(loadMusicSettings(fakeStorage())).toEqual(DEFAULT_MUSIC_SETTINGS);
+    expect(DEFAULT_MUSIC_SETTINGS).toEqual({ enabled: true, volume: 0.6 });
+  });
+
+  it('survives corrupt data', () => {
+    for (const bad of ['not json', '[1,2]', '42', 'null', '']) {
+      expect(loadMusicSettings(fakeStorage({ [SETTINGS_KEY]: bad }))).toEqual(DEFAULT_MUSIC_SETTINGS);
+    }
+  });
+
+  it('falls back to the default for a field of the wrong type', () => {
+    const s = fakeStorage({ [SETTINGS_KEY]: '{"music":"yes","musicVolume":"loud"}' });
+    expect(loadMusicSettings(s)).toEqual(DEFAULT_MUSIC_SETTINGS);
+  });
+
+  it('reads a valid saved value and keeps the volume within 0 to 1', () => {
+    expect(loadMusicSettings(fakeStorage({ [SETTINGS_KEY]: '{"music":false,"musicVolume":0.3}' }))).toEqual({
+      enabled: false,
+      volume: 0.3,
+    });
+    expect(loadMusicSettings(fakeStorage({ [SETTINGS_KEY]: '{"musicVolume":7}' })).volume).toBe(1);
+    expect(loadMusicSettings(fakeStorage({ [SETTINGS_KEY]: '{"musicVolume":-2}' })).volume).toBe(0);
+  });
+
+  it('ignores the sound keys', () => {
+    expect(loadMusicSettings(fakeStorage({ [SETTINGS_KEY]: '{"enabled":false,"volume":0.2}' }))).toEqual(
+      DEFAULT_MUSIC_SETTINGS,
+    );
+  });
+
+  it('survives storage that throws', () => {
+    expect(loadMusicSettings(broken)).toEqual(DEFAULT_MUSIC_SETTINGS);
+  });
+});
+
+describe('saveMusicSettings', () => {
+  it('saves settings that load back the same', () => {
+    const s = fakeStorage();
+    saveMusicSettings(s, { enabled: false, volume: 0.4 });
+    expect(loadMusicSettings(s)).toEqual({ enabled: false, volume: 0.4 });
+  });
+
+  it('keeps the volume within 0 to 1', () => {
+    const s = fakeStorage();
+    saveMusicSettings(s, { enabled: true, volume: 3 });
+    expect(loadMusicSettings(s).volume).toBe(1);
+    saveMusicSettings(s, { enabled: true, volume: -1 });
+    expect(loadMusicSettings(s).volume).toBe(0);
+  });
+
+  it('keeps other settings already saved under the key, sound included', () => {
+    const s = fakeStorage({ [SETTINGS_KEY]: '{"other":1,"volume":0.2,"enabled":false}' });
+    saveMusicSettings(s, { enabled: true, volume: 0.5 });
+    expect(JSON.parse(s.data[SETTINGS_KEY])).toEqual({
+      other: 1,
+      volume: 0.2,
+      enabled: false,
+      music: true,
+      musicVolume: 0.5,
+    });
+  });
+
+  it('replaces corrupt data rather than failing', () => {
+    const s = fakeStorage({ [SETTINGS_KEY]: 'not json' });
+    saveMusicSettings(s, DEFAULT_MUSIC_SETTINGS);
+    expect(loadMusicSettings(s)).toEqual(DEFAULT_MUSIC_SETTINGS);
+  });
+
+  it('does not throw when storage is blocked', () => {
+    expect(() => saveMusicSettings(broken, DEFAULT_MUSIC_SETTINGS)).not.toThrow();
+  });
+});
+
+describe('music and sound settings share one saved object', () => {
+  it('saving sound keeps the music settings', () => {
+    const s = fakeStorage();
+    saveMusicSettings(s, { enabled: false, volume: 0.2 });
+    saveSoundSettings(s, { enabled: true, volume: 0.9 });
+    expect(loadMusicSettings(s)).toEqual({ enabled: false, volume: 0.2 });
+    expect(loadSoundSettings(s)).toEqual({ enabled: true, volume: 0.9 });
+  });
+
+  it('saving music keeps the sound settings', () => {
+    const s = fakeStorage();
+    saveSoundSettings(s, { enabled: false, volume: 0.4 });
+    saveMusicSettings(s, { enabled: true, volume: 0.1 });
+    expect(loadSoundSettings(s)).toEqual({ enabled: false, volume: 0.4 });
+    expect(loadMusicSettings(s)).toEqual({ enabled: true, volume: 0.1 });
   });
 });
 

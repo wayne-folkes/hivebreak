@@ -1,22 +1,120 @@
 import { DEFAULT_MUSIC_SETTINGS, type MusicSettings } from '../game/audio';
+import {
+  busCutoff,
+  duckLevel,
+  glide,
+  liveDucks,
+  makeDuck,
+  masterLevel,
+  SCALE_GLIDE,
+  type Duck,
+} from './mix';
+import { midiToHz } from './pattern';
+import { TrackPlayer } from './player';
 import type { Song, Stinger, StingerId, TrackId } from './song';
+import {
+  clampPhase,
+  clampTimeScale,
+  nextBeatTime,
+  parseSong,
+  parseStinger,
+  stepSeconds,
+  stingerSeconds,
+  type MixState,
+  type ParsedSong,
+  type ParsedStinger,
+} from './timeline';
 import { STINGERS, TRACKS } from './tracks';
+import { createChannelInput, createVoiceEnv, playDrum, playNote, type VoiceEnv } from './voices';
 
-// The music engine's public face. CONTRACT STUB: the settings getters and setters work; the
-// playback methods do nothing yet. The engine worker fills them in without changing the API.
-//
-// It plays through the sound effects' AudioContext (attach() it after Sound.unlock()), into its
-// own gain, so music has its own on/off and volume. The master sound switch (Sound: Off, the M
-// key) silences it too, through `soundOn`.
+// The music engine. It plays through the sound effects' AudioContext (attach() it after
+// Sound.unlock()), into its own gain, so music has its own on/off and volume. The master sound
+// switch (Sound: Off, the M key) silences it too, through `soundOn`.
 //
 // Every method is safe to call before attach() and while muted: the engine remembers what it was
 // asked (the track, layers, phase, time scale) and picks up from there once it can play.
+//
+// The signal path, with who steers each gain:
+//
+//   channel -> layer gain -> track bus -> [ duck ] -> [ low-pass ] -> master -> compressor -> out
+//                                                                      ^
+//   stinger channels -> stinger gain ----------------------------------+
+//
+//   layer gain: layers fading on bar lines     track bus: crossfades and fade-outs
+//   duck:       Music.duck() and stingers      low-pass:  time scale and pause
+//   master:     setting x sound switch x pause x tab hidden
+//
+// A timer ticks every TICK_MS and schedules notes into the context up to LOOKAHEAD seconds ahead,
+// so timing is the audio clock's, whatever the frame rate. It also steers the duck gain.
+
+/** How often (ms) the scheduler wakes, and how far ahead (s) it schedules. */
+export const TICK_MS = 25;
+export const LOOKAHEAD = 0.2;
+/** Seconds between asking for a track and its first note, so the first notes aren't late. */
+const START_LEAD = 0.06;
+/** Seconds a crossfade, or a fade-out to nothing, takes. */
+const CROSSFADE = 1;
+/** Fade-in (s) of a track starting from silence. */
+const FIRST_FADE = 0.12;
+/** Seconds an ending stinger takes to fade the track out. */
+const ENDING_FADE = 0.5;
+/** Seconds the music takes to come back after the player returns to a revived track. */
+const REVIVE_FADE = 0.4;
+/** How far down a non-ending stinger ducks the track, and how long the track takes to come back. */
+const STINGER_DUCK = 0.7;
+const STINGER_RECOVER = 0.4;
+/** Time constants (s) for the master and the low-pass. */
+const LEVEL_TC = 0.03;
+const HIDE_TC = 0.04;
+const SHOW_TC = 0.1;
+const FILTER_TC = 0.1;
+/** Tail (s) added to a stinger's notes for their release, before the track comes back. */
+const STINGER_TAIL = 0.3;
+
+/** The nodes the engine owns once it has a context. */
+interface Graph {
+  ctx: AudioContext;
+  env: VoiceEnv;
+  /** Where track buses connect: the duck gain, then the low-pass, then the master. */
+  tracks: GainNode;
+  duck: GainNode;
+  filter: BiquadFilterNode;
+  master: GainNode;
+  /** Where stinger channels connect: straight to the master, past layers, ducks and time scale. */
+  stingers: GainNode;
+}
 
 export class Music {
   private on: boolean;
   private level: number;
   private master = true;
   private current: TrackId | null = null;
+
+  private graph: Graph | null = null;
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private listening = false;
+  private hidden = false;
+  private paused = false;
+  /** The tracks playing: the active one, and any fading out (until they are silent). */
+  private players: TrackPlayer[] = [];
+  private active: TrackPlayer | null = null;
+  private readonly songs = new Map<TrackId, ParsedSong | null>();
+  private readonly stingerCache = new Map<StingerId, ParsedStinger | null>();
+
+  private intensity = 0;
+  private danger = false;
+  private bossPhase = 1;
+
+  /** Time scale: gliding from `scaleFrom` to `scaleTo`, starting at `glideStart` (AudioContext seconds). */
+  private scaleFrom = 1;
+  private scaleTo = 1;
+  private glideStart = -Infinity;
+
+  private ducks: Duck[] = [];
+  /** The last values sent to the audio params, so unchanged values don't schedule anything. */
+  private sentMaster = -1;
+  private sentCutoff = -1;
+  private sentDuck = 1;
 
   constructor(
     settings: MusicSettings = DEFAULT_MUSIC_SETTINGS,
@@ -34,6 +132,7 @@ export class Music {
 
   set enabled(on: boolean) {
     this.on = on;
+    this.applyMaster(LEVEL_TC);
   }
 
   /** The Music volume setting, 0 to 1. */
@@ -43,6 +142,7 @@ export class Music {
 
   set volume(volume: number) {
     this.level = Math.min(1, Math.max(0, Number.isNaN(volume) ? 0 : volume));
+    this.applyMaster(LEVEL_TC);
   }
 
   /** The master sound switch; off silences music whatever its own setting. */
@@ -52,14 +152,31 @@ export class Music {
 
   set soundOn(on: boolean) {
     this.master = on;
+    this.applyMaster(LEVEL_TC);
   }
 
   /** Plays through this context. Call after Sound.unlock(); calling again with the same context does nothing. */
-  attach(_ctx: AudioContext): void {}
+  attach(ctx: AudioContext): void {
+    if (this.graph?.ctx === ctx) return;
+    this.teardown();
+    try {
+      this.graph = this.buildGraph(ctx);
+    } catch {
+      this.graph = null;
+      return;
+    }
+    this.listenForVisibility();
+    if (this.current !== null) this.startTrack(this.current, FIRST_FADE);
+  }
 
   /** The track playing (or fading in), or null. */
   get track(): TrackId | null {
     return this.current;
+  }
+
+  /** The next song step to be scheduled on the playing track, counted from the start of its intro; null when none is playing. */
+  get position(): number | null {
+    return this.active?.pos ?? null;
   }
 
   /**
@@ -68,8 +185,39 @@ export class Music {
    * track resets the boss phase to 1, intensity to 0 and danger to off.
    */
   play(track: TrackId | null): void {
+    if (track === this.current) return;
+    const g = this.graph;
+    const now = g?.ctx.currentTime ?? 0;
+    const previous = this.active;
+
+    if (track === null) {
+      this.current = null;
+      this.active = null;
+      previous?.fadeOut(now, now, CROSSFADE, this.mixState(), true);
+      return;
+    }
+
+    // Fading out because of play(null) or an ending stinger, and not yet silent: bring it back.
+    const revivable = this.players.find((p) => p.id === track && p.revivable);
+    if (revivable && previous === null && g) {
+      revivable.revive(now, REVIVE_FADE);
+      this.current = track;
+      this.active = revivable;
+      this.ensureTimer();
+      this.tick();
+      return;
+    }
+
+    for (const p of this.players) p.revivable = false;
     this.current = track;
-    void this.tracks;
+    this.intensity = 0;
+    this.danger = false;
+    this.bossPhase = 1;
+    if (previous) {
+      previous.fadeOut(now, now, CROSSFADE, this.mixState(), false);
+      this.active = null;
+    }
+    if (g) this.startTrack(track, previous ? CROSSFADE : FIRST_FADE);
   }
 
   /**
@@ -77,25 +225,275 @@ export class Music {
    * under it and comes back, or, for an ending stinger (victory, game over), fades out and stays
    * stopped until the next play().
    */
-  stinger(_id: StingerId): void {
-    void this.stingers;
+  stinger(id: StingerId): void {
+    const g = this.graph;
+    const parsed = this.parsedStinger(id);
+    if (!g || !parsed) return;
+    const now = g.ctx.currentTime;
+    const track = this.active;
+    const at = track ? nextBeatTime(track.lastBeatAt, track.beatSec, now) : now + 0.03;
+
+    if (this.audible()) this.playStinger(g, parsed, at);
+
+    if (!track) return;
+    if (parsed.stinger.ends) {
+      track.fadeOut(now, at, ENDING_FADE, this.mixState(), true);
+      this.active = null;
+      this.current = null;
+    } else {
+      const length = stingerSeconds(parsed) + STINGER_TAIL;
+      this.ducks.push({ start: at - 0.05, depth: STINGER_DUCK, hold: length, recover: STINGER_RECOVER });
+      this.ensureTimer();
+      this.tick();
+    }
   }
 
   /** 0 to 1: how far through the wave the player is. Brings in the `mid` and `high` layers. */
-  setIntensity(_level: number): void {}
+  setIntensity(level: number): void {
+    this.intensity = Number.isNaN(level) ? 0 : Math.min(1, Math.max(0, level));
+  }
 
   /** On the last life: brings in the `danger` layer. */
-  setDanger(_on: boolean): void {}
+  setDanger(on: boolean): void {
+    this.danger = on;
+  }
 
   /** The boss track's gear, 1 to 3 (tempo, key and the `phase2`/`phase3` layers), from the next bar. */
-  setBossPhase(_phase: number): void {}
+  setBossPhase(phase: number): void {
+    if (!this.active?.hasPhases) return;
+    this.bossPhase = clampPhase(phase);
+  }
 
   /** Dips the music for a moment (a boss death, a Special): down by `depth` (0 to 1), back over `seconds`. */
-  duck(_seconds: number, _depth = 0.6): void {}
+  duck(seconds: number, depth = 0.6): void {
+    const g = this.graph;
+    if (!g) return;
+    this.ducks.push(makeDuck(g.ctx.currentTime, Number.isNaN(seconds) ? 0 : seconds, Number.isNaN(depth) ? 0 : depth));
+    this.ensureTimer();
+    this.tick();
+  }
 
   /** Slows the music (tempo and pitch, like tape) and muffles it: 1 is normal, Slow is 0.5, Time Stop about 0.25. Glides there. */
-  setTimeScale(_scale: number): void {}
+  setTimeScale(scale: number): void {
+    const target = clampTimeScale(scale);
+    if (target === this.scaleTo) return;
+    const now = this.now();
+    this.scaleFrom = this.scaleAt(now);
+    this.glideStart = now;
+    this.scaleTo = target;
+    this.applyFilter();
+  }
 
   /** While a pause menu is up the music plays on, quieter and muffled. */
-  setPaused(_paused: boolean): void {}
+  setPaused(paused: boolean): void {
+    if (paused === this.paused) return;
+    this.paused = paused;
+    this.applyMaster(LEVEL_TC);
+    this.applyFilter();
+  }
+
+  // --- Graph ---------------------------------------------------------------------------------
+
+  private buildGraph(ctx: AudioContext): Graph {
+    this.hidden = typeof document !== 'undefined' && document.hidden === true;
+    this.sentMaster = this.targetMaster();
+    this.sentCutoff = busCutoff(this.scaleTo, this.paused);
+    this.sentDuck = 1;
+    this.scaleFrom = this.scaleTo;
+    this.glideStart = -Infinity;
+
+    const duck = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 0.7;
+    filter.frequency.value = this.sentCutoff;
+    const master = ctx.createGain();
+    master.gain.value = this.sentMaster;
+    // Headroom: a compressor catches the peaks when many voices land together.
+    const compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.value = -16;
+    compressor.knee.value = 10;
+    compressor.ratio.value = 4;
+    compressor.attack.value = 0.004;
+    compressor.release.value = 0.2;
+    const stingers = ctx.createGain();
+
+    duck.connect(filter);
+    filter.connect(master);
+    stingers.connect(master);
+    master.connect(compressor);
+    compressor.connect(ctx.destination);
+    return { ctx, env: createVoiceEnv(ctx), tracks: duck, duck, filter, master, stingers };
+  }
+
+  private teardown(): void {
+    this.stopTimer();
+    for (const p of this.players) p.dispose();
+    this.players = [];
+    this.active = null;
+    this.ducks = [];
+    this.graph?.master.disconnect();
+    this.graph = null;
+  }
+
+  // --- Visibility ----------------------------------------------------------------------------
+
+  /** Background tabs throttle timers to about a second, which would leave gaps: fade out and stop while hidden. */
+  private listenForVisibility(): void {
+    if (this.listening || typeof document === 'undefined') return;
+    this.listening = true;
+    document.addEventListener('visibilitychange', () => {
+      const hidden = document.hidden === true;
+      if (hidden === this.hidden) return;
+      this.hidden = hidden;
+      const g = this.graph;
+      if (!g) return;
+      if (hidden) {
+        this.stopTimer();
+        this.applyMaster(HIDE_TC);
+      } else {
+        const state: string = g.ctx.state;
+        if (state === 'suspended' || state === 'interrupted') void g.ctx.resume().catch(() => {});
+        for (const p of this.players) p.resumeClock(g.ctx.currentTime);
+        this.applyMaster(SHOW_TC);
+        this.ensureTimer();
+        this.tick();
+      }
+    });
+  }
+
+  // --- Scheduler -----------------------------------------------------------------------------
+
+  private ensureTimer(): void {
+    if (this.timer !== null || this.hidden || !this.graph) return;
+    this.timer = setInterval(() => this.tick(), TICK_MS);
+  }
+
+  private stopTimer(): void {
+    if (this.timer !== null) clearInterval(this.timer);
+    this.timer = null;
+  }
+
+  /** One scheduler tick: drop faded-out tracks, schedule notes ahead, steer the duck gain. */
+  private tick(): void {
+    const g = this.graph;
+    if (!g || this.hidden) return;
+    const now = g.ctx.currentTime;
+    this.players = this.players.filter((p) => {
+      if (p.stopAt === null || now < p.stopAt) return true;
+      p.dispose();
+      return false;
+    });
+    const mix = this.mixState();
+    const audible = this.audible();
+    for (const p of this.players) p.schedule(now + LOOKAHEAD, now, mix, (t) => this.scaleAt(t), audible);
+    this.updateDucks(g, now);
+    if (this.players.length === 0 && this.ducks.length === 0) this.stopTimer();
+  }
+
+  private startTrack(id: TrackId, fadeIn: number): void {
+    const g = this.graph;
+    const parsed = this.parsedSong(id);
+    if (!g || !parsed) return;
+    const player = new TrackPlayer(g.env, parsed, g.tracks, g.ctx.currentTime + START_LEAD, this.mixState(), fadeIn);
+    this.players.push(player);
+    this.active = player;
+    this.ensureTimer();
+    this.tick();
+  }
+
+  /** A song's patterns parsed once; null (logged) when it is invalid, so a bad song is silent rather than fatal. */
+  private parsedSong(id: TrackId): ParsedSong | null {
+    if (!this.songs.has(id)) {
+      try {
+        this.songs.set(id, parseSong(this.tracks[id]));
+      } catch (e) {
+        console.error(`Music: track '${id}' can't play: ${(e as Error).message}`);
+        this.songs.set(id, null);
+      }
+    }
+    return this.songs.get(id) ?? null;
+  }
+
+  private parsedStinger(id: StingerId): ParsedStinger | null {
+    if (!this.stingerCache.has(id)) {
+      try {
+        this.stingerCache.set(id, parseStinger(this.stingers[id]));
+      } catch (e) {
+        console.error(`Music: stinger '${id}' can't play: ${(e as Error).message}`);
+        this.stingerCache.set(id, null);
+      }
+    }
+    return this.stingerCache.get(id) ?? null;
+  }
+
+  private playStinger(g: Graph, parsed: ParsedStinger, at: number): void {
+    const { stinger } = parsed;
+    const stepSec = stepSeconds(stinger.bpm, stinger.stepsPerBeat);
+    for (const { channel, drums, pattern } of parsed.channels) {
+      const input = createChannelInput(g.ctx, g.stingers, channel.vol, channel.pan);
+      for (const note of pattern.notes) {
+        const time = at + note.at * stepSec;
+        if (drums) {
+          if (note.drum) playDrum(g.env, input, note.drum, note.accent, time);
+        } else if (note.midi !== undefined && channel.instrument !== 'drums') {
+          const hz = midiToHz(note.midi + (channel.transpose ?? 0));
+          playNote(g.env, input, channel.instrument, hz, time, note.len * stepSec, note.accent);
+        }
+      }
+    }
+  }
+
+  // --- Levels --------------------------------------------------------------------------------
+
+  private mixState(): MixState {
+    return { intensity: this.intensity, danger: this.danger, phase: this.bossPhase };
+  }
+
+  private now(): number {
+    return this.graph?.ctx.currentTime ?? 0;
+  }
+
+  private scaleAt(t: number): number {
+    return glide(this.scaleFrom, this.scaleTo, this.glideStart, SCALE_GLIDE, t);
+  }
+
+  private targetMaster(): number {
+    return masterLevel({ enabled: this.on, soundOn: this.master, volume: this.level, paused: this.paused, hidden: this.hidden });
+  }
+
+  /** Whether notes are worth building: not when the master is silent. */
+  private audible(): boolean {
+    return this.targetMaster() > 0;
+  }
+
+  /** Sends the master level to the audio param, if it changed. */
+  private applyMaster(timeConstant: number): void {
+    const g = this.graph;
+    if (!g) return;
+    const target = this.targetMaster();
+    if (target === this.sentMaster) return;
+    this.sentMaster = target;
+    g.master.gain.setTargetAtTime(target, g.ctx.currentTime, timeConstant);
+  }
+
+  /** Sends the low-pass cutoff (time scale, pause) to the audio param, if it changed. */
+  private applyFilter(): void {
+    const g = this.graph;
+    if (!g) return;
+    const cutoff = busCutoff(this.scaleTo, this.paused);
+    if (cutoff === this.sentCutoff) return;
+    this.sentCutoff = cutoff;
+    g.filter.frequency.setTargetAtTime(cutoff, g.ctx.currentTime, FILTER_TC);
+  }
+
+  /** Follows the ducks in force with the duck gain, a little ahead of now, and drops the ones that are over. */
+  private updateDucks(g: Graph, now: number): void {
+    const level = duckLevel(this.ducks, now + 0.025);
+    if (level !== this.sentDuck) {
+      this.sentDuck = level;
+      g.duck.gain.setTargetAtTime(level, now, 0.015);
+    }
+    this.ducks = liveDucks(this.ducks, now + 0.025);
+  }
 }

@@ -240,10 +240,16 @@
         <div id="settings-main" class="stack">
           <button id="settings-sound" class="btn" type="button" aria-pressed="true">Sound: On</button>
           <label class="field-row" for="settings-volume">
-            <span class="field-label">Volume</span>
+            <span class="field-label">Sound volume</span>
             <span id="settings-volume-value" class="field-value">75%</span>
           </label>
           <input id="settings-volume" class="slider" type="range" min="0" max="100" step="1" value="75" />
+          <button id="settings-music" class="btn" type="button" aria-pressed="true">Music: On</button>
+          <label class="field-row" for="settings-music-volume">
+            <span class="field-label">Music volume</span>
+            <span id="settings-music-volume-value" class="field-value">60%</span>
+          </label>
+          <input id="settings-music-volume" class="slider" type="range" min="0" max="100" step="1" value="60" />
           <button id="settings-reset" class="btn btn-secondary" type="button">Reset records</button>
           <p id="settings-note" class="note" role="status" hidden></p>
           <button id="settings-back" class="btn btn-secondary" type="button">Back</button>
