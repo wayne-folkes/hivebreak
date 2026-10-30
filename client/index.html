@@ -121,6 +121,7 @@
           <button id="title-howto" class="btn btn-secondary" type="button">How to play</button>
           <button id="title-settings" class="btn btn-secondary" type="button">Settings</button>
           <button id="title-records" class="btn btn-secondary" type="button">Records</button>
+          <button id="title-unlocks" class="btn btn-secondary" type="button">Unlocks</button>
           <a
             id="title-github"
             class="btn btn-secondary"
@@ -158,8 +159,9 @@
         </p>
         <h3 class="subheading">Your Special</h3>
         <p class="text">
-          Before wave 1 you pick one Special for the run: Pulse Bomb, Shield Burst or Time Stop. Kills
-          and boss parts fill its five-cell meter, faster at a high combo. When it reads READY, fire
+          Before wave 1 you pick one Special for the run: you start with Pulse Bomb and Shield Burst,
+          and milestones unlock more (see Unlocks on the title screen, which also lists new ships and
+          upgrades). Kills and boss parts fill its five-cell meter, faster at a high combo. When it reads READY, fire
           it for a burst moment: a shockwave that wipes the field, three untouchable seconds, or a
           freeze on everything but you. Then the meter starts again.
         </p>
@@ -251,6 +253,19 @@
           </label>
           <input id="settings-music-volume" class="slider" type="range" min="0" max="100" step="1" value="60" />
           <button id="settings-reset" class="btn btn-secondary" type="button">Reset records</button>
+          <button id="settings-backup" class="btn btn-secondary" type="button">Back up progress</button>
+          <div id="settings-backup-box" class="code-box" hidden>
+            <p class="text">Your unlock progress as a code. Keep it somewhere safe; Restore progress brings it back on any device.</p>
+            <input id="settings-backup-code" class="code-field" type="text" readonly spellcheck="false" autocomplete="off" aria-label="Progress backup code" />
+            <button id="settings-backup-copy" class="btn" type="button">Copy</button>
+          </div>
+          <button id="settings-restore" class="btn btn-secondary" type="button">Restore progress</button>
+          <div id="settings-restore-box" class="code-box" hidden>
+            <p class="text">Paste a backup code.</p>
+            <input id="settings-restore-code" class="code-field" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="HB1-..." aria-label="Progress backup code to restore" />
+            <button id="settings-restore-go" class="btn" type="button">Restore</button>
+            <p id="settings-restore-error" class="note note-error" role="alert" hidden>That code isn't valid.</p>
+          </div>
           <p id="settings-note" class="note" role="status" hidden></p>
           <button id="settings-back" class="btn btn-secondary" type="button">Back</button>
         </div>
@@ -259,6 +274,14 @@
           <div class="stack">
             <button id="settings-reset-no" class="btn" type="button">Cancel</button>
             <button id="settings-reset-yes" class="btn btn-danger" type="button">Erase records</button>
+          </div>
+        </div>
+        <div id="settings-restore-confirm" hidden>
+          <p class="text">Replace your progress?</p>
+          <p class="text">The unlocks and totals on this device are replaced by the ones in the code. This cannot be undone.</p>
+          <div class="stack">
+            <button id="settings-restore-no" class="btn" type="button">Cancel</button>
+            <button id="settings-restore-yes" class="btn btn-danger" type="button">Replace progress</button>
           </div>
         </div>
       </div>
@@ -275,6 +298,19 @@
       </div>
     </div>
 
+    <div id="unlocks" class="menu" hidden>
+      <div class="panel panel-flex unlocks-panel" role="dialog" aria-labelledby="unlocks-heading">
+        <h2 id="unlocks-heading" class="heading">Unlocks</h2>
+        <p id="unlocks-count" class="unlocks-count"></p>
+        <div id="unlocks-scroll" class="unlocks-scroll">
+          <div id="unlocks-body"></div>
+        </div>
+        <div class="stack">
+          <button id="unlocks-back" class="btn btn-secondary" type="button">Back</button>
+        </div>
+      </div>
+    </div>
+
     <div id="pause" class="menu" hidden>
       <div class="panel" role="dialog" aria-labelledby="pause-heading">
         <h2 id="pause-heading" class="heading">Paused</h2>
@@ -286,25 +322,23 @@
       </div>
     </div>
 
+    <div id="ship" class="menu" hidden>
+      <div class="panel panel-wide" role="dialog" aria-labelledby="ship-heading">
+        <h2 id="ship-heading" class="heading heading-center">
+          <span>CHOOSE YOUR SHIP</span><span class="pick-sep" aria-hidden="true"> · </span><span class="pick-ask">FOR THIS RUN</span>
+        </h2>
+        <div id="ship-cards" class="pick-cards ship-cards"></div>
+        <p class="hint">locked ships show what unlocks them</p>
+        <p class="hint">tap a card · d-pad + A · arrows + Enter</p>
+      </div>
+    </div>
+
     <div id="special" class="menu" hidden>
       <div class="panel panel-wide" role="dialog" aria-labelledby="special-heading">
         <h2 id="special-heading" class="heading heading-center">
           <span>CHOOSE YOUR SPECIAL</span><span class="pick-sep" aria-hidden="true"> · </span><span class="pick-ask">FOR THIS RUN</span>
         </h2>
-        <div class="pick-cards">
-          <button id="special-0" class="pick-card special-card" type="button">
-            <span id="special-0-name" class="pick-name"></span>
-            <span id="special-0-what" class="pick-what"></span>
-          </button>
-          <button id="special-1" class="pick-card special-card" type="button">
-            <span id="special-1-name" class="pick-name"></span>
-            <span id="special-1-what" class="pick-what"></span>
-          </button>
-          <button id="special-2" class="pick-card special-card" type="button">
-            <span id="special-2-name" class="pick-name"></span>
-            <span id="special-2-what" class="pick-what"></span>
-          </button>
-        </div>
+        <div id="special-cards" class="pick-cards special-cards"></div>
         <p class="hint">kills fill the meter · fire with <kbd>X</kbd> · <kbd>B</kbd> / <kbd>LT</kbd> · touch button</p>
         <p class="hint">tap a card · d-pad + A · arrows + Enter</p>
       </div>
@@ -333,6 +367,16 @@
           </button>
         </div>
         <p class="hint">tap a card · d-pad + A · arrows + Enter</p>
+      </div>
+    </div>
+
+    <div id="unlocked" class="menu" hidden>
+      <div class="panel" role="dialog" aria-labelledby="unlocked-heading">
+        <h2 id="unlocked-heading" class="heading heading-center heading-big unlocked-heading">UNLOCKED</h2>
+        <ul id="unlocked-list" class="unlocked-list"></ul>
+        <div class="stack">
+          <button id="unlocked-continue" class="btn" type="button">Continue</button>
+        </div>
       </div>
     </div>
 

@@ -15,7 +15,7 @@ export function byId<T extends HTMLElement = HTMLElement>(id: string): T {
 }
 
 /** What a card can move focus between. */
-const FOCUSABLE = 'button, a[href], input[type="range"]';
+const FOCUSABLE = 'button, a[href], input[type="range"], input[type="text"]';
 
 /** How far a left or right press moves a focused slider (percent). */
 const SLIDER_NUDGE = 5;
@@ -41,7 +41,41 @@ export abstract class MenuCard {
     }
     // A mouse or touch user doesn't need the keyboard focus ring.
     this.root.addEventListener('pointerdown', () => this.clearRing());
+    this.guardTextFields();
   }
+
+  /**
+   * A text field (the progress code in Settings) must take its keys: the game listens on the window
+   * and would read P as pause, M as mute, A and D as steering (and cancel their typing). So a
+   * field keeps every key to itself, except Up and Down, which still move focus on to the next
+   * control. Escape leaves the field (`fieldEscaped`) and Enter submits it (`fieldSubmitted`).
+   */
+  private guardTextFields(): void {
+    for (const input of this.root.querySelectorAll<HTMLInputElement>('input[type="text"]')) {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') return;
+        e.stopPropagation();
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          this.fieldEscaped(input);
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          this.fieldSubmitted(input);
+        }
+      });
+      input.addEventListener('keyup', (e) => {
+        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') e.stopPropagation();
+      });
+    }
+  }
+
+  /** Escape pressed inside a text field: by default, back to the card's primary control. */
+  protected fieldEscaped(_input: HTMLInputElement): void {
+    this.focusPrimary();
+  }
+
+  /** Enter pressed inside a text field. */
+  protected fieldSubmitted(_input: HTMLInputElement): void {}
 
   get visible(): boolean {
     return !this.root.hidden;

@@ -2,7 +2,9 @@ import type { Fit } from '../game/playfield';
 import { LEGACY_RECORD_WAVES } from '../game/records';
 import type { RunRecord } from '../game/records';
 import type { SourceKind } from '../game/controls';
-import type { ActivePowerUp, BossKind, PowerUpKind, Rarity, Sector, SpecialId, SynergyId, UpgradeId } from '../game/types';
+import type { ActivePowerUp, BossKind, PowerUpKind, Rarity, Sector, ShipDef, SpecialId, SynergyId, UpgradeId } from '../game/types';
+import type { Unlock } from '../game/progress';
+import { SHIPS } from '../game/ships';
 import { SPECIALS } from '../game/special';
 import { synergyDef } from '../game/synergies';
 import { WAVES } from '../game/waves';
@@ -274,4 +276,73 @@ export function bossBarLabel(kind: BossKind, phase: number): string {
   const name = BOSS_NAMES[kind].toUpperCase();
   const tag = bossPhaseLabel(kind, phase);
   return tag ? `${name} · ${tag}` : name;
+}
+
+// --- Unlocks ------------------------------------------------------------------------------------
+
+const UNLOCK_KIND_LABELS: Record<Unlock['kind'], string> = { ship: 'Ship', special: 'Special', upgrade: 'Upgrade' };
+
+/** "Ship", "Special" or "Upgrade". */
+export function unlockKindLabel(kind: Unlock['kind']): string {
+  return UNLOCK_KIND_LABELS[kind];
+}
+
+/** The display name of what an unlock gives: "Lancer", "Missile Swarm", "Chain spark". */
+export function unlockName(unlock: Unlock): string {
+  switch (unlock.kind) {
+    case 'ship':
+      return SHIPS[unlock.id].name;
+    case 'special':
+      return SPECIALS[unlock.id].name;
+    case 'upgrade':
+      return upgradeDef(unlock.id).name;
+  }
+}
+
+/** Kind and name together: "Ship · Lancer", "Special · Missile Swarm", "Upgrade · Chain spark". */
+export function unlockLabel(unlock: Unlock): string {
+  return `${unlockKindLabel(unlock.kind)} · ${unlockName(unlock)}`;
+}
+
+/** The unlocks screen's count: "7 / 16 unlocked". */
+export function unlockedCountLabel(met: number, total: number): string {
+  return `${met} / ${total} unlocked`;
+}
+
+/** A milestone's progress, clamped so a finished one never reads past its target: "120 / 300". */
+export function progressText(progress: { value: number; target: number }): string {
+  const target = Math.max(0, Math.floor(progress.target));
+  const value = Math.min(target, Math.max(0, Math.floor(progress.value)));
+  return `${value} / ${target}`;
+}
+
+/** How full a progress bar is, 0 to 100. */
+export function progressPercent(progress: { value: number; target: number }): number {
+  if (!(progress.target > 0)) return 0;
+  return Math.round(Math.min(1, Math.max(0, progress.value / progress.target)) * 100);
+}
+
+/** The ship card's stat meters have this many pips. */
+export const STAT_PIPS = 5;
+
+/** How many of the meter's pips are lit (at least 1, at most STAT_PIPS) for a value against the best ship's. */
+export function statPips(value: number, best: number): number {
+  if (!(best > 0) || !(value > 0)) return 1;
+  return Math.min(STAT_PIPS, Math.max(1, Math.round((value / best) * STAT_PIPS)));
+}
+
+export interface ShipStatPips {
+  speed: number;
+  fireRate: number;
+  lives: number;
+}
+
+/** The ship's three meters, each relative to the best of `all` for that stat. Fire rate is shots per second (1 / fireInterval). */
+export function shipStatPips(def: ShipDef, all: readonly ShipDef[]): ShipStatPips {
+  const rate = (s: ShipDef) => (s.stats.fireInterval > 0 ? 1 / s.stats.fireInterval : 0);
+  return {
+    speed: statPips(def.stats.speed, Math.max(...all.map((s) => s.stats.speed))),
+    fireRate: statPips(rate(def), Math.max(...all.map(rate))),
+    lives: statPips(def.lives, Math.max(...all.map((s) => s.lives))),
+  };
 }

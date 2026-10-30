@@ -1,10 +1,11 @@
 import { formatScore } from './format';
 import { byId, MenuCard } from './card';
 
-// The title screen: logo, tagline, the best score and the way into a run, the other screens and
-// the GitHub page.
+// The title screen: logo, tagline, the best score and the way into a run, the other screens
+// (How to play, Settings, Records, Unlocks) and the GitHub page.
 //
-// main.ts: `new TitleCard(actions, () => bestScore)`; `show()` when the game starts and on Quit
+// main.ts: `new TitleCard({ start, howToPlay, settings, records, unlocks: () => enter(unlocksScreen) },
+// () => bestScore)`; `show()` when the game starts and on Quit
 // to title (it reads the best score again each time); `handle(controls)` each frame while it's on top.
 
 export interface TitleActions {
@@ -12,6 +13,8 @@ export interface TitleActions {
   howToPlay(): void;
   settings(): void;
   records(): void;
+  /** Opens the Unlocks screen. Leave it out and the title hides its Unlocks button. */
+  unlocks?(): void;
 }
 
 export class TitleCard extends MenuCard {
@@ -28,6 +31,9 @@ export class TitleCard extends MenuCard {
     byId('title-howto').addEventListener('click', () => actions.howToPlay());
     byId('title-settings').addEventListener('click', () => actions.settings());
     byId('title-records').addEventListener('click', () => actions.records());
+    const unlocks = byId<HTMLButtonElement>('title-unlocks');
+    unlocks.hidden = actions.unlocks === undefined;
+    unlocks.addEventListener('click', () => actions.unlocks?.());
   }
 
   show(): void {

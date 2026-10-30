@@ -650,6 +650,424 @@ kbd {
   }
 }
 
+/* Ship choice, Special choice, unlock moment, unlocks screen ----------------------------- */
+
+/* The ship cards are pick cards with an icon and meters. On a phone: icon and text on one row, the meters under them. */
+.ship-card {
+  grid-template-columns: 96px minmax(0, 1fr);
+  grid-template-areas:
+    'icon info'
+    'stats stats'
+    'lock lock';
+  column-gap: 12px;
+  row-gap: 8px;
+  align-items: start;
+}
+
+.ship-icon {
+  width: 96px;
+  height: 96px;
+  image-rendering: pixelated;
+  object-fit: contain;
+}
+
+/* A missing icon file keeps its space, so the cards don't jump. */
+.ship-icon.is-missing {
+  visibility: hidden;
+}
+
+.ship-card .ship-icon {
+  grid-area: icon;
+}
+
+.ship-info {
+  grid-area: info;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  min-width: 0;
+}
+
+.ship-stats {
+  grid-area: stats;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.stat {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.stat-label {
+  font-family: var(--font-display);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pips {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.pips i {
+  width: 6px;
+  height: 10px;
+  background: var(--line);
+}
+
+.pips i.on {
+  background: var(--pilot);
+}
+
+.pick-lock {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--warm);
+}
+
+.ship-card .pick-lock {
+  grid-area: lock;
+}
+
+/* Locked cards: dashed, dimmed, not pressable. The lock line stays bright so the goal reads. */
+.pick-card:disabled {
+  border-style: dashed;
+  cursor: default;
+}
+
+.is-locked .ship-icon {
+  filter: grayscale(1) brightness(0.75);
+}
+
+.is-locked .ship-icon,
+.is-locked .ship-info,
+.is-locked .ship-stats,
+.special-card.is-locked .pick-name {
+  opacity: 0.5;
+}
+
+@media (min-width: 720px) {
+  .ship-cards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .ship-card {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto auto;
+    grid-template-areas:
+      'icon'
+      'info'
+      'stats'
+      'lock';
+    min-height: 0;
+  }
+
+  .ship-card .ship-icon {
+    justify-self: center;
+  }
+
+  .ship-stats {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  .ship-stats .stat {
+    justify-content: space-between;
+  }
+
+  /* Five Specials in two rows, the last two centred. */
+  .special-cards {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .special-cards .special-card {
+    grid-column: span 2;
+  }
+
+  .special-cards .special-card:nth-child(4):nth-last-child(2) {
+    grid-column: 2 / span 2;
+  }
+
+  .special-cards .special-card:nth-child(5):last-child {
+    grid-column: 4 / span 2;
+  }
+
+  .special-card .pick-lock {
+    align-self: end;
+  }
+}
+
+/* The unlock moment */
+
+#unlocked {
+  background: radial-gradient(circle at 50% 38%, rgb(255 225 79 / 0.2), var(--scrim) 62%);
+}
+
+.unlocked-heading {
+  color: var(--rare);
+  text-shadow:
+    0 3px 0 #6b5a10,
+    0 0 22px rgb(255 225 79 / 0.5);
+  animation: unlock-glow 1.6s ease-in-out infinite alternate;
+}
+
+.unlocked-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.unlocked-item {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 14px 12px;
+  border: 2px solid var(--rare);
+  border-radius: 4px;
+  background: var(--void);
+  box-shadow: 0 0 14px rgb(255 225 79 / 0.25);
+  text-align: center;
+  animation: unlock-pop 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  animation-delay: calc(var(--i, 0) * 0.45s + 0.2s);
+}
+
+.unlocked-kind {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rare);
+}
+
+.unlocked-name {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.unlocked-for {
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+@keyframes unlock-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6) translateY(10px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes unlock-glow {
+  from {
+    filter: brightness(0.9);
+  }
+  to {
+    filter: brightness(1.25);
+  }
+}
+
+/* The unlocks screen: a heading, the count, a scrolling list, and Back always in view. */
+
+.panel-flex {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-flex > .stack {
+  flex: none;
+}
+
+.unlocks-panel {
+  max-width: 600px;
+}
+
+.unlocks-count {
+  margin: -6px 0 8px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 14px;
+  color: var(--warm);
+}
+
+.unlocks-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0 -8px;
+  padding: 0 8px 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.unlocks-scroll > div > .subheading:first-child {
+  margin-top: 4px;
+}
+
+.unlock-goals,
+.unlock-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.unlock-goal {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 2px solid var(--warm);
+  border-radius: 4px;
+  background: var(--void);
+}
+
+.unlock-reward {
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.unlock-desc {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.unlock-row {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 2px solid var(--line);
+  border-radius: 4px;
+  background: var(--void);
+}
+
+.unlock-row.is-open {
+  border-color: rgb(79 240 255 / 0.5);
+}
+
+.unlock-name {
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.unlock-row.is-locked .unlock-name {
+  opacity: 0.5;
+}
+
+.unlock-state {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.unlock-row.is-open .unlock-state {
+  color: var(--pilot);
+}
+
+.unlock-row.is-locked .unlock-state {
+  color: var(--warm);
+}
+
+.unlock-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.unlock-bar {
+  display: block;
+  flex: 1;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.unlock-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--warm);
+}
+
+.unlock-bar-text {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+@media (min-width: 720px) {
+  .unlock-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Settings: the progress backup code */
+
+.code-box {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 2px solid var(--line);
+  border-radius: 4px;
+  background: var(--void);
+}
+
+.code-box .text {
+  margin: 0;
+}
+
+.code-field {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 2px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--ink);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  /* 16px so iOS doesn't zoom the page when the field is focused. */
+  font-size: 16px;
+  /* The page turns text selection off for the game; the code has to be selectable and pasteable. */
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.code-field::placeholder {
+  color: var(--muted);
+}
+
+.code-field:focus-visible,
+.code-field.is-menu-focus {
+  border-color: var(--pilot);
+  box-shadow: 0 0 0 2px rgb(79 240 255 / 0.25);
+  outline: none;
+}
+
+.note-error {
+  color: var(--danger);
+}
+
 /* Game over and win --------------------------------------------------------------------- */
 
 #over[data-outcome='won'] .heading {
@@ -1413,6 +1831,11 @@ kbd {
 
   .btn:active {
     transform: none;
+  }
+
+  .unlocked-item,
+  .unlocked-heading {
+    animation: none;
   }
 
   .touch-special[data-state='ready'],
