@@ -118,5 +118,7 @@ describe('ducks', () => {
     expect(makeDuck(0, 1, 5).depth).toBe(1);
     expect(makeDuck(0, 1, -1).depth).toBe(0);
     expect(makeDuck(0, 0, 0.5).recover).toBeGreaterThan(0);
+    expect(makeDuck(0, 500, 0.5).recover).toBe(10);
+    expect(makeDuck(0, -3, 0.5).recover).toBeGreaterThan(0);
   });
 });

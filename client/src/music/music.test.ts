@@ -80,8 +80,18 @@ function fakeNode() {
   });
 }
 
+type FakeNode = ReturnType<typeof fakeNode>;
+
+/** The arguments of each call to a method (or audio param method) of a fake node. */
+function calls(node: FakeNode, ...path: string[]): unknown[][] {
+  let target: unknown = node;
+  for (const key of path) target = (target as Record<string, unknown>)[key];
+  return (target as { mock: { calls: unknown[][] } }).mock.calls;
+}
+
 function fakeContext() {
   const created: Record<string, number> = {};
+  const nodes: Record<string, FakeNode[]> = {};
   const ctx: Record<string, unknown> = {
     currentTime: 0,
     sampleRate: 8000,
@@ -94,10 +104,12 @@ function fakeContext() {
   for (const name of ['createGain', 'createOscillator', 'createBufferSource', 'createBiquadFilter', 'createStereoPanner', 'createDynamicsCompressor']) {
     ctx[name] = () => {
       created[name] = (created[name] ?? 0) + 1;
-      return fakeNode();
+      const node = fakeNode();
+      (nodes[name] ??= []).push(node);
+      return node;
     };
   }
-  return { ctx: ctx as unknown as AudioContext, raw: ctx as { currentTime: number; state: string }, created };
+  return { ctx: ctx as unknown as AudioContext, raw: ctx as { currentTime: number; state: string }, created, nodes };
 }
 
 /** Moves the audio clock on, letting the scheduler tick as it would. */
@@ -162,6 +174,7 @@ describe('playing', () => {
     const first = notes(created);
     expect(first).toBeGreaterThan(0);
     // Only the lookahead is scheduled, not the whole song.
+    expect(music.position).toBeGreaterThanOrEqual(3);
     expect(music.position).toBeLessThan(10);
     run(raw, 1);
     expect(notes(created)).toBeGreaterThan(first);
@@ -467,5 +480,232 @@ describe('tabbing away', () => {
     expect(notes(created)).toBe(0);
     tab.hidden = false;
     expect(notes(created)).toBeGreaterThan(0);
+  });
+});
+
+describe('stinger timing under slow motion', () => {
+  it('waits for a beat at the normal tempo, not the slowed one, and never more than half a second', () => {
+    const { ctx, raw, nodes } = fakeContext();
+    const music = new Music(undefined, tracks, stingers);
+    music.attach(ctx);
+    music.play('sector1');
+    music.setTimeScale(0.25);
+    run(raw, 3);
+    const before = nodes.createOscillator.length;
+    music.stinger('waveClear');
+    // The first oscillator made after the call is the stinger's first note.
+    const first = nodes.createOscillator[before];
+    const start = calls(first, 'start')[0][0] as number;
+    // A beat at 120 bpm is 0.5 s; a slowed one would be 2 s.
+    expect(start - raw.currentTime).toBeLessThanOrEqual(0.5);
+    expect(start - raw.currentTime).toBeGreaterThan(0);
+  });
+});
+
+describe('the limiter', () => {
+  it('is a safety limiter: -3 dB, hard knee, ratio 20, fast attack and release', () => {
+    const { ctx, nodes } = fakeContext();
+    new Music(undefined, tracks, stingers).attach(ctx);
+    const [limiter] = nodes.createDynamicsCompressor;
+    const value = (name: string) => (limiter as unknown as Record<string, { value: number }>)[name].value;
+    expect(value('threshold')).toBe(-3);
+    expect(value('knee')).toBe(0);
+    expect(value('ratio')).toBe(20);
+    expect(value('attack')).toBeCloseTo(0.003);
+    expect(value('release')).toBeCloseTo(0.1);
+  });
+});
+
+describe('stinger routing', () => {
+  /** The gain made for the first stinger: the first createGain after `before` gains existed. */
+  it('gives each stinger a gain of its own, disconnected once it has finished', () => {
+    const { ctx, raw, nodes } = fakeContext();
+    const music = new Music(undefined, tracks, stingers);
+    music.attach(ctx);
+    const before = nodes.createGain.length;
+    music.stinger('waveClear');
+    const gain = nodes.createGain[before];
+    expect(calls(gain, 'disconnect')).toHaveLength(0);
+    run(raw, 0.5);
+    expect(calls(gain, 'disconnect')).toHaveLength(0);
+    run(raw, 2);
+    expect(calls(gain, 'disconnect')).toHaveLength(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('fades sounding stingers out when any track is asked for', () => {
+    for (const next of ['sector2', null] as const) {
+      const { ctx, raw, nodes } = fakeContext();
+      const music = new Music(undefined, tracks, stingers);
+      music.attach(ctx);
+      music.play('sector1');
+      run(raw, 1);
+      const before = nodes.createGain.length;
+      music.stinger('upgrade');
+      const gain = nodes.createGain[before];
+      expect(calls(gain, 'gain', 'setTargetAtTime')).toHaveLength(0);
+      music.play(next);
+      const fade = calls(gain, 'gain', 'setTargetAtTime');
+      expect(fade).toHaveLength(1);
+      expect(fade[0][0]).toBe(0);
+      run(raw, 0.6);
+      expect(calls(gain, 'disconnect')).toHaveLength(1);
+    }
+  });
+
+  it('ignores new stingers while an ending stinger sounds, and allows them again after a play()', () => {
+    const { ctx, raw, created } = fakeContext();
+    const music = new Music(undefined, tracks, stingers);
+    music.attach(ctx);
+    music.play('sector1');
+    run(raw, 1);
+    music.stinger('gameOver');
+    const gains = created.createGain;
+    music.stinger('waveClear');
+    music.stinger('upgrade');
+    expect(created.createGain).toBe(gains);
+    music.play('title');
+    music.stinger('waveClear');
+    expect(created.createGain).toBeGreaterThan(gains);
+  });
+
+  it('allows stingers again once an ending stinger is over', () => {
+    const { ctx, raw, created } = fakeContext();
+    const music = new Music(undefined, tracks, stingers);
+    music.attach(ctx);
+    music.stinger('victory');
+    run(raw, 2);
+    const gains = created.createGain;
+    music.stinger('waveClear');
+    expect(created.createGain).toBeGreaterThan(gains);
+  });
+});
+
+describe('after an ending stinger', () => {
+  it('starts a new play() fresh from the intro instead of reviving the fading track', () => {
+    const { ctx, raw } = fakeContext();
+    const music = new Music(undefined, tracks, stingers);
+    music.attach(ctx);
+    music.play('sector1');
+    run(raw, 3);
+    expect(music.position!).toBeGreaterThan(20);
+    music.stinger('gameOver');
+    music.play('sector1');
+    expect(music.track).toBe('sector1');
+    expect(music.position!).toBeLessThan(12);
+  });
+
+  it('resets intensity and danger for the fresh start', () => {
+    const { ctx, raw, nodes } = fakeContext();
+    const music = new Music(undefined, tracks, stingers);
+    music.attach(ctx);
+    music.play('sector1');
+    music.setIntensity(1);
+    run(raw, 3);
+    music.stinger('victory');
+    music.play('sector1');
+    // The new player's 'high' layer gain starts off (0), as at the start of any track.
+    const layerGains = nodes.createGain.slice(-6);
+    const off = layerGains.filter((g) => (g as unknown as { gain: { value: number } }).gain.value === 0);
+    expect(off.length).toBeGreaterThan(0);
+  });
+
+  it('still revives after play(null)', () => {
+    const { ctx, raw } = fakeContext();
+    const music = new Music(undefined, tracks, stingers);
+    music.attach(ctx);
+    music.play('sector1');
+    run(raw, 3);
+    const pos = music.position!;
+    music.play(null);
+    run(raw, 0.2);
+    music.play('sector1');
+    expect(music.position!).toBeGreaterThanOrEqual(pos);
+  });
+});
+
+describe('duck guards', () => {
+  it('ignores a duck with a length or depth that is not a finite number', () => {
+    const { ctx } = fakeContext();
+    const music = new Music(undefined, tracks, stingers);
+    music.attach(ctx);
+    music.duck(Infinity, 0.5);
+    music.duck(NaN, 0.5);
+    music.duck(1, NaN);
+    music.duck(1, -Infinity);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('clamps a very long duck to ten seconds', () => {
+    const { ctx, raw } = fakeContext();
+    const music = new Music(undefined, tracks, stingers);
+    music.attach(ctx);
+    music.duck(1000, 5);
+    run(raw, 9);
+    expect(vi.getTimerCount()).toBe(1);
+    run(raw, 2);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('lookahead', () => {
+  it('rides out a 300 ms stall without late notes', () => {
+    const { ctx, raw, nodes } = fakeContext();
+    const music = new Music(undefined, tracks, stingers);
+    music.attach(ctx);
+    music.play('sector1');
+    run(raw, 1);
+    const before = nodes.createOscillator.length;
+    // The main thread freezes for 300 ms, then the timer fires once.
+    raw.currentTime += 0.3;
+    vi.advanceTimersByTime(TICK_MS);
+    const fresh = nodes.createOscillator.slice(before);
+    expect(fresh.length).toBeGreaterThan(0);
+    for (const osc of fresh) expect(calls(osc, 'start')[0][0] as number).toBeGreaterThanOrEqual(raw.currentTime);
+  });
+});
+
+describe('boss phase memory', () => {
+  it('remembers a phase set before the boss track starts playing', () => {
+    const { ctx, raw } = fakeContext();
+    const music = new Music(undefined, tracks, stingers);
+    music.play('boss');
+    music.setBossPhase(3);
+    music.attach(ctx);
+    run(raw, 5);
+    // Phase 1 (150 bpm) would be 50 steps in 5 s; phase 3 (170 bpm) about 56.
+    expect(music.position!).toBeGreaterThan(54);
+  });
+
+  it('resets to phase 1 when a new track starts', () => {
+    const { ctx, raw } = fakeContext();
+    const music = new Music(undefined, tracks, stingers);
+    music.attach(ctx);
+    music.play('sector1');
+    music.setBossPhase(3);
+    music.play('boss');
+    run(raw, 5);
+    expect(music.position!).toBeLessThan(54);
+  });
+});
+
+describe('time scale pitch', () => {
+  it('drops the pitch by the square root of the scale, not the whole of it', () => {
+    const { ctx, raw, nodes } = fakeContext();
+    const music = new Music(undefined, tracks, stingers);
+    music.attach(ctx);
+    music.play('sector1');
+    music.setTimeScale(0.25);
+    run(raw, 1);
+    const before = nodes.createOscillator.length;
+    run(raw, 5);
+    const pitches = nodes.createOscillator
+      .slice(before)
+      .flatMap((osc) => calls(osc, 'frequency', 'setValueAtTime').map((c) => c[0] as number));
+    // The lead plays C5 through the intro.
+    const c5 = 523.251;
+    expect(pitches.some((hz) => Math.abs(hz - c5 * 0.5) < 0.5)).toBe(true);
+    expect(pitches.some((hz) => Math.abs(hz - c5 * 0.25) < 0.5)).toBe(false);
+    expect(pitches.some((hz) => Math.abs(hz - c5) < 0.5)).toBe(false);
   });
 });

@@ -27,6 +27,15 @@ export function clampTimeScale(scale: number): number {
   return Number.isNaN(scale) ? 1 : clamp(scale, MIN_TIME_SCALE, 1);
 }
 
+/**
+ * How much the pitch falls for a time scale: the square root of it (0.5 gives x0.71, 0.25 gives
+ * x0.5), not the full tape drop, which would take the bass below hearing. Tempo still follows
+ * the scale itself.
+ */
+export function pitchScale(scale: number): number {
+  return Math.sqrt(clampTimeScale(scale));
+}
+
 /** A boss phase kept inside 1 to 3, whole. */
 export function clampPhase(phase: number): number {
   return Math.round(clamp(phase, 1, 3));
@@ -190,6 +199,19 @@ export function nextBeatTime(lastBeatAt: number | null, beatSec: number, now: nu
   const earliest = now + lead;
   if (lastBeatAt === null || !(beatSec > 0)) return earliest;
   return lastBeatAt + beatSec * Math.ceil((earliest - lastBeatAt) / beatSec - 1e-9);
+}
+
+/** The longest (seconds) a stinger waits for a beat before starting right away instead. */
+export const MAX_STINGER_WAIT = 0.5;
+
+/**
+ * When a stinger starts: on the next beat at the track's own, unscaled tempo (`beatSec`), so
+ * slow motion doesn't hold it up; but if that beat is more than MAX_STINGER_WAIT away, at
+ * `now + lead`.
+ */
+export function stingerStart(lastBeatAt: number | null, beatSec: number, now: number, lead = 0.03): number {
+  const beat = nextBeatTime(lastBeatAt, beatSec, now, lead);
+  return beat - now > MAX_STINGER_WAIT ? now + lead : beat;
 }
 
 /** The time the clock restarts at after the tab comes back: right away, unless already ahead. */

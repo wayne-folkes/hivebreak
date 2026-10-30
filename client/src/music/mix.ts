@@ -18,6 +18,8 @@ export const OPEN_CUTOFF = 20000;
 export const SLOW_CUTOFF = 900;
 /** Seconds a time-scale change glides over. */
 export const SCALE_GLIDE = 0.3;
+/** Longest a duck's recovery may be (seconds). */
+export const MAX_DUCK_SECONDS = 10;
 /** Seconds a duck takes to reach its depth. */
 export const DUCK_ATTACK = 0.05;
 
@@ -76,7 +78,7 @@ export interface Duck {
 
 /** A duck from the game: dips at once and recovers over `seconds`. */
 export function makeDuck(start: number, seconds: number, depth: number): Duck {
-  return { start, depth: clamp(depth, 0, 1), hold: 0, recover: Math.max(seconds, DUCK_ATTACK) };
+  return { start, depth: clamp(depth, 0, 1), hold: 0, recover: clamp(seconds, DUCK_ATTACK, MAX_DUCK_SECONDS) };
 }
 
 /** When a duck is over. */

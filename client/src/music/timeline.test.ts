@@ -13,6 +13,8 @@ import {
   nextBeatTime,
   parseSong,
   parseStinger,
+  pitchScale,
+  stingerStart,
   resumeTime,
   skipBehind,
   stepSeconds,
@@ -61,6 +63,23 @@ describe('clamps', () => {
     expect(clampPhase(0)).toBe(1);
     expect(clampPhase(2.4)).toBe(2);
     expect(clampPhase(9)).toBe(3);
+  });
+});
+
+describe('pitchScale', () => {
+  it('falls by the square root of the scale', () => {
+    expect(pitchScale(1)).toBe(1);
+    expect(pitchScale(0.5)).toBeCloseTo(0.7071, 4);
+    expect(pitchScale(0.25)).toBeCloseTo(0.5);
+  });
+
+  it('is clamped with the scale', () => {
+    expect(pitchScale(0)).toBeCloseTo(Math.sqrt(0.2));
+    expect(pitchScale(5)).toBe(1);
+  });
+
+  it('keeps a low bass note audible at a quarter speed (C2 is about 65 Hz; it stays above 30)', () => {
+    expect(65.4 * pitchScale(0.25)).toBeGreaterThan(30);
   });
 });
 
@@ -205,6 +224,22 @@ describe('nextBeatTime', () => {
 
   it('starts at once when no beat has been scheduled', () => {
     expect(nextBeatTime(null, 0.5, 3, 0.03)).toBeCloseTo(3.03);
+  });
+});
+
+describe('stingerStart', () => {
+  it('lands on the next beat of the unscaled tempo when it is close', () => {
+    // Beats every 0.5 s on the grid from 1.0; now is 1.6.
+    expect(stingerStart(1.0, 0.5, 1.6)).toBeCloseTo(2.0);
+  });
+
+  it('starts at once when the beat is more than half a second away', () => {
+    // A slowed beat of 2 s: the next one is 1.7 s off.
+    expect(stingerStart(1.0, 2, 1.3)).toBeCloseTo(1.33);
+  });
+
+  it('starts at once when no beat is known', () => {
+    expect(stingerStart(null, 0.5, 4)).toBeCloseTo(4.03);
   });
 });
 

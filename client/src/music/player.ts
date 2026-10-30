@@ -7,6 +7,7 @@ import {
   gearFor,
   isBarLine,
   isBeat,
+  pitchScale,
   resumeTime,
   skipBehind,
   stepSeconds,
@@ -36,12 +37,20 @@ export class TrackPlayer {
   /** When the most recent scheduled beat started, and how long a beat lasts, for stingers to line up. */
   lastBeatAt: number | null = null;
   beatSec = 0.5;
+  /** When the fade-out begins (it may be a beat away, for an ending stinger); null when not fading. */
+  fadeStart: number | null = null;
   /** Set while fading out: when the bus is silent and the player can be dropped. */
   stopAt: number | null = null;
   /** Fading out because of play(null) or an ending stinger: play() of the same track brings it back. */
   revivable = false;
   /** The mix state a fading player keeps, so a new track's reset doesn't thin it out mid-fade. */
   frozen: MixState | null = null;
+
+  /** How long a beat lasts at the song's own tempo, whatever the time scale. */
+  get unscaledBeatSec(): number {
+    const song = this.parsed.song;
+    return stepSeconds(gearFor(song, this.appliedPhase).bpm, song.stepsPerBeat) * song.stepsPerBeat;
+  }
 
   /** Whether the song has boss phases (a gear per phase). */
   get hasPhases(): boolean {
@@ -132,9 +141,9 @@ export class TrackPlayer {
           if (silentFrom !== undefined && t >= silentFrom) continue;
           const { channel: def } = this.parsed.channels[channel];
           if (def.instrument === 'drums') {
-            if (event.drum) playDrum(this.env, this.inputs[channel], event.drum, event.accent, t, scale);
+            if (event.drum) playDrum(this.env, this.inputs[channel], event.drum, event.accent, t, pitchScale(scale));
           } else if (event.midi !== undefined) {
-            const hz = midiToHz(event.midi + (def.transpose ?? 0) + gear.transpose) * scale;
+            const hz = midiToHz(event.midi + (def.transpose ?? 0) + gear.transpose) * pitchScale(scale);
             playNote(this.env, this.inputs[channel], def.instrument, hz, t, event.len * stepSec, event.accent);
           }
         }
@@ -168,6 +177,7 @@ export class TrackPlayer {
     const from = Math.max(at, now);
     this.bus.gain.cancelScheduledValues(now);
     this.bus.gain.setTargetAtTime(0, from, seconds / 5);
+    this.fadeStart = from;
     this.stopAt = from + seconds;
     this.revivable = revivable;
     this.frozen = state;
@@ -177,6 +187,7 @@ export class TrackPlayer {
   revive(now: number, seconds: number): void {
     this.bus.gain.cancelScheduledValues(now);
     this.bus.gain.setTargetAtTime(1, now, seconds / 4);
+    this.fadeStart = null;
     this.stopAt = null;
     this.revivable = false;
     this.frozen = null;
