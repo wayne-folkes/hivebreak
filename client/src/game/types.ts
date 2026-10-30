@@ -128,6 +128,12 @@ export interface PlayerState {
   specialCharge: number;
   /** Seconds left of a Shield Burst: untouchable, and enemy shots that hit the ship bounce back. */
   burst: number;
+  /** Seconds until the laser's next damage tick (the laser has its own timer, apart from `cooldown`). */
+  laserTimer: number;
+  /** Bulwark synergy: seconds until a used shield hit comes back (absent or 0 = none pending). */
+  shieldRegen?: number;
+  /** Bulwark synergy: true once this wave's regeneration has been used. Cleared at wave start. */
+  bulwarkUsed?: boolean;
 }
 
 /**
@@ -138,6 +144,12 @@ export interface PlayerState {
 export type ShotKind = 'normal' | 'overcharge' | 'lance' | 'enemy' | 'reflected';
 
 export type ShotOwner = 'player' | 'alien';
+
+/**
+ * The volley id of a shot that can no longer count as a miss: its volley has already hit
+ * something, or it's an extra shot (lance, overcharge, wingman, helper) that never counts.
+ */
+export const VOLLEY_HIT = -1;
 
 export interface Shot {
   id: number;
@@ -159,6 +171,8 @@ export interface Shot {
   bouncesLeft: number;
   /** Aliens this shot has hit. */
   hits: number;
+  /** Wall bounces so far (absent = none), so the Seekers synergy boosts a shot only once. */
+  bounces?: number;
   /**
    * The volley this shot was fired in (shots fired together share it). A volley is a miss, and
    * breaks the combo, only when every shot in it has left the field with 0 hits.
@@ -331,6 +345,11 @@ export interface RunState {
   phase: RunPhase;
   /** Seconds spent in the current phase. */
   phaseTime: number;
+  /**
+   * Seconds of play since the run began: counts during wave intros and play, never resets. For
+   * anything that needs a steady clock across phases, like the helper drone's orbit.
+   */
+  time: number;
   /** Index into the wave list. */
   wave: number;
   players: PlayerState[];

@@ -1,8 +1,17 @@
 import { FIELD_HEIGHT, FIELD_WIDTH } from './playfield';
-import type { Box, PlayerState, PlayerStats, ShipInput, Shot } from './types';
+import {
+  AFTERBURNER_INTERVAL_FACTOR,
+  AFTERBURNER_SPEED_FRACTION,
+  BULWARK_REGEN_SECONDS,
+  LANCE_DAMAGE,
+  LANCE_PIERCE,
+  hasSynergy,
+} from './synergies';
+import { VOLLEY_HIT, type Box, type PlayerState, type PlayerStats, type ShipInput, type Shot } from './types';
 
 // The player's ship: steering with a little acceleration, touch drag played out over a few steps,
-// the fire cooldown, and what a hit does (shield, lives, a moment of safety afterwards).
+// the fire cooldown and the volley it builds (fan, overcharge, lance, wingmen), and what a hit
+// does (shield, lives, a moment of safety afterwards).
 
 /** Where the ship sits, up from the bottom of the field. */
 export const SHIP_Y = -FIELD_HEIGHT / 2 + 28;
@@ -29,6 +38,14 @@ export const ACCEL_SECONDS = 0.1;
 export const DRAG_SPEED_FACTOR = 2.5;
 /** Distance between the shots of one volley, art pixels. */
 export const VOLLEY_SPACING = 4;
+
+/** How far a wingman flies to the side of the ship, art pixels; more wingmen stack outward. */
+export const WINGMAN_OFFSET_X = 16;
+/** Wingmen stay this far inside the side walls. */
+export const WINGMAN_WALL_MARGIN = 4;
+/** The overcharge shot: base damage and extra pierce (on top of the ship's own). */
+export const OVERCHARGE_DAMAGE = 3;
+export const OVERCHARGE_PIERCE = 2;
 
 export const BASE_STATS: Readonly<PlayerStats> = {
   speed: 110,
@@ -68,6 +85,7 @@ export function createPlayer(id: number, x = 0): PlayerState {
     special: null,
     specialCharge: 0,
     burst: 0,
+    laserTimer: 0,
   };
 }
 
@@ -89,6 +107,10 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 export function stepPlayer(player: PlayerState, input: ShipInput, dt: number): void {
   player.cooldown = Math.max(0, player.cooldown - dt);
   player.invulnerable = Math.max(0, player.invulnerable - dt);
+  if (player.shieldRegen && player.shieldRegen > 0) {
+    player.shieldRegen = Math.max(0, player.shieldRegen - dt);
+    if (player.shieldRegen === 0 && player.shield < player.stats.shieldPerWave) player.shield++;
+  }
   if (!isAlive(player)) {
     player.vx = 0;
     player.pendingDrag = 0;
@@ -122,34 +144,84 @@ export function stepPlayer(player: PlayerState, input: ShipInput, dt: number): v
   }
 }
 
+/** Seconds between volleys right now: the Afterburner synergy shortens it while the ship is moving fast. */
+export function currentFireInterval(player: PlayerState): number {
+  const fast = Math.abs(player.vx) > AFTERBURNER_SPEED_FRACTION * player.stats.speed;
+  const boost = fast && hasSynergy(player, 'afterburner') ? AFTERBURNER_INTERVAL_FACTOR : 1;
+  return player.stats.fireInterval * boost;
+}
+
+/** Sideways places of the ship's wingmen: first on the right, then the left, then further out. */
+export function wingmanXs(player: PlayerState): number[] {
+  const limit = FIELD_WIDTH / 2 - WINGMAN_WALL_MARGIN;
+  return Array.from({ length: player.stats.wingmen }, (_, i) => {
+    const side = i % 2 === 0 ? 1 : -1;
+    const x = player.x + side * (Math.floor(i / 2) + 1) * WINGMAN_OFFSET_X;
+    return clamp(x, -limit, limit);
+  });
+}
+
 /**
  * Fires a volley if fire is held and the cooldown allows, returning the new shots. `newId`
- * hands out ids for the volley (shared by its shots) and for each shot.
+ * hands out ids for the volley (shared by its shots) and for each shot. A volley is the ship's
+ * fan of shots (spread out by `spreadAngle`), plus an overcharge shot on every Nth volley, a
+ * lance bolt with the Lance synergy, and one straight shot from each wingman. The extras (overcharge,
+ * lance, wingmen) are in the VOLLEY_HIT volley, so they never count as a miss; only the fan can.
  */
 export function tryFire(player: PlayerState, input: ShipInput, newId: () => number): Shot[] {
   if (!input.fire || !isAlive(player) || player.cooldown > 0) return [];
-  player.cooldown = player.stats.fireInterval;
-  const count = player.stats.shotsPerVolley;
+  const stats = player.stats;
+  player.cooldown = currentFireInterval(player);
+  player.volleys++;
   const volley = newId();
   const shots: Shot[] = [];
+  const make = (kind: Shot['kind'], x: number, vx: number, vy: number, over: Partial<Shot> = {}): Shot => ({
+    id: newId(),
+    owner: 'player',
+    kind,
+    playerId: player.id,
+    x,
+    y: SHIP_TOP,
+    vx,
+    vy,
+    pierceLeft: stats.pierce,
+    damage: stats.damage,
+    homing: stats.homing,
+    bouncesLeft: stats.ricochet,
+    hits: 0,
+    volley,
+    ...over,
+  });
+
+  const count = stats.shotsPerVolley;
   for (let i = 0; i < count; i++) {
-    shots.push({
-      id: newId(),
-      owner: 'player',
-      kind: 'normal',
-      playerId: player.id,
-      x: player.x + (i - (count - 1) / 2) * VOLLEY_SPACING,
-      y: SHIP_TOP,
-      vx: 0,
-      vy: player.stats.shotSpeed,
-      pierceLeft: player.stats.pierce,
-      damage: player.stats.damage,
-      homing: player.stats.homing,
-      bouncesLeft: player.stats.ricochet,
-      hits: 0,
-      volley,
-    });
+    const angle = (i - (count - 1) / 2) * stats.spreadAngle;
+    const x = player.x + (i - (count - 1) / 2) * VOLLEY_SPACING;
+    shots.push(make('normal', x, Math.sin(angle) * stats.shotSpeed, Math.cos(angle) * stats.shotSpeed));
   }
+  if (stats.overchargeEvery > 0 && player.volleys % stats.overchargeEvery === 0) {
+    shots.push(
+      make('overcharge', player.x, 0, stats.shotSpeed, {
+        damage: OVERCHARGE_DAMAGE + stats.damage - 1,
+        pierceLeft: OVERCHARGE_PIERCE + stats.pierce,
+        homing: 0,
+        bouncesLeft: 0,
+        volley: VOLLEY_HIT,
+      }),
+    );
+  }
+  if (hasSynergy(player, 'lance')) {
+    shots.push(
+      make('lance', player.x, 0, stats.shotSpeed, {
+        damage: LANCE_DAMAGE + stats.damage - 1,
+        pierceLeft: LANCE_PIERCE,
+        homing: 0,
+        bouncesLeft: 0,
+        volley: VOLLEY_HIT,
+      }),
+    );
+  }
+  for (const x of wingmanXs(player)) shots.push(make('normal', x, 0, stats.shotSpeed, { volley: VOLLEY_HIT }));
   return shots;
 }
 
@@ -161,6 +233,11 @@ export function hitPlayer(player: PlayerState): HitResult {
   if (player.shield > 0) {
     player.shield--;
     player.invulnerable = SHIELD_INVULNERABLE_SECONDS;
+    // Bulwark: the first shield used each wave grows back after a while.
+    if (hasSynergy(player, 'bulwark') && !player.bulwarkUsed) {
+      player.bulwarkUsed = true;
+      player.shieldRegen = BULWARK_REGEN_SECONDS;
+    }
     return 'shield';
   }
   player.lives--;

@@ -22,7 +22,7 @@ export const SPEED_UP = 2;
 /** The formation has invaded when an alien's bottom is this far above the top of the ship's hit box. */
 export const INVADE_MARGIN = 4;
 
-const KINDS: Record<string, AlienKind> = { d: 'drone', w: 'warden', v: 'diver' };
+const KINDS: Record<string, AlienKind> = { d: 'drone', w: 'warden', v: 'diver', c: 'carrier' };
 
 /** Where the slot at (col, row) is right now, with the formation's offset applied. */
 export function slotPosition(formation: FormationState, col: number, row: number, cols: number): { x: number; y: number } {

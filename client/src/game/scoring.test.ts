@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createAlien, startDive } from './aliens';
 import { createRun } from './run';
-import { COMBO_MAX, awardKill, killPoints, registerMiss, registerShotHit } from './scoring';
+import { createPlayer } from './player';
+import { COMBO_MAX, awardKill, killPoints, refillWaveGuards, registerMiss, registerShotHit } from './scoring';
 
 describe('combo', () => {
   it('rises with each shot that hits, up to the cap, tracking the best', () => {
@@ -24,6 +25,53 @@ describe('combo', () => {
     const run = createRun(1);
     expect(registerMiss(run)).toEqual([]);
     expect(run.combo).toBe(1);
+  });
+});
+
+describe('combo guard', () => {
+  it('uses up a guard instead of breaking the combo', () => {
+    const run = createRun(1);
+    const p = createPlayer(0);
+    p.comboGuardLeft = 2;
+    run.combo = 5;
+    expect(registerMiss(run, p)).toEqual([{ type: 'comboGuarded', playerId: 0 }]);
+    expect(run.combo).toBe(5);
+    expect(p.comboGuardLeft).toBe(1);
+    registerMiss(run, p);
+    expect(p.comboGuardLeft).toBe(0);
+    expect(registerMiss(run, p)).toEqual([{ type: 'comboBroken', combo: 5 }]);
+    expect(run.combo).toBe(1);
+  });
+
+  it('does not spend a guard when there is no combo to protect', () => {
+    const run = createRun(1);
+    const p = createPlayer(0);
+    p.comboGuardLeft = 1;
+    expect(registerMiss(run, p)).toEqual([]);
+    expect(p.comboGuardLeft).toBe(1);
+  });
+
+  it('breaks the combo as before with no guard or no player', () => {
+    const run = createRun(1);
+    run.combo = 4;
+    expect(registerMiss(run, createPlayer(0))).toEqual([{ type: 'comboBroken', combo: 4 }]);
+    run.combo = 4;
+    expect(registerMiss(run)).toEqual([{ type: 'comboBroken', combo: 4 }]);
+  });
+
+  it('refills shield and guard from stats at wave start, clearing bulwark state', () => {
+    const p = createPlayer(0);
+    p.stats.shieldPerWave = 2;
+    p.stats.comboGuard = 2;
+    p.shield = 0;
+    p.comboGuardLeft = 0;
+    p.shieldRegen = 5;
+    p.bulwarkUsed = true;
+    refillWaveGuards(p);
+    expect(p.shield).toBe(2);
+    expect(p.comboGuardLeft).toBe(2);
+    expect(p.shieldRegen).toBe(0);
+    expect(p.bulwarkUsed).toBe(false);
   });
 });
 

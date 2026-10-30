@@ -91,6 +91,22 @@ def extrude_poly(points_xz, depth, y=0.0, bevel=0.0):
     return bm
 
 
+def extrude_ring(outer, inner, depth, y=0.0):
+    """Annulus in the XZ plane (outer/inner = equal-length point lists), extruded along Y."""
+    bm = new_bm()
+    y0, y1 = y - depth / 2, y + depth / 2
+    n = len(outer)
+    ring = {k: [bm.verts.new((px, yy, pz)) for px, pz in pts]
+            for k, pts, yy in (("of", outer, y0), ("ob", outer, y1), ("if", inner, y0), ("ib", inner, y1))}
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((ring["of"][i], ring["of"][j], ring["if"][j], ring["if"][i]))
+        bm.faces.new((ring["ob"][i], ring["ob"][j], ring["ib"][j], ring["ib"][i]))
+        bm.faces.new((ring["of"][i], ring["of"][j], ring["ob"][j], ring["ob"][i]))
+        bm.faces.new((ring["if"][i], ring["if"][j], ring["ib"][j], ring["ib"][i]))
+    return bm
+
+
 def loft(rings, tip_end=None, tip_start=None, mapf=None):
     """Skin consecutive rings. rings = [(w, [(a, b), ...]), ...]; mapf(a, b, w) -> (x, y, z).
     Ends are closed with a point (tip_*, given as (a, b, w)) or a flat cap."""
@@ -223,13 +239,13 @@ def export_glb(path):
     )
 
 
-def render_preview(path, roots, size=256, bg=(0.02, 0.012, 0.045)):
+def render_preview(path, roots, size=256, bg=(0.02, 0.012, 0.045), spacing=8):
     """Orthographic front render (camera on -Y looking +Y, up = +Z), framed to `roots`."""
     scene = bpy.context.scene
     # Spread multiple roots (the two shots) sideways, just for the preview.
     if len(roots) > 1:
         for i, r in enumerate(roots):
-            r.location.x = (i - (len(roots) - 1) / 2) * 8
+            r.location.x = (i - (len(roots) - 1) / 2) * spacing
     bpy.context.view_layer.update()
     lo, hi = bounds([o for r in roots for o in r.children])
     c = (lo + hi) / 2

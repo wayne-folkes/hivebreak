@@ -14,7 +14,8 @@ import common as C  # noqa: E402
 
 # (output name, module). shots builds two roots into one file.
 MODELS = [("player", "player"), ("drone", "drone"), ("warden", "warden"),
-          ("diver", "diver"), ("shots", "shots")]
+          ("diver", "diver"), ("shots", "shots"), ("carrier", "carrier"),
+          ("brood_mother", "brood_mother"), ("pickups", "pickups"), ("helper", "helper")]
 
 
 def main():
@@ -24,7 +25,7 @@ def main():
         roots = mod.build()
         out = C.MODELS_DIR / f"{name}.glb"
         C.export_glb(out)
-        C.render_preview(C.PREVIEW_DIR / f"{name}.png", roots)
+        C.render_preview(C.PREVIEW_DIR / f"{name}.png", roots, **getattr(mod, "PREVIEW", {}))
         print(f"[models] {name}: wrote {out.relative_to(C.REPO_DIR)}")
 
     import check

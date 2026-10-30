@@ -2,7 +2,7 @@ import { FIELD_WIDTH } from './playfield';
 import { SHIP_Y } from './player';
 import type { Alien, AlienKind, Box, DivePath } from './types';
 
-// The three alien kinds: their sizes, toughness and points, and how a diver swoops out of the
+// The alien kinds: their sizes, toughness and points, and how a diver swoops out of the
 // formation and flies back to its slot. A diver's path is a closed-form curve over its dive
 // time, so it needs nothing but the alien's own state to follow.
 
@@ -19,7 +19,8 @@ export const ALIEN_SPECS: Record<AlienKind, AlienSpec> = {
   drone: { hp: 1, points: 10, halfWidth: 7, halfHeight: 5 },
   warden: { hp: 2, points: 30, halfWidth: 8, halfHeight: 6 },
   diver: { hp: 1, points: 40, halfWidth: 6, halfHeight: 6 },
-  carrier: { hp: 3, points: 50, halfWidth: 9, halfHeight: 6 },
+  // Slow and tough, sits in the formation and never dives; always drops a power-up (see powerups.ts).
+  carrier: { hp: 4, points: 60, halfWidth: 10, halfHeight: 7 },
 };
 
 /** Seconds of white flash after a hit. */

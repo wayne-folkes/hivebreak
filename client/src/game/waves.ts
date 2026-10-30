@@ -1,20 +1,29 @@
 import type { WaveDef } from './types';
 
 // The waves of a run, as data. Rows run top to bottom, one character per column:
-// 'd' drone, 'w' warden, 'v' diver, '.' empty slot. At most 6 columns by 5 rows, so a formation
-// always fits the field with room to march.
+// 'd' drone, 'w' warden, 'v' diver, 'c' carrier, '.' empty slot. At most 6 columns by 5 rows, so
+// a formation always fits the field with room to march.
+
+/**
+ * Tuning intent (slice 2a retune): one step harder than slice 1. March speed is about 25% up,
+ * the formation fires about 30% more, divers join from wave 2, and 1-2 Carriers (tough, 4 hp)
+ * sit in waves 2-4 so some aliens take several hits. Wave 5 stays a full formation here; the run
+ * turns it into the boss wave. The scripted bot wins fewer runs with 3 lives than in slice 1,
+ * but still clears every wave when it has lives to spare.
+ */
+export const WAVE_TUNING_NOTES = 'Slice 2a: ~25% faster march, ~30% more fire, divers from wave 2, carriers in waves 2-4.';
 
 export const WAVES: readonly WaveDef[] = [
-  // 1: drones only, slow and gentle.
-  { rows: ['dddd', 'dddd', 'dddd'], marchSpeed: 12, fireRate: 0.25, diveRate: 0 },
-  // 2: wardens join in the top row.
-  { rows: ['.ww.', 'dddd', 'dddd', 'dddd'], marchSpeed: 14, fireRate: 0.4, diveRate: 0 },
-  // 3: divers start breaking away.
-  { rows: ['.www.', 'dvdvd', 'ddddd', 'ddddd'], marchSpeed: 16, fireRate: 0.5, diveRate: 0.12 },
-  // 4: wider, faster, more of everything.
-  { rows: ['wwwwww', 'dvddvd', 'dddddd', 'dddddd'], marchSpeed: 18, fireRate: 0.65, diveRate: 0.18 },
-  // 5: the full mixed formation.
-  { rows: ['wwwwww', 'vwddwv', 'dvddvd', 'dddddd', 'dddddd'], marchSpeed: 20, fireRate: 0.8, diveRate: 0.25 },
+  // 1: drones only, a little brisker than before.
+  { rows: ['dddd', 'dddd', 'dddd'], marchSpeed: 15, fireRate: 0.33, diveRate: 0 },
+  // 2: a Carrier and a warden up top, and the first diver.
+  { rows: ['.cw.', 'dvdd', 'dddd', 'dddd'], marchSpeed: 18, fireRate: 0.52, diveRate: 0.08 },
+  // 3: more divers and a Carrier up front.
+  { rows: ['.www.', 'dvcvd', 'ddddd', 'ddddd'], marchSpeed: 20, fireRate: 0.65, diveRate: 0.16 },
+  // 4: wider, faster, two Carriers.
+  { rows: ['wwwwww', 'dvccvd', 'dddddd', 'dddddd'], marchSpeed: 23, fireRate: 0.85, diveRate: 0.22 },
+  // 5: the full mixed formation (becomes the boss wave when the run folds this in).
+  { rows: ['wwwwww', 'vwddwv', 'dvddvd', 'dddddd', 'dddddd'], marchSpeed: 26, fireRate: 1.05, diveRate: 0.3 },
 ];
 
 export const WAVE_COUNT = WAVES.length;

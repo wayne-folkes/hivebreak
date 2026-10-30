@@ -17,16 +17,37 @@ describe('WAVES', () => {
   });
 
   it('uses only known alien letters', () => {
-    for (const w of WAVES) for (const row of w.rows) expect(row).toMatch(/^[dwv.]+$/);
+    for (const w of WAVES) for (const row of w.rows) expect(row).toMatch(/^[dwvc.]+$/);
   });
 
-  it('brings in wardens from wave 2 and divers from wave 3', () => {
+  it('brings in wardens, carriers and divers from wave 2', () => {
     const kinds = (i: number) => new Set(WAVES[i].rows.join(''));
-    expect(kinds(0).has('w') || kinds(0).has('v')).toBe(false);
-    expect(kinds(1).has('w')).toBe(true);
-    expect(kinds(1).has('v')).toBe(false);
-    expect(kinds(2).has('v')).toBe(true);
+    for (const k of ['w', 'v', 'c']) expect(kinds(0).has(k)).toBe(false);
+    for (const i of [1, 2, 3]) for (const k of ['w', 'v', 'c']) expect(kinds(i).has(k)).toBe(true);
     expect(kinds(4).has('w') && kinds(4).has('v') && kinds(4).has('d')).toBe(true);
+  });
+
+  it('has one or two carriers in waves 2 to 4', () => {
+    for (const i of [1, 2, 3]) {
+      const carriers = [...WAVES[i].rows.join('')].filter((c) => c === 'c').length;
+      expect(carriers).toBeGreaterThanOrEqual(1);
+      expect(carriers).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it('has divers dive from wave 2', () => {
+    expect(WAVES[0].diveRate).toBe(0);
+    for (let i = 1; i < WAVES.length; i++) expect(WAVES[i].diveRate).toBeGreaterThan(0);
+  });
+
+  it('is about 25% faster marching and 30% busier firing than slice 1', () => {
+    const slice1 = { march: [12, 14, 16, 18, 20], fire: [0.25, 0.4, 0.5, 0.65, 0.8] };
+    WAVES.forEach((w, i) => {
+      expect(w.marchSpeed / slice1.march[i]).toBeGreaterThan(1.2);
+      expect(w.marchSpeed / slice1.march[i]).toBeLessThan(1.35);
+      expect(w.fireRate / slice1.fire[i]).toBeGreaterThan(1.25);
+      expect(w.fireRate / slice1.fire[i]).toBeLessThan(1.4);
+    });
   });
 
   it('only has divers dive when the wave has some', () => {

@@ -14,6 +14,8 @@ import {
   stepAlien,
 } from './aliens';
 import { SHIP_Y } from './player';
+import { createRun, stepRun } from './run';
+import { WAVES } from './waves';
 
 const DT = 1 / 120;
 
@@ -110,5 +112,36 @@ describe('dives', () => {
     for (let t = 0; t < flightSeconds + 1; t += DT) stepAlien(d, slot, DT);
     expect(d.mode).toBe('formation');
     expect(d).toMatchObject({ x: 10, y: 100 });
+  });
+});
+
+describe('carrier', () => {
+  it('is slow and tough: 4 hit points, 60 points, a wide box', () => {
+    expect(ALIEN_SPECS.carrier).toEqual({ hp: 4, points: 60, halfWidth: 10, halfHeight: 7 });
+    expect(createAlien('carrier', 1, 0, 0, 0, 0).hp).toBe(4);
+  });
+
+  it('needs four hits to kill', () => {
+    const a = createAlien('carrier', 1, 0, 0, 0, 0);
+    expect([damageAlien(a), damageAlien(a), damageAlien(a), damageAlien(a)]).toEqual([false, false, false, true]);
+  });
+});
+
+describe('carrier in a run', () => {
+  it('stays in the formation and never dives, even when dives are constant', () => {
+    const wave = WAVES[0];
+    const saved = wave.diveRate;
+    wave.diveRate = 50;
+    try {
+      const run = createRun(7);
+      for (const a of run.aliens) a.kind = 'carrier';
+      for (let t = 0; t < 8; t += DT) {
+        stepRun(run, [{ move: 0, drag: 0, fire: false, special: false }], DT);
+        if (run.phase === 'lost') break;
+        expect(run.aliens.every((a) => a.mode === 'formation')).toBe(true);
+      }
+    } finally {
+      wave.diveRate = saved;
+    }
   });
 });

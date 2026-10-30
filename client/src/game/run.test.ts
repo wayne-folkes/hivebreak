@@ -177,7 +177,7 @@ describe('playing', () => {
       id, owner: 'player', kind: 'normal', damage: 1, homing: 0, bouncesLeft: 0, playerId: 0, x, y: SHIP_TOP, vx: 0, vy: 260, pierceLeft: 0, hits: 0, volley: 500,
     });
     aimAt(run, target); // puts the ship where a shot will meet the marching alien
-    run.shots.push(shot(501, run.players[0].x), shot(502, SHIP_X_LIMIT));
+    run.shots.push(shot(501, run.players[0].x), shot(502, -SHIP_X_LIMIT));
     const events: RunEvent[] = [];
     for (let i = 0; i < 300 && run.shots.length > 0; i++) events.push(...stepRun(run, IDLE, DT));
     expect(events.filter((e) => e.type === 'alienKilled')).toHaveLength(1);

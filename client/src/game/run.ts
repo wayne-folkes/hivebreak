@@ -35,6 +35,7 @@ export function createRun(seed: number, playerCount = 1): RunState {
   const run: RunState = {
     phase: 'waveIntro',
     phaseTime: 0,
+    time: 0,
     wave: 0,
     players,
     aliens: [],

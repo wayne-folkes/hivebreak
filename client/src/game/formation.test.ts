@@ -46,6 +46,13 @@ describe('spawnFormation', () => {
     expect(new Set(aliens.map((a) => a.id)).size).toBe(6);
   });
 
+  it("builds a carrier from 'c' in its slot", () => {
+    const { aliens } = spawnFormation(def(['dcd', 'ddd']), ids());
+    const carrier = aliens.find((a) => a.kind === 'carrier');
+    expect(carrier).toMatchObject({ hp: 4, mode: 'formation', col: 1, row: 0 });
+    expect(carrier?.x).toBeCloseTo(0, 6);
+  });
+
   it('rejects an unknown letter', () => {
     expect(() => spawnFormation(def(['dx']), ids())).toThrow();
   });
