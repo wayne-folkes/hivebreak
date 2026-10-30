@@ -134,6 +134,8 @@ export const SPECIAL_SHORT: Record<SpecialId, string> = {
   pulseBomb: 'Pulse',
   shieldBurst: 'Shield',
   timeStop: 'Time',
+  missileSwarm: 'Swarm',
+  gravityWell: 'Well',
 };
 
 /** How full each meter cell is, 0 to 1, left to right, for a meter at `charge` (0 to 1). */

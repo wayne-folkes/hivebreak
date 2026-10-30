@@ -44,9 +44,9 @@ import type { Target } from './shots';
 import { stepShot } from './shots';
 import { CHARGE_PER_BOSS_PART, chargeSpecial, fireSpecial, killCharge, reflectShots, tickBurst } from './special';
 import { BURST_DAMAGE, BURST_RADIUS, hasSynergy, killBursts, unlockSynergies } from './synergies';
-import type { Alien, Box, Pickup, PlayerState, RunEvent, RunPhase, RunState, ShipInput, Shot, ShotKind, SpecialId, WaveDef } from './types';
+import type { Alien, Box, Pickup, PlayerState, RunEvent, RunOptions, RunPhase, RunState, ShipInput, Shot, ShotKind, SpecialId, WaveDef } from './types';
 import { NO_INPUT } from './types';
-import { applyUpgrade, offerUpgrades } from './upgrades';
+import { UPGRADES, applyUpgrade, offerUpgrades } from './upgrades';
 import { WAVE_COUNT, WAVES, waveColumns } from './waves';
 
 // A whole run: the phases from the Special choice to a win or loss, and the fixed simulation step
@@ -96,9 +96,9 @@ export const BEAM_BURN_WIDTH = 4;
  * Starts a run waiting in the Special choice, at wave 0 or, for testing, at `firstWave` (an
  * index into the wave list; the dev server's `?wave=` uses it to reach the boss quickly).
  */
-export function createRun(seed: number, playerCount = 1, firstWave = 0): RunState {
+export function createRun(seed: number, playerCount = 1, firstWave = 0, options: RunOptions = {}): RunState {
   const players = Array.from({ length: playerCount }, (_, i) =>
-    createPlayer(i, (i - (playerCount - 1) / 2) * PLAYER_START_SPACING),
+    createPlayer(i, (i - (playerCount - 1) / 2) * PLAYER_START_SPACING, options.ships?.[i] ?? 'breaker'),
   );
   const run: RunState = {
     phase: 'chooseSpecial',
@@ -120,6 +120,8 @@ export function createRun(seed: number, playerCount = 1, firstWave = 0): RunStat
     combo: 1,
     bestCombo: 1,
     offer: [],
+    upgradePool: options.upgrades ? [...options.upgrades] : UPGRADES.map((u) => u.id),
+    well: null,
     rng: createRng(seed),
     nextId: 1,
   };

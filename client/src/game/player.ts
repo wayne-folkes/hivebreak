@@ -7,7 +7,11 @@ import {
   LANCE_PIERCE,
   hasSynergy,
 } from './synergies';
-import { VOLLEY_HIT, type Box, type PlayerState, type PlayerStats, type ShipInput, type Shot } from './types';
+import { shipDef } from './ships';
+import { VOLLEY_HIT, type Box, type PlayerState, type ShipId, type ShipInput, type Shot } from './types';
+
+// The Breaker's numbers and lives live with the other ships, in ships.ts.
+export { BASE_STATS, START_LIVES } from './ships';
 
 // The player's ship: steering with a little acceleration, touch drag played out over a few steps,
 // the fire cooldown and the volley it builds (fan, overcharge, lance, wingmen), and what a hit
@@ -27,7 +31,6 @@ export const SHIP_MARGIN = 6;
 /** The furthest the ship's centre can go from the middle of the field. */
 export const SHIP_X_LIMIT = FIELD_WIDTH / 2 - SHIP_MARGIN - SHIP_HALF_WIDTH;
 
-export const START_LIVES = 3;
 /** Seconds of safety after losing a life. */
 export const INVULNERABLE_SECONDS = 1.5;
 /** Seconds of safety after a shield absorbs a hit, so one volley can't strip shield and life together. */
@@ -47,38 +50,23 @@ export const WINGMAN_WALL_MARGIN = 4;
 export const OVERCHARGE_DAMAGE = 3;
 export const OVERCHARGE_PIERCE = 2;
 
-export const BASE_STATS: Readonly<PlayerStats> = {
-  speed: 110,
-  fireInterval: 0.32,
-  shotSpeed: 260,
-  shotsPerVolley: 1,
-  spreadAngle: 0,
-  pierce: 0,
-  damage: 1,
-  homing: 0,
-  ricochet: 0,
-  shieldPerWave: 0,
-  comboGuard: 0,
-  magnetRadius: 0,
-  bombOnKill: 0,
-  overchargeEvery: 0,
-  wingmen: 0,
-  enemyShotSpeed: 1,
-};
 
-export function createPlayer(id: number, x = 0): PlayerState {
+/** A ship at the start of a run: the ship's lives and starting stats. */
+export function createPlayer(id: number, x = 0, ship: ShipId = 'breaker'): PlayerState {
+  const def = shipDef(ship);
   return {
     id,
+    ship,
     x,
     vx: 0,
     pendingDrag: 0,
-    lives: START_LIVES,
+    lives: def.lives,
     cooldown: 0,
     invulnerable: 0,
     shield: 0,
     comboGuardLeft: 0,
     volleys: 0,
-    stats: { ...BASE_STATS },
+    stats: { ...def.stats },
     upgrades: [],
     synergies: [],
     powerUps: [],

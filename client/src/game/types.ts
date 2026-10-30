@@ -73,6 +73,30 @@ export interface PlayerStats {
   wingmen: number;
   /** Multiplier on enemy shot speed (1 = normal; the slow field lowers it). */
   enemyShotSpeed: number;
+  /** Chain Spark: aliens a hit arcs on to, 1 damage each (0 = off). */
+  chain: number;
+  /** Scavenger: multiplier on power-up durations (1 = normal). */
+  powerUpTime: number;
+  /** Scavenger: multiplier on the chance a kill drops a power-up (1 = normal). */
+  dropRate: number;
+  /** Overclock: multiplier on Special meter gains (1 = normal). */
+  chargeRate: number;
+  /** Last Stand: multiplier on the fire interval while on the last life (1 = off; lower fires faster). */
+  lastStand: number;
+}
+
+/** The ships. A new player has the Breaker; milestones unlock the rest. */
+export type ShipId = 'breaker' | 'interceptor' | 'lancer' | 'bastion';
+
+/** A ship's starting point: what the ship card shows and what a run begins with. */
+export interface ShipDef {
+  id: ShipId;
+  name: string;
+  /** One short line for the ship card: the trade-off. */
+  description: string;
+  lives: number;
+  /** Starting stats, before upgrades. The Breaker's are BASE_STATS. */
+  stats: Readonly<PlayerStats>;
 }
 
 /** Short, strong, timed boosts that fall as pickups. */
@@ -94,11 +118,13 @@ export interface Pickup {
 }
 
 /** The Special a player chose for this run. */
-export type SpecialId = 'pulseBomb' | 'shieldBurst' | 'timeStop';
+export type SpecialId = 'pulseBomb' | 'shieldBurst' | 'timeStop' | 'missileSwarm' | 'gravityWell';
 
 export interface PlayerState {
   /** Index in RunState.players. */
   id: number;
+  /** The ship flown this run. */
+  ship: ShipId;
   x: number;
   /** Sideways velocity, art pixels per second (for banking the model). */
   vx: number;
@@ -139,9 +165,10 @@ export interface PlayerState {
 /**
  * What fired a shot. 'normal' covers the ship, wingmen and the helper drone; 'overcharge' is the
  * big piercing shot; 'lance' is the Lance synergy's piercing bolt; 'enemy' is any alien or boss
- * shot; 'reflected' is an enemy shot a Shield Burst sent back up.
+ * shot; 'reflected' is an enemy shot a Shield Burst sent back up; 'missile' is one of Missile
+ * Swarm's homing missiles.
  */
-export type ShotKind = 'normal' | 'overcharge' | 'lance' | 'enemy' | 'reflected';
+export type ShotKind = 'normal' | 'overcharge' | 'lance' | 'enemy' | 'reflected' | 'missile';
 
 export type ShotOwner = 'player' | 'alien';
 
@@ -383,7 +410,11 @@ export type UpgradeId =
   | 'overcharge'
   | 'wingman'
   | 'slowField'
-  | 'doubleTap';
+  | 'doubleTap'
+  | 'chainSpark'
+  | 'scavenger'
+  | 'overclock'
+  | 'lastStand';
 
 export type Rarity = 'common' | 'uncommon' | 'rare';
 
@@ -398,7 +429,7 @@ export interface UpgradeDef {
 }
 
 /** Stronger forms unlocked by holding a pair of upgrades. */
-export type SynergyId = 'lance' | 'afterburner' | 'bulwark' | 'seekers' | 'chainReaction';
+export type SynergyId = 'lance' | 'afterburner' | 'bulwark' | 'seekers' | 'chainReaction' | 'storm' | 'battery';
 
 export interface SynergyDef {
   id: SynergyId;
@@ -416,6 +447,24 @@ export interface SynergyDef {
  * - `upgradePick`: the wave is clear and the run waits for the player to pick an upgrade.
  * - `won`: the last wave is clear. `lost`: out of lives, or the formation reached the ship's row.
  */
+/** A Gravity Well's vortex: it pulls enemy shots and free aliens in and grinds them. */
+export interface GravityWell {
+  x: number;
+  y: number;
+  /** Seconds left. */
+  timeLeft: number;
+  /** Who fired it, for scoring its kills. */
+  playerId: number;
+}
+
+/** What a run starts with, from the player's choices and unlocks. */
+export interface RunOptions {
+  /** The ship for each player, by player index (default: the Breaker). */
+  ships?: readonly ShipId[];
+  /** The upgrades the run may offer (default: every upgrade). */
+  upgrades?: readonly UpgradeId[];
+}
+
 export type RunPhase = 'chooseSpecial' | 'waveIntro' | 'playing' | 'upgradePick' | 'won' | 'lost';
 
 export interface RunState {
@@ -454,6 +503,10 @@ export interface RunState {
   bestCombo: number;
   /** The three upgrades on offer while phase is `upgradePick`, otherwise empty. */
   offer: UpgradeId[];
+  /** The upgrades this run may offer: the player's unlocked ones (RunOptions.upgrades). */
+  upgradePool: UpgradeId[];
+  /** Gravity Well: the vortex while it lasts, or null. */
+  well: GravityWell | null;
   rng: Rng;
   /** The next id to hand out to a shot, alien, pickup or boss part. */
   nextId: number;
@@ -497,5 +550,7 @@ export type RunEvent =
   | { type: 'formationSplit' }
   | { type: 'formationRegroup' }
   | { type: 'bossBeam'; state: 'warn' | 'fire'; angle: number }
+  | { type: 'chainSpark'; fromX: number; fromY: number; toX: number; toY: number }
+  | { type: 'wellConsumed'; x: number; y: number }
   | { type: 'won' }
   | { type: 'lost'; reason: 'lives' | 'invaded' };

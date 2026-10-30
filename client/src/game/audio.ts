@@ -133,6 +133,11 @@ export function partsFor(event: RunEvent): Part[] {
   switch (event.type) {
     case 'waveStart':
       return arpeggio([523, 659, 784], 0.09, 'square', 0.12, 2);
+    // PLACEHOLDERS until the sound worker writes them.
+    case 'chainSpark':
+      return [tone(2400, 0.05, 'square', 0.05, 1200)];
+    case 'wellConsumed':
+      return [tone(300, 0.08, 'sine', 0.06, 120)];
     case 'playerFired': {
       // Quiet, since it repeats a lot.
       const pitch = playerFirePitch(event.shots);
@@ -295,6 +300,11 @@ function specialParts(special: SpecialId): Part[] {
     case 'timeStop':
       // The pitch falls away, like a tape slowing to a stop.
       return [tone(660, 0.6, 'sawtooth', 0.08, 40)];
+    // PLACEHOLDERS until the sound worker writes them.
+    case 'missileSwarm':
+      return [tone(880, 0.3, 'square', 0.08, 1760)];
+    case 'gravityWell':
+      return [tone(220, 0.6, 'sine', 0.2, 55)];
   }
 }
 

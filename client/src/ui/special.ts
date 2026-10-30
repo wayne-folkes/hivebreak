@@ -12,7 +12,8 @@ import { pickReady } from './format';
 // frame while it is on top; `hide()` after a pick. It has no Back: Esc and pause are main's call.
 
 export class SpecialCard extends MenuCard {
-  private readonly slots = SPECIAL_IDS.map((id, i) => ({
+  // PLACEHOLDER: the card has three slots until the UI worker lists the unlocked Specials.
+  private readonly slots = SPECIAL_IDS.slice(0, 3).map((id, i) => ({
     id,
     button: byId<HTMLButtonElement>(`special-${i}`),
     name: byId(`special-${i}-name`),

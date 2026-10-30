@@ -10,7 +10,7 @@ import type { Alien, PlayerState, RunEvent, RunState, Shot, SpecialId } from './
 // shows) and one in EFFECTS (what it does), so a fourth is a new SpecialId plus those two entries.
 
 /** Every Special, in the order the choice card lists them. */
-export const SPECIAL_IDS: readonly SpecialId[] = ['pulseBomb', 'shieldBurst', 'timeStop'];
+export const SPECIAL_IDS: readonly SpecialId[] = ['pulseBomb', 'shieldBurst', 'timeStop', 'missileSwarm', 'gravityWell'];
 
 export const SPECIALS: Record<SpecialId, { name: string; description: string }> = {
   pulseBomb: {
@@ -24,6 +24,14 @@ export const SPECIALS: Record<SpecialId, { name: string; description: string }> 
   timeStop: {
     name: 'Time Stop',
     description: 'Aliens, the boss and their shots freeze for a couple of seconds while you keep firing.',
+  },
+  missileSwarm: {
+    name: 'Missile Swarm',
+    description: 'Eight homing missiles seek out the hive, two damage each.',
+  },
+  gravityWell: {
+    name: 'Gravity Well',
+    description: 'A vortex mid-field drags in enemy shots and loose aliens and grinds them up.',
   },
 };
 
@@ -121,6 +129,9 @@ const EFFECTS: Record<SpecialId, Effect> = {
   timeStop(run) {
     run.freeze = Math.max(run.freeze, TIME_STOP_SECONDS);
   },
+  // PLACEHOLDERS until the content worker writes them.
+  missileSwarm() {},
+  gravityWell() {},
 };
 
 /**

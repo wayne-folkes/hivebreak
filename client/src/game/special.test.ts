@@ -50,7 +50,7 @@ const enemyShot = (id: number, x: number, y: number, vx = 20): Shot => ({
 
 describe('SPECIALS', () => {
   it('describes each Special for the choice card', () => {
-    expect(SPECIAL_IDS).toEqual(['pulseBomb', 'shieldBurst', 'timeStop']);
+    expect(SPECIAL_IDS).toEqual(['pulseBomb', 'shieldBurst', 'timeStop', 'missileSwarm', 'gravityWell']);
     for (const id of SPECIAL_IDS) {
       expect(SPECIALS[id].name.length).toBeGreaterThan(0);
       expect(SPECIALS[id].description.endsWith('.')).toBe(true);

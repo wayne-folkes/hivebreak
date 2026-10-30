@@ -84,6 +84,8 @@ describe('attackTime', () => {
  */
 const EVENTS: Record<RunEvent['type'], RunEvent> = {
   specialChosen: { type: 'specialChosen', playerId: 0, special: 'pulseBomb' },
+  chainSpark: { type: 'chainSpark', fromX: 0, fromY: 0, toX: 10, toY: 10 },
+  wellConsumed: { type: 'wellConsumed', x: 0, y: 0 },
   waveStart: { type: 'waveStart', wave: 0 },
   sectorStart: { type: 'sectorStart', sector: 2 },
   bunkerHit: { type: 'bunkerHit', bunkerId: 1, x: 0, y: -100 },
