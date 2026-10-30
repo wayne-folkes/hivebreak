@@ -10,7 +10,7 @@ import type { StingerId, TrackId } from '../music/song';
 
 /**
  * Where the game is. `title`: the demo behind the title and its menus. `special`: a real run
- * waiting on the Special card. `playing`: a real run, including the pause menu. `pick`: the
+ * waiting on the ship or Special card. `playing`: a real run, including the pause menu. `pick`: the
  * upgrade card. `over`: the game-over card.
  */
 export type Mode = 'title' | 'special' | 'playing' | 'pick' | 'over';

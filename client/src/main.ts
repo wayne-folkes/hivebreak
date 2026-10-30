@@ -4,17 +4,30 @@ import './style.css';
 import { autopilot } from './app/autopilot';
 import { duckFor, musicState, stingerFor } from './app/director';
 import type { Mode } from './app/director';
+import { loadLastShip, saveLastShip } from './app/lastship';
+import { RunLog } from './app/runlog';
 import { safeStorage } from './app/storage';
 import { Sound, loadMusicSettings, loadSoundSettings, saveMusicSettings, saveSoundSettings } from './game/audio';
 import { Controls } from './game/controls';
 import { GamepadInput } from './game/gamepad';
 import { Keyboard } from './game/input';
 import { FIELD_WIDTH } from './game/playfield';
+import {
+  MILESTONES,
+  emptyProgress,
+  exportCode,
+  importCode,
+  loadProgress,
+  saveProgress,
+  unlockedShips,
+  unlockedUpgrades,
+} from './game/progress';
+import type { MilestoneDef, Progress } from './game/progress';
 import { RECORDS_KEY, addRecord, bestScore, loadRecords } from './game/records';
 import { WAVE_COUNT, WAVE_INTRO_SECONDS, chooseSpecial, createRun, pickUpgrade, stepRun } from './game/run';
 import { TouchControls } from './game/touch';
 import { NO_INPUT } from './game/types';
-import type { RunEvent, RunState, ShipInput, SpecialId } from './game/types';
+import type { RunEvent, RunState, ShipId, ShipInput, SpecialId } from './game/types';
 import { SPECIAL_IDS } from './game/special';
 import { completesSynergy } from './game/synergies';
 import { stackCount } from './game/upgrades';
@@ -29,16 +42,24 @@ import {
   PauseCard,
   RecordsCard,
   SettingsCard,
+  ShipCard,
   SpecialCard,
   TitleCard,
+  UNLOCKED_GUARD_SECONDS,
+  UnlockedCard,
+  UnlocksCard,
   UpgradeCard,
   bossDownHeading,
 } from './ui';
+import { pickReady } from './ui/format';
 import type { MenuCard, RunResult } from './ui';
 
 // The game: the loop that steps the simulation and draws it, the input sources, sound, storage
-// and the flow between screens (title, Special choice, run, upgrade pick, pause, game over). The title plays an
-// autopilot demo run behind it, silently. Music follows the screen and the run: every frame the
+// and the flow between screens (title, ship choice, Special choice, run, upgrade pick, pause,
+// UNLOCKED moment, game over, Unlocks). The title plays an autopilot demo run behind it, silently.
+// What the player has unlocked (game/progress.ts) decides the ship choice, the Specials on offer
+// and the upgrade pool of a real run; every real run is recorded (app/runlog.ts) and counted once
+// when it ends. Music follows the screen and the run: every frame the
 // director (app/director.ts) says which track, how intense, and so on, and the real run's events
 // become stingers and ducks. The music attaches to the sound effects' audio context on the same
 // gesture that unlocks it.
@@ -160,9 +181,12 @@ function clearStack(): void {
 
 /**
  * `title`: the demo plays behind the title and its menus. `special`: a real run waiting on the
- * Special card. `playing`: a real run, including the pause menu.
+ * ship or Special card (both play the title track). `playing`: a real run, including the pause
+ * menu. `pick`: the upgrade card. `over`: the run is done: the UNLOCKED moment and the result card.
  */
 let mode: Mode = 'title';
+/** The ship the real run (or the one being set up on the ship card) flies. The demo is always the Breaker. */
+let runShip: ShipId = 'breaker';
 let run: RunState = createRun(1);
 let paused = false;
 let accumulator = 0;
@@ -180,6 +204,10 @@ let lostReason: 'lives' | 'invaded' | undefined;
 /** Where the finished run landed in the records, once saved; null until then. */
 let savedRank: number | null = null;
 let lastResult: RunResult | null = null;
+/** The milestones the finished run met, for the UNLOCKED card. */
+let lastMet: readonly MilestoneDef[] = [];
+/** When the UNLOCKED card opened (ms), so Esc can't skip it in its first moments either. */
+let unlockedAt = -Infinity;
 
 const demo = (): boolean => mode === 'title';
 /** The ship answers the player: a real run, not paused and not behind a card. */
@@ -193,9 +221,39 @@ const DEV_PARAMS = import.meta.env.DEV ? new URLSearchParams(location.search) : 
 const DEV_WAVE = Number(DEV_PARAMS?.get('wave'));
 const DEV_FIRST_WAVE = Number.isFinite(DEV_WAVE) && DEV_WAVE >= 1 ? DEV_WAVE - 1 : 0;
 const DEV_CHARGED = DEV_PARAMS?.has('charged') ?? false;
+/** `?unlockAll`: everything counts as unlocked this session, and progress is not saved. */
+const DEV_UNLOCK_ALL = DEV_PARAMS?.has('unlockAll') ?? false;
+
+// Unlock progress ----------------------------------------------------------------------------
+
+let progress: Progress = DEV_UNLOCK_ALL
+  ? { ...emptyProgress(), milestones: MILESTONES.map((m) => m.id) }
+  : loadProgress(storage);
+/** The real run being recorded for the unlocks; empty on the title and until a Special is chosen. */
+const runLog = new RunLog();
+
+/** Keeps new progress (a finished run, a restored backup); `?unlockAll` sessions never write it. */
+function setProgress(next: Progress): void {
+  progress = next;
+  if (!DEV_UNLOCK_ALL) saveProgress(storage, next);
+}
+
+/**
+ * Ends the recorded run, if one is still recorded: adds it to the progress, saves it and returns
+ * the milestones it met. Every way out of a run goes through here, and the log forgets the run
+ * once it has been ended, so a run counts exactly once.
+ */
+function settleRun(): readonly MilestoneDef[] {
+  const ended = runLog.end(progress);
+  if (!ended) return [];
+  setProgress(ended.progress);
+  return ended.met;
+}
 
 function newRun(seed: number): void {
-  run = createRun(seed, 1, mode === 'title' ? 0 : DEV_FIRST_WAVE);
+  run = demo()
+    ? createRun(seed, 1, 0)
+    : createRun(seed, 1, DEV_FIRST_WAVE, { ships: [runShip], upgrades: unlockedUpgrades(progress) });
   // The title demo picks its Special itself, silently; a real run waits for the Special card.
   if (demo()) chooseSpecial(run, SPECIAL_IDS[seed % SPECIAL_IDS.length]);
   accumulator = 0;
@@ -210,6 +268,9 @@ function newRun(seed: number): void {
 function showTitle(): void {
   // Quitting during the moment before the result card still counts the run.
   if (mode !== 'title' && (run.phase === 'won' || run.phase === 'lost')) saveRun();
+  // Quitting from the pause menu (or in that moment) counts the run too, with no unlock moment:
+  // anything new shows on the Unlocks screen. A run already settled at its end is not counted again.
+  settleRun();
   mode = 'title';
   paused = false;
   clearStack();
@@ -219,9 +280,17 @@ function showTitle(): void {
   enter(titleScreen);
 }
 
-/** Starts a real run: it opens on the Special card, and the wave intro begins once one is picked. */
+/**
+ * Starts a real run. With more than one ship unlocked it opens on the ship card, then the Special
+ * card; with only the Breaker, straight on the Special card. The wave intro begins once a Special
+ * is picked. The run exists from the start (with the last ship used, which the ship pick replaces
+ * if it differs), so the cards sit over a real run in its Special-choice phase.
+ */
 function startRun(): void {
+  settleRun();
   clearStack();
+  const ships = unlockedShips(progress);
+  runShip = loadLastShip(storage, progress) ?? ships[0];
   mode = 'special';
   paused = false;
   newRun(Date.now());
@@ -229,16 +298,30 @@ function startRun(): void {
   hud.setVisible(true);
   hud.update(run, controls.lastUsed);
   controls.holdFireUntilReleased();
+  enter(ships.length > 1 ? shipScreen : specialScreen);
+}
+
+function takeShip(ship: ShipId): void {
+  if (mode !== 'special' || topScreen() !== shipScreen) return;
+  saveLastShip(storage, ship);
+  if (ship !== runShip) {
+    runShip = ship;
+    newRun(Date.now());
+    hud.update(run, controls.lastUsed);
+  }
+  controls.holdFireUntilReleased();
   enter(specialScreen);
 }
 
 function takeSpecial(special: SpecialId): void {
-  if (mode !== 'special') return;
+  if (mode !== 'special' || topScreen() !== specialScreen) return;
   pending.push(...chooseSpecial(run, special));
   // Choosing resets the meter, so the dev `?charged` fill comes after it.
   if (DEV_CHARGED) for (const p of run.players) p.specialCharge = 1;
+  runLog.start(runShip, special);
   mode = 'playing';
-  leave();
+  // The ship card may be underneath.
+  clearStack();
   controls.holdFireUntilReleased();
   screenView('/play');
 }
@@ -318,6 +401,18 @@ function finishRun(): void {
   carry = 0;
   specialCarry = false;
   banner.hide();
+  lastMet = settleRun();
+  if (lastMet.length > 0) {
+    // The UNLOCKED moment comes first; its Continue goes on to the result card.
+    sound.ui('unlock');
+    enter(unlockedScreen);
+  } else enter(overScreen);
+}
+
+/** The UNLOCKED card is done: on to the result card. */
+function continueToResult(): void {
+  if (topScreen() !== unlockedScreen) return;
+  clearStack();
   enter(overScreen);
 }
 
@@ -329,6 +424,7 @@ const titleCard = new TitleCard(
     howToPlay: () => enter(howtoScreen),
     settings: () => enter(settingsScreen),
     records: () => enter(recordsScreen),
+    unlocks: () => enter(unlocksScreen),
   },
   () => bestScore(storage),
 );
@@ -356,6 +452,15 @@ const settingsCard = new SettingsCard(
       storage.setItem(RECORDS_KEY, '[]');
       hud.setBest(0);
     },
+    exportProgress: () => exportCode(progress),
+    // From the pause menu the run in progress keeps its upgrade pool and record; the next run
+    // uses the restored progress.
+    importProgress: (code) => {
+      const restored = importCode(code);
+      if (!restored) return false;
+      setProgress(restored);
+      return true;
+    },
   },
   leave,
 );
@@ -363,7 +468,10 @@ document.getElementById('settings-volume')?.addEventListener('change', saveSound
 document.getElementById('settings-music-volume')?.addEventListener('change', saveMusic);
 const recordsCard = new RecordsCard(() => loadRecords(storage), leave);
 const pauseCard = new PauseCard({ resume: resumeRun, settings: () => enter(settingsScreen), quit: showTitle });
+const unlocksCard = new UnlocksCard(() => progress, leave);
+const shipCard = new ShipCard(takeShip);
 const specialCard = new SpecialCard(takeSpecial);
+const unlockedCard = new UnlockedCard(continueToResult);
 const upgradeCard = new UpgradeCard(takeUpgrade);
 const overCard = new GameOverCard({ playAgain: startRun, title: showTitle });
 
@@ -372,7 +480,17 @@ const howtoScreen: Screen = { card: howtoCard, open: () => howtoCard.show(), pat
 const settingsScreen: Screen = { card: settingsCard, open: () => settingsCard.show(), path: '/settings' };
 const recordsScreen: Screen = { card: recordsCard, open: () => recordsCard.show(), path: '/records' };
 const pauseScreen: Screen = { card: pauseCard, open: () => pauseCard.show(), path: '/paused' };
-const specialScreen: Screen = { card: specialCard, open: () => specialCard.show(), path: '/special' };
+const unlocksScreen: Screen = { card: unlocksCard, open: () => unlocksCard.show(), path: '/unlocks' };
+const shipScreen: Screen = { card: shipCard, open: () => shipCard.show(progress, loadLastShip(storage, progress)), path: '/ship' };
+const specialScreen: Screen = { card: specialCard, open: () => specialCard.show(progress), path: '/special' };
+const unlockedScreen: Screen = {
+  card: unlockedCard,
+  open: () => {
+    unlockedAt = performance.now();
+    unlockedCard.show(lastMet);
+  },
+  path: '/unlocked',
+};
 const pickScreen: Screen = {
   card: upgradeCard,
   open: () => {
@@ -409,13 +527,23 @@ function pressPause(): void {
   if (top === pauseScreen) {
     sound.ui('back');
     resumeRun();
-  } else if (top === howtoScreen || top === settingsScreen || top === recordsScreen) {
+  } else if (top === howtoScreen || top === settingsScreen || top === recordsScreen || top === unlocksScreen) {
     sound.ui('back');
     leave();
   } else if (top === specialScreen) {
-    // Backing out before a Special is chosen abandons the run; nothing has been played yet.
+    // Back to the ship card if it is underneath, else out to the title. Nothing has been played yet.
+    sound.ui('back');
+    if (stack[stack.length - 2] === shipScreen) leave();
+    else showTitle();
+  } else if (top === shipScreen) {
     sound.ui('back');
     showTitle();
+  } else if (top === unlockedScreen) {
+    // Does what Continue does, but not in the first moments: mashing pause as the run ends mustn't skip it.
+    if (pickReady(unlockedAt, performance.now(), UNLOCKED_GUARD_SECONDS)) {
+      sound.ui('back');
+      continueToResult();
+    }
   }
   // The title, the upgrade pick and the result card have nothing to go back to.
 }
@@ -551,6 +679,7 @@ function frame(now: number): void {
     if (run.phase === 'upgradePick') events.push(...pickUpgrade(run, 0));
     else if ((run.phase === 'won' || run.phase === 'lost') && run.phaseTime > DEMO_RESTART) newRun(Date.now());
   } else {
+    runLog.record(events, run);
     reactTo(events);
     sound.handle(events);
     scoreEvents(events);
