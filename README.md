@@ -43,7 +43,7 @@ npm run dev
 ```
 
 `npm test` runs the unit tests (simulation, waves, upgrades, scoring, input, rendering maths, sound
-recipes, and whole runs played by a bot). `npm run build` type-checks and builds to `client/dist`.
+recipes, the music sequencer, and whole runs played by a bot). `npm run build` type-checks and builds to `client/dist`.
 
 `npm run models` rebuilds the ship and alien models from the Blender scripts (needs Blender on your
 PATH). The exported `.glb` files are committed, so you only need Blender to change a model.
@@ -54,9 +54,13 @@ PATH). The exported `.glb` files are committed, so you only need Blender to chan
   is the entry point (`createRun`, `stepRun`, `pickUpgrade`); `types.ts` holds the shared shapes.
   Input (`controls.ts`, `input.ts`, `gamepad.ts`, `touch.ts`) and synthesized sound (`audio.ts`)
   live here too.
+- `client/src/music/`: the soundtrack, synthesized live: a small sequencer on Web Audio
+  (`music.ts`), the song format (`song.ts`, `pattern.ts`) and the songs as data (`tracks/`). In dev,
+  `/music.html` auditions the tracks and stingers.
 - `client/src/render/`: the Three.js renderer: models, effects, starfield, palette pass.
 - `client/src/ui/`: menus, HUD and wave banner, as plain DOM.
-- `client/src/main.ts` and `client/src/app/`: the game loop and screen flow.
+- `client/src/main.ts` and `client/src/app/`: the game loop, screen flow and the music director
+  (`director.ts`), which picks the track and its layers from the run.
 - `art/blender/`: Blender Python scripts for the models; `art/previews/` has a render of each.
 - `client/public/models/`: the exported `.glb` models.
 - `client/design/`: sources for the favicon and the link-preview image; `render.sh` regenerates the
