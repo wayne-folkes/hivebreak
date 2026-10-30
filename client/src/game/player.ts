@@ -35,8 +35,18 @@ export const BASE_STATS: Readonly<PlayerStats> = {
   fireInterval: 0.32,
   shotSpeed: 260,
   shotsPerVolley: 1,
+  spreadAngle: 0,
   pierce: 0,
+  damage: 1,
+  homing: 0,
+  ricochet: 0,
   shieldPerWave: 0,
+  comboGuard: 0,
+  magnetRadius: 0,
+  bombOnKill: 0,
+  overchargeEvery: 0,
+  wingmen: 0,
+  enemyShotSpeed: 1,
 };
 
 export function createPlayer(id: number, x = 0): PlayerState {
@@ -49,8 +59,15 @@ export function createPlayer(id: number, x = 0): PlayerState {
     cooldown: 0,
     invulnerable: 0,
     shield: 0,
+    comboGuardLeft: 0,
+    volleys: 0,
     stats: { ...BASE_STATS },
     upgrades: [],
+    synergies: [],
+    powerUps: [],
+    special: null,
+    specialCharge: 0,
+    burst: 0,
   };
 }
 
@@ -119,12 +136,16 @@ export function tryFire(player: PlayerState, input: ShipInput, newId: () => numb
     shots.push({
       id: newId(),
       owner: 'player',
+      kind: 'normal',
       playerId: player.id,
       x: player.x + (i - (count - 1) / 2) * VOLLEY_SPACING,
       y: SHIP_TOP,
       vx: 0,
       vy: player.stats.shotSpeed,
       pierceLeft: player.stats.pierce,
+      damage: player.stats.damage,
+      homing: player.stats.homing,
+      bouncesLeft: player.stats.ricochet,
       hits: 0,
       volley,
     });

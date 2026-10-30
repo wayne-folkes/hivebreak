@@ -119,7 +119,7 @@ export class TouchControls implements InputSource {
   shipInput(): ShipInput {
     const drag = this.drag;
     this.drag = 0;
-    return { move: 0, drag, fire: this.drags.size > 0 };
+    return { move: 0, drag, fire: this.drags.size > 0, special: false };
   }
 
   /** True once per tap; cleared by endFrame(). */

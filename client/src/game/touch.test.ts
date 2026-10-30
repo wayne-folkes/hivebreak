@@ -138,7 +138,7 @@ describe('TouchControls drags', () => {
   it('fires while a thumb is down, and stops when it lifts', () => {
     const { touch, down, up } = setup();
     down(1, 600);
-    expect(touch.shipInput()).toEqual({ move: 0, drag: 0, fire: true });
+    expect(touch.shipInput()).toEqual({ move: 0, drag: 0, fire: true, special: false });
     up(1);
     expect(touch.shipInput().fire).toBe(false);
   });
@@ -147,7 +147,7 @@ describe('TouchControls drags', () => {
     const { touch, down, move } = setup();
     down(1, 300, 100);
     move(1, 150);
-    expect(touch.shipInput()).toEqual({ move: 0, drag: 0, fire: false });
+    expect(touch.shipInput()).toEqual({ move: 0, drag: 0, fire: false, special: false });
   });
 
   it('only the first dragging thumb steers; the next one takes over when the first lifts', () => {
@@ -155,7 +155,7 @@ describe('TouchControls drags', () => {
     down(1, 600, 100);
     down(2, 650, 200);
     move(2, 210); // the second thumb keeps fire on but doesn't steer
-    expect(touch.shipInput()).toEqual({ move: 0, drag: 0, fire: true });
+    expect(touch.shipInput()).toEqual({ move: 0, drag: 0, fire: true, special: false });
     move(1, 110); // the first thumb steers: 10 CSS pixels
     expect(touch.shipInput().drag).toBeCloseTo(dragToArt(10, 2), 9);
     up(1);
@@ -168,7 +168,7 @@ describe('TouchControls drags', () => {
     down(1, 600, 100);
     move(1, 150); // accumulated, not yet read
     win.dispatch('blur', fakeEvent());
-    expect(touch.shipInput()).toEqual({ move: 0, drag: 0, fire: false });
+    expect(touch.shipInput()).toEqual({ move: 0, drag: 0, fire: false, special: false });
   });
 
   it('drops a drag not yet read when a menu hides the overlay', () => {
@@ -177,7 +177,7 @@ describe('TouchControls drags', () => {
     move(1, 150);
     touch.setVisible(false);
     touch.setVisible(true);
-    expect(touch.shipInput()).toEqual({ move: 0, drag: 0, fire: false });
+    expect(touch.shipInput()).toEqual({ move: 0, drag: 0, fire: false, special: false });
   });
 });
 

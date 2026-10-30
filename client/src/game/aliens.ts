@@ -19,6 +19,7 @@ export const ALIEN_SPECS: Record<AlienKind, AlienSpec> = {
   drone: { hp: 1, points: 10, halfWidth: 7, halfHeight: 5 },
   warden: { hp: 2, points: 30, halfWidth: 8, halfHeight: 6 },
   diver: { hp: 1, points: 40, halfWidth: 6, halfHeight: 6 },
+  carrier: { hp: 3, points: 50, halfWidth: 9, halfHeight: 6 },
 };
 
 /** Seconds of white flash after a hit. */

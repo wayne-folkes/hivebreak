@@ -144,6 +144,9 @@ export function partsFor(event: RunEvent): Part[] {
       return arpeggio([523, 659, 784, 1047], 0.12, 'square', 0.14, 3.3);
     case 'lost':
       return arpeggio([392, 349, 311, 262], 0.3, 'triangle', 0.16, 2);
+    default:
+      // Slice 2a events get their sounds in the 2a sound step.
+      return [];
   }
 }
 

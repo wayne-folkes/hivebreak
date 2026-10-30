@@ -12,7 +12,7 @@ function pad(pressed: Partial<Record<keyof typeof BUTTON, number>> = {}, axes: n
 
 describe('padShipInput', () => {
   it('is idle with nothing pressed and the stick resting slightly off-centre', () => {
-    expect(padShipInput(pad({}, [0.1, -0.05]))).toEqual({ move: 0, drag: 0, fire: false });
+    expect(padShipInput(pad({}, [0.1, -0.05]))).toEqual({ move: 0, drag: 0, fire: false, special: false });
   });
 
   it('steers with the stick, starting gently past the deadzone', () => {
@@ -88,7 +88,7 @@ describe('GamepadInput', () => {
     const input = new GamepadInput(() => [null]);
     input.poll();
     expect(input.connected).toBe(false);
-    expect(input.shipInput()).toEqual({ move: 0, drag: 0, fire: false });
+    expect(input.shipInput()).toEqual({ move: 0, drag: 0, fire: false, special: false });
     expect(input.active()).toBe(false);
   });
 

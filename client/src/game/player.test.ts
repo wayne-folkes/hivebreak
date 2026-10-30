@@ -21,7 +21,7 @@ import {
 import type { ShipInput } from './types';
 
 const DT = 1 / 120;
-const input = (over: Partial<ShipInput> = {}): ShipInput => ({ move: 0, drag: 0, fire: false, ...over });
+const input = (over: Partial<ShipInput> = {}): ShipInput => ({ move: 0, drag: 0, fire: false, special: false, ...over });
 
 function run(p: ReturnType<typeof createPlayer>, i: ShipInput, seconds: number) {
   for (let t = 0; t < seconds; t += DT) stepPlayer(p, i, DT);

@@ -7,7 +7,7 @@ const FULL_STEER_DISTANCE = 6;
 
 export function autopilot(run: RunState): ShipInput {
   const ship = run.players[0];
-  if (!ship) return { move: 0, drag: 0, fire: false };
+  if (!ship) return { move: 0, drag: 0, fire: false, special: false };
   let target = ship.x;
   let lowest = Infinity;
   for (const a of run.aliens) {
@@ -20,5 +20,5 @@ export function autopilot(run: RunState): ShipInput {
     }
   }
   const move = Math.max(-1, Math.min(1, (target - ship.x) / FULL_STEER_DISTANCE));
-  return { move, drag: 0, fire: true };
+  return { move, drag: 0, fire: true, special: false };
 }

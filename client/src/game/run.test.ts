@@ -10,7 +10,7 @@ import type { RunEvent, RunState, ShipInput } from './types';
 
 const DT = 1 / 120;
 const IDLE: readonly ShipInput[] = [NO_INPUT];
-const HOLD_FIRE: readonly ShipInput[] = [{ move: 0, drag: 0, fire: true }];
+const HOLD_FIRE: readonly ShipInput[] = [{ move: 0, drag: 0, fire: true, special: false }];
 
 function steps(run: RunState, n: number, inputs: readonly ShipInput[] = IDLE): RunEvent[] {
   const events: RunEvent[] = [];
@@ -39,7 +39,7 @@ function botInput(run: RunState): ShipInput {
     if (target === null || Math.abs(a.x - ship.x) < Math.abs(target - ship.x)) target = a.x;
   }
   const move = target === null ? 0 : Math.max(-1, Math.min(1, (target - ship.x) / 6));
-  return { move, drag: 0, fire: true };
+  return { move, drag: 0, fire: true, special: false };
 }
 
 /** Plays a whole run with the bot. Returns the run and how many steps it took. */
@@ -174,7 +174,7 @@ describe('playing', () => {
     run.aliens = [target, run.aliens.find((a) => a.row === 0 && a.col === 3)!];
     run.combo = 3;
     const shot = (id: number, x: number): Shot => ({
-      id, owner: 'player', playerId: 0, x, y: SHIP_TOP, vx: 0, vy: 260, pierceLeft: 0, hits: 0, volley: 500,
+      id, owner: 'player', kind: 'normal', damage: 1, homing: 0, bouncesLeft: 0, playerId: 0, x, y: SHIP_TOP, vx: 0, vy: 260, pierceLeft: 0, hits: 0, volley: 500,
     });
     aimAt(run, target); // puts the ship where a shot will meet the marching alien
     run.shots.push(shot(501, run.players[0].x), shot(502, SHIP_X_LIMIT));
@@ -211,14 +211,14 @@ describe('playing', () => {
     const run = createRun(1);
     startPlaying(run);
     run.players[0].shield = 1;
-    run.shots.push({ id: 999, owner: 'alien', playerId: null, x: run.players[0].x, y: SHIP_Y + 2, vx: 0, vy: -90, pierceLeft: 0, hits: 0, volley: 0 });
+    run.shots.push({ id: 999, owner: 'alien', kind: 'enemy' as const, damage: 1, homing: 0, bouncesLeft: 0, playerId: null, x: run.players[0].x, y: SHIP_Y + 2, vx: 0, vy: -90, pierceLeft: 0, hits: 0, volley: 0 });
     const first = steps(run, 1);
     expect(first).toContainEqual({ type: 'shieldHit', playerId: 0 });
     expect(run.players[0].lives).toBe(3);
     expect(run.players[0].shield).toBe(0);
 
     steps(run, Math.ceil(0.6 / DT)); // past the short safe moment
-    run.shots.push({ id: 1000, owner: 'alien', playerId: null, x: run.players[0].x, y: SHIP_Y + 2, vx: 0, vy: -90, pierceLeft: 0, hits: 0, volley: 0 });
+    run.shots.push({ id: 1000, owner: 'alien', kind: 'enemy' as const, damage: 1, homing: 0, bouncesLeft: 0, playerId: null, x: run.players[0].x, y: SHIP_Y + 2, vx: 0, vy: -90, pierceLeft: 0, hits: 0, volley: 0 });
     const second = steps(run, 1);
     expect(second).toContainEqual({ type: 'playerHit', playerId: 0, livesLeft: 2 });
   });
@@ -226,7 +226,7 @@ describe('playing', () => {
   it('gives a safe moment after a hit', () => {
     const run = createRun(1);
     startPlaying(run);
-    const shot = () => ({ id: run.nextId++, owner: 'alien' as const, playerId: null, x: run.players[0].x, y: SHIP_Y + 2, vx: 0, vy: -90, pierceLeft: 0, hits: 0, volley: 0 });
+    const shot = () => ({ id: run.nextId++, owner: 'alien' as const, kind: 'enemy' as const, damage: 1, homing: 0, bouncesLeft: 0, playerId: null, x: run.players[0].x, y: SHIP_Y + 2, vx: 0, vy: -90, pierceLeft: 0, hits: 0, volley: 0 });
     run.shots.push(shot());
     steps(run, 1);
     run.shots.push(shot());
@@ -238,7 +238,7 @@ describe('playing', () => {
     const run = createRun(1);
     startPlaying(run);
     run.players[0].lives = 1;
-    run.shots.push({ id: 999, owner: 'alien', playerId: null, x: run.players[0].x, y: SHIP_Y + 2, vx: 0, vy: -90, pierceLeft: 0, hits: 0, volley: 0 });
+    run.shots.push({ id: 999, owner: 'alien', kind: 'enemy' as const, damage: 1, homing: 0, bouncesLeft: 0, playerId: null, x: run.players[0].x, y: SHIP_Y + 2, vx: 0, vy: -90, pierceLeft: 0, hits: 0, volley: 0 });
     const events = steps(run, 1);
     expect(events).toContainEqual({ type: 'lost', reason: 'lives' });
     expect(run.phase).toBe('lost');

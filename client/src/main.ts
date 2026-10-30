@@ -401,7 +401,7 @@ function frame(now: number): void {
     while (accumulator >= STEP) {
       if (demo()) inputs[0] = autopilot(run);
       else if (live()) {
-        inputs[0] = { move: ship.move, drag: carry, fire: ship.fire };
+        inputs[0] = { move: ship.move, drag: carry, fire: ship.fire, special: false };
         carry = 0;
       } else inputs[0] = NO_INPUT;
       events.push(...stepRun(run, inputs, STEP));

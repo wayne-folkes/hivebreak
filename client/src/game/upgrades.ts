@@ -14,7 +14,7 @@ export const UPGRADES: readonly UpgradeDef[] = [
 ];
 
 /** How likely each rarity is to be offered, relative to the others. */
-export const RARITY_WEIGHT = { common: 3, uncommon: 2 } as const;
+export const RARITY_WEIGHT = { common: 3, uncommon: 2, rare: 1 } as const;
 
 export function upgradeDef(id: UpgradeId): UpgradeDef {
   const def = UPGRADES.find((u) => u.id === id);

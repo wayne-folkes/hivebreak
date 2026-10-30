@@ -3,7 +3,7 @@ import { createAlien } from './aliens';
 import { firstAlienHit, overlaps, shotBox } from './collision';
 import type { Shot } from './types';
 
-const shotAt = (x: number, y: number): Shot => ({ id: 1, owner: 'player', playerId: 0, x, y, vx: 0, vy: 260, pierceLeft: 0, hits: 0, volley: 0 });
+const shotAt = (x: number, y: number): Shot => ({ id: 1, owner: 'player', kind: 'normal', damage: 1, homing: 0, bouncesLeft: 0, playerId: 0, x, y, vx: 0, vy: 260, pierceLeft: 0, hits: 0, volley: 0 });
 
 describe('overlaps', () => {
   const a = { x: 0, y: 0, halfWidth: 5, halfHeight: 5 };

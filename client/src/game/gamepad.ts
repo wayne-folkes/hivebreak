@@ -80,6 +80,7 @@ export function padShipInput(pad: PadSnapshot): ShipInput {
     // A pad steers at full speed; only touch drags move the ship by an amount.
     drag: 0,
     fire: held(pad, BUTTON.a) || triggerDown(pad, BUTTON.rt),
+    special: false,
   };
 }
 
@@ -131,7 +132,7 @@ export class GamepadInput implements InputSource {
   }
 
   shipInput(): ShipInput {
-    return this.pad ? padShipInput(this.pad) : { move: 0, drag: 0, fire: false };
+    return this.pad ? padShipInput(this.pad) : { move: 0, drag: 0, fire: false, special: false };
   }
 
   pressed(action: Action): boolean {

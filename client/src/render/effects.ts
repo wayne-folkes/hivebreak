@@ -10,7 +10,7 @@ const MAX_PARTICLES = 220;
 const MAX_RINGS = 4;
 
 const FIRE = [0xfff27a, 0xffd36a, 0xffb04f, 0xff6a3d, 0xffffff];
-const KIND_COLOR: Record<AlienKind, number> = { drone: 0xb04cff, warden: 0xff4fd8, diver: 0xff6a3d };
+const KIND_COLOR: Record<AlienKind, number> = { drone: 0xb04cff, warden: 0xff4fd8, diver: 0xff6a3d, carrier: 0x3fd6a0 };
 const SHIP_BURST = [0xffffff, 0x9ffbff, 0x4ff0ff, 0xffd36a, 0xff6a3d];
 const SPARK = [0xffffff, 0xfff27a, 0xffd36a];
 const COLORS = [...new Set([...FIRE, ...Object.values(KIND_COLOR), ...SHIP_BURST, ...SPARK])];

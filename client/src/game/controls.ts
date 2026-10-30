@@ -42,6 +42,7 @@ export function mergeShipInputs(inputs: ShipInput[]): ShipInput {
     move: strongest(inputs.map((i) => i.move)),
     drag: inputs.reduce((sum, i) => sum + i.drag, 0),
     fire: inputs.some((i) => i.fire),
+    special: inputs.some((i) => i.special),
   };
 }
 

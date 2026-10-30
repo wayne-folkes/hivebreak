@@ -149,6 +149,8 @@ export class GameView {
       drone: new ViewPool(this.scene, make('drone')),
       warden: new ViewPool(this.scene, make('warden')),
       diver: new ViewPool(this.scene, make('diver')),
+      // Placeholder until the Carrier model exists (slice 2a renderer step).
+      carrier: new ViewPool(this.scene, make('warden')),
     };
     this.playerShots = new ViewPool(this.scene, make('shot_player'));
     this.alienShots = new ViewPool(this.scene, make('shot_alien'));

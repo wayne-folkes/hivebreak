@@ -46,6 +46,7 @@ export class Keyboard implements InputSource {
       // Keys steer at full speed; only touch drags move the ship by an amount.
       drag: 0,
       fire: this.any(FIRE),
+      special: false,
     };
   }
 
