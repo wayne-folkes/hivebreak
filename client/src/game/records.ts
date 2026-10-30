@@ -2,6 +2,8 @@
 // like it). Missing, corrupt or unwritable storage never throws; it just means no records.
 
 export const RECORDS_KEY = 'hivebreak.records.v1';
+/** The length of a run before `waves` was recorded, when a won run was wave 5. */
+export const LEGACY_RECORD_WAVES = 5;
 /** How many runs are kept. */
 export const MAX_RECORDS = 10;
 
@@ -15,6 +17,8 @@ export interface RunRecord {
   score: number;
   /** The wave reached, counting from 1. */
   wave: number;
+  /** How many waves that run had. Missing on records from the 5-wave game (see LEGACY_RECORD_WAVES). */
+  waves?: number;
   bestCombo: number;
   won: boolean;
   /** When the run ended, as an ISO 8601 string. */
@@ -29,6 +33,7 @@ function isRecord(value: unknown): value is RunRecord {
     Number.isFinite(r.score) &&
     typeof r.wave === 'number' &&
     Number.isFinite(r.wave) &&
+    (r.waves === undefined || (typeof r.waves === 'number' && Number.isInteger(r.waves) && r.waves >= 1 && r.waves >= r.wave)) &&
     typeof r.bestCombo === 'number' &&
     Number.isFinite(r.bestCombo) &&
     typeof r.won === 'boolean' &&

@@ -46,6 +46,26 @@ describe('loadRecords', () => {
   });
 });
 
+describe('record run length', () => {
+  it('keeps `waves` when saved, and loads old records without it', () => {
+    const storage = fakeStorage({ [RECORDS_KEY]: JSON.stringify([rec(50)]) });
+    expect(loadRecords(storage)[0].waves).toBeUndefined();
+    addRecord(storage, { ...rec(100), waves: 10 });
+    expect(loadRecords(storage).map((r) => r.waves)).toEqual([10, undefined]);
+  });
+
+  it('drops a record whose `waves` is not a number', () => {
+    const bad = { ...rec(5), waves: 'ten' };
+    expect(loadRecords(fakeStorage({ [RECORDS_KEY]: JSON.stringify([bad, rec(7)]) }))).toEqual([rec(7)]);
+  });
+
+  it('drops a record whose `waves` is zero, fractional, or fewer than the wave it reached', () => {
+    const r = rec(5);
+    const bad = [{ ...r, waves: 0 }, { ...r, waves: 2.5 }, { ...r, waves: r.wave - 1 }];
+    expect(loadRecords(fakeStorage({ [RECORDS_KEY]: JSON.stringify([...bad, rec(7)]) }))).toEqual([rec(7)]);
+  });
+});
+
 describe('addRecord', () => {
   it('saves and returns runs best first, with the new run\'s rank', () => {
     const s = fakeStorage();

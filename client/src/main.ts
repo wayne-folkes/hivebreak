@@ -9,13 +9,14 @@ import { GamepadInput } from './game/gamepad';
 import { Keyboard } from './game/input';
 import { FIELD_WIDTH } from './game/playfield';
 import { RECORDS_KEY, addRecord, bestScore, loadRecords } from './game/records';
-import { WAVE_INTRO_SECONDS, chooseSpecial, createRun, pickUpgrade, stepRun } from './game/run';
+import { WAVE_COUNT, WAVE_INTRO_SECONDS, chooseSpecial, createRun, pickUpgrade, stepRun } from './game/run';
 import { TouchControls } from './game/touch';
 import { NO_INPUT } from './game/types';
 import type { RunEvent, RunState, ShipInput, SpecialId } from './game/types';
 import { SPECIAL_IDS } from './game/special';
 import { completesSynergy } from './game/synergies';
 import { stackCount } from './game/upgrades';
+import { WAVES } from './game/waves';
 import { GameView } from './render/view';
 import {
   Banner,
@@ -232,6 +233,9 @@ function pauseRun(): void {
   enter(pauseScreen);
 }
 
+/** The wave whose intro announced a sector, so a resumed intro shows the same banner. */
+let sectorWave = -1;
+
 function resumeRun(): void {
   paused = false;
   accumulator = 0;
@@ -240,7 +244,12 @@ function resumeRun(): void {
   clearStack();
   controls.holdFireUntilReleased();
   // The wave banner was cut short by the pause; show what is left of it.
-  if (run.phase === 'waveIntro') banner.show(`WAVE ${run.wave + 1}`, Math.max(0.3, WAVE_INTRO_SECONDS - run.phaseTime));
+  if (run.phase === 'waveIntro') {
+    const seconds = Math.max(0.3, WAVE_INTRO_SECONDS - run.phaseTime);
+    // A wave that opened a sector (the sim's sectorStart, which also covers a run that starts
+    // mid-sector) got the sector banner, not the plain one.
+    if (run.wave !== sectorWave || !banner.sector(WAVES[run.wave].sector, seconds, run.wave + 1)) banner.show(`WAVE ${run.wave + 1}`, seconds);
+  }
   screenView('/play');
 }
 
@@ -265,6 +274,7 @@ function saveRun(): number {
   const { rank } = addRecord(storage, {
     score: run.score,
     wave: run.wave + 1,
+    waves: WAVE_COUNT,
     bestCombo: run.bestCombo,
     won: run.phase === 'won',
     date: new Date().toISOString(),
@@ -420,13 +430,24 @@ window.addEventListener('resize', layout);
 
 /** What the real run reacts to besides sound: the wave banner, rumble, the synergy toast, and why the run was lost. */
 function reactTo(events: readonly RunEvent[]): void {
+  // A sector's first wave gets the sector banner; its waveStart comes right after in the same
+  // step and must not overwrite it. Sector 1 has no banner, so its first wave shows the plain one.
+  let sectorBanner = false;
   for (const e of events) {
-    if (e.type === 'waveStart') banner.show(`WAVE ${e.wave + 1}`, WAVE_INTRO_SECONDS);
+    if (e.type === 'sectorStart') {
+      sectorWave = run.wave;
+      sectorBanner = banner.sector(e.sector, WAVE_INTRO_SECONDS, run.wave + 1);
+    }
+    else if (e.type === 'waveStart') {
+      if (!sectorBanner) banner.show(`WAVE ${e.wave + 1}`, WAVE_INTRO_SECONDS);
+      sectorBanner = false;
+    }
     else if (e.type === 'playerHit') controls.rumble(0.8, 250);
     else if (e.type === 'shieldHit') controls.rumble(0.3, 120);
     else if (e.type === 'bossKilled') controls.rumble(1, 500);
     else if (e.type === 'specialFired') controls.rumble(0.6, 200);
     else if (e.type === 'bossPartDestroyed') controls.rumble(0.4, 150);
+    else if (e.type === 'bossBeam' && e.state === 'fire') controls.rumble(0.2, 80);
     else if (e.type === 'synergyUnlocked') hud.synergyUnlocked(e.synergy);
     else if (e.type === 'lost') lostReason = e.reason;
   }

@@ -102,12 +102,17 @@ describe('records', () => {
     expect(recordRowText(0, record)).toEqual({
       rank: '1',
       score: '004250',
-      wave: 'W3/10',
+      wave: 'W3/5',
       combo: 'x6',
       result: 'LOST',
       date: '29 Oct',
     });
-    expect(recordRowText(9, { ...record, won: true, wave: 5 })).toMatchObject({ rank: '10', wave: 'W5/10', result: 'WON' });
+    expect(recordRowText(9, { ...record, won: true, wave: 5 })).toMatchObject({ rank: '10', wave: 'W5/5', result: 'WON' });
+  });
+
+  it('shows the run length a record was saved with', () => {
+    expect(recordRowText(0, { ...record, wave: 10, waves: 10, won: true })).toMatchObject({ wave: 'W10/10', result: 'WON' });
+    expect(recordRowText(0, { ...record, waves: 10 }).wave).toBe('W3/10');
   });
 });
 

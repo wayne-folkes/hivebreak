@@ -1,9 +1,10 @@
 import type { Fit } from '../game/playfield';
+import { LEGACY_RECORD_WAVES } from '../game/records';
 import type { RunRecord } from '../game/records';
 import type { SourceKind } from '../game/controls';
 import type { ActivePowerUp, BossKind, PowerUpKind, Rarity, Sector, SpecialId, SynergyId, UpgradeId } from '../game/types';
 import { synergyDef } from '../game/synergies';
-import { WAVES, WAVE_COUNT } from '../game/waves';
+import { WAVES } from '../game/waves';
 import { upgradeDef } from '../game/upgrades';
 
 // The small pure helpers the menus and HUD share: text formatting, the upgrade-pick guard, the
@@ -67,12 +68,15 @@ export interface RecordRowText {
   date: string;
 }
 
-/** One line of the Records list. `index` is the record's place in the list, 0 for the best. Waves read "W5/10". */
-export function recordRowText(index: number, record: RunRecord, totalWaves = WAVE_COUNT): RecordRowText {
+/**
+ * One line of the Records list. `index` is the record's place in the list, 0 for the best. Waves
+ * read "W5/10"; a record without `waves` came from the 5-wave game and reads "W5/5".
+ */
+export function recordRowText(index: number, record: RunRecord): RecordRowText {
   return {
     rank: String(index + 1),
     score: formatScore(record.score),
-    wave: `W${record.wave}/${totalWaves}`,
+    wave: `W${record.wave}/${record.waves ?? LEGACY_RECORD_WAVES}`,
     combo: comboLabel(record.bestCombo),
     result: record.won ? 'WON' : 'LOST',
     date: formatDate(record.date),
