@@ -17,6 +17,15 @@ export interface SoundSettings {
 
 export const DEFAULT_SOUND_SETTINGS: SoundSettings = { enabled: true, volume: 0.75 };
 
+/** The music's own switch and volume, saved under SETTINGS_KEY beside the sound settings. */
+export interface MusicSettings {
+  enabled: boolean;
+  /** 0 to 1, from the music slider. */
+  volume: number;
+}
+
+export const DEFAULT_MUSIC_SETTINGS: MusicSettings = { enabled: true, volume: 0.6 };
+
 /** Loudest the master output goes; the volume setting scales within this. */
 const MAX_LEVEL = 0.8;
 /** Most voices of one cue that may sound at once, so a crowd of kills doesn't clip. */
@@ -358,6 +367,11 @@ export class Sound {
     // iOS also 'interrupts' a context after a call or a screen lock; resume covers both.
     const state: string = this.out.ctx.state;
     if (state === 'suspended' || state === 'interrupted') void this.out.ctx.resume().catch(() => {});
+  }
+
+  /** The audio context once unlock() has made one, for the music to play through. */
+  get context(): AudioContext | null {
+    return this.out?.ctx ?? null;
   }
 
   /** Plays the sound for each event that happened during a step. */

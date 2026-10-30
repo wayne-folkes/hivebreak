@@ -1,5 +1,7 @@
 # Slice 3 plan: music and unlocks
 
+Approved on 2026-10-30.
+
 Goal: give the game a soundtrack that reacts to play, and a reason to come back: milestones that
 unlock ships, Specials and upgrades. Everything stays in the browser, with no backend and no cost.
 See [requirements.md](requirements.md) (Audio, Unlocks) and [plan-slice-3.html](plan-slice-3.html)
