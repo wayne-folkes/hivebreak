@@ -841,7 +841,8 @@ function moveShots(run: RunState, dt: number, enemyDt: number, events: RunEvent[
       }
     } else {
       if (enemyDt > 0) stepShot(s, NO_TARGETS, enemyDt);
-      if (s.y + SHOT_HALF_HEIGHT < -FIELD_HEIGHT / 2 || Math.abs(s.x) > FIELD_WIDTH / 2 + 10) continue;
+      // Gone off the bottom, the sides or (the Hive Heart's rings) the top; nothing comes back.
+      if (s.y + SHOT_HALF_HEIGHT < -FIELD_HEIGHT / 2 || s.y - SHOT_HALF_HEIGHT > FIELD_HEIGHT / 2 || Math.abs(s.x) > FIELD_WIDTH / 2 + 10) continue;
     }
     shots[kept++] = s;
   }

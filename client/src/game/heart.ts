@@ -1,4 +1,5 @@
 import { ALIEN_SPECS, HIT_FLASH_SECONDS, createAlien } from './aliens';
+import { FIELD_WIDTH } from './playfield';
 import { SHIP_Y, nearestPlayer } from './player';
 import type { Rng } from './rng';
 import type { BossHit, BossStep, BossStepContext, PartSpec } from './boss';
@@ -86,8 +87,17 @@ export const HEART_RING_SPACING = (Math.PI * 2) / HEART_RING_SHOTS;
 export const HEART_GAP_WIDTH = (HEART_GAP_SHOTS + 1) * HEART_RING_SPACING;
 /** Ring shot speed by phase, art pixels per second. */
 export const HEART_RING_SPEED = { 1: 68, 2: 76, 3: 84 } as const;
-/** How far (radians) the gap is aimed off the ship's direction: never dead on, always inside the gap (its half width is 1.5 spacings = 0.236 rad). */
-export const HEART_AIM_OFFSET = { min: 0.05, max: 0.14 } as const;
+/**
+ * Where the gap goes: the ring is turned so that one shot flies straight at the ship, the first
+ * shot beside the gap (HEART_AIM_SHOT spacings from the gap's centre, on a random side), so a
+ * ship that stands still is hit and a short step to that side reaches the gap. Without it a ring
+ * at the ship's row is porous enough (shots ~36 px apart) that standing still was always safe.
+ * HEART_AIM_JITTER (radians) keeps the aim from being pixel perfect.
+ */
+export const HEART_AIM_SHOT = (HEART_GAP_SHOTS + 1) / 2;
+export const HEART_AIM_JITTER = 0.02;
+/** The gap's middle must reach the ship's row at least this far inside the walls, art px; otherwise it goes on the other side of the ship. */
+export const HEART_AIM_MARGIN = 12;
 
 /** Phase 3: the echo ring follows this many seconds after the beat, with its gap shifted by this much (radians, either way). */
 export const HEART_ECHO_DELAY = 0.25;
@@ -133,10 +143,25 @@ function veinsStanding(boss: BossState): boolean {
   return false;
 }
 
-/** What is left of the fight, 0 to 1 (the heart's own hit points; its phases follow this). */
+/** The veins' share of the boss bar: cutting them shows on it, though the heart takes no damage meanwhile. */
+export const HEART_VEIN_BAR_SHARE = 0.25;
+
+/**
+ * What is left of the fight, 0 to 1, for the boss bar and the music: the veins' hit points as a
+ * quarter of it and the heart's as the rest. (Phase 3 follows the heart's own hit points.)
+ */
 export function heartHealth(boss: BossState): number {
   const core = heartOf(boss);
-  return core.maxHp > 0 ? Math.max(0, core.hp) / core.maxHp : 0;
+  let veinHp = 0;
+  let veinMax = 0;
+  for (const p of boss.parts) {
+    if (p.kind !== 'vein') continue;
+    veinHp += Math.max(0, p.hp);
+    veinMax += p.maxHp;
+  }
+  const veins = veinMax > 0 ? veinHp / veinMax : 0;
+  const heart = core.maxHp > 0 ? Math.max(0, core.hp) / core.maxHp : 0;
+  return HEART_VEIN_BAR_SHARE * veins + (1 - HEART_VEIN_BAR_SHARE) * heart;
 }
 
 // Hits ----------------------------------------------------------------------------------------
@@ -289,8 +314,13 @@ function beat(boss: BossState, phase: 1 | 2 | 3, players: BossStepContext['playe
   const target = nearestPlayer(players, boss.x);
   if (!target) return;
   const aim = Math.atan2(SHIP_Y - boss.y, target.x - boss.x);
-  const off = rng.range(HEART_AIM_OFFSET.min, HEART_AIM_OFFSET.max);
-  const gap = aim + (rng.next() < 0.5 ? -off : off);
+  // Either side of the ship, at random, unless that side's gap would reach the ship's row off the
+  // field (a ship near a wall): then the other side.
+  const step = HEART_AIM_SHOT * HEART_RING_SPACING;
+  const onField = (angle: number) => Math.abs(rowXAt(boss, angle)) < FIELD_WIDTH / 2 - HEART_AIM_MARGIN;
+  let side = rng.next() < 0.5 ? -1 : 1;
+  if (!onField(aim + side * step)) side = -side;
+  const gap = aim + side * step + rng.range(-HEART_AIM_JITTER, HEART_AIM_JITTER);
   out.events.push({ type: 'heartBeat', x: boss.x, y: boss.y, phase, gapAngle: gap });
   fireRing(boss, gap, phase, newId, out);
   if (phase === 3) {
@@ -298,6 +328,13 @@ function beat(boss: BossState, phase: 1 | 2 | 3, players: BossStepContext['playe
     boss.heartEcho = HEART_ECHO_DELAY;
     boss.heartEchoGap = gap + (rng.next() < 0.5 ? -shift : shift);
   }
+}
+
+/** Where a shot fired from the heart at `angle` crosses the ship's row (far off for a shot that never comes down). */
+function rowXAt(boss: BossState, angle: number): number {
+  const s = Math.sin(angle);
+  if (s >= -1e-6) return Infinity;
+  return boss.x + (Math.cos(angle) / s) * (SHIP_Y - boss.y);
 }
 
 /** One ring from the heart's edge: HEART_RING_SHOTS evenly spaced shots, none within the gap round `gap`. */

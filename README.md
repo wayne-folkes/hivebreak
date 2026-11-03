@@ -13,9 +13,10 @@ Three.js, no backend.
 
 ## How it plays
 
-A run is fourteen waves in three sectors. Sector 1 ends in the Brood Mother and sector 2 in the Hive
-Mind; sector 3, the heart of the hive, brings armoured aliens, Warpers that blink away when hit,
-Menders that heal their neighbours, drifting mines and acid rain. Clear a wave and you pick one of
+A run is fifteen waves in three sectors, each ending in a boss: the Brood Mother, the Hive Mind and
+the Hive Heart. Sector 3, the heart of the hive, brings armoured aliens, Warpers that blink away when
+hit, Menders that heal their neighbours, drifting mines and acid rain. Win once and Boss Rush opens:
+the three bosses back to back against the clock, on its own records table. Clear a wave and you pick one of
 three upgrades, which stack for the rest of the run, and a Special you chose at the start fills up
 as you kill. Milestones unlock more ships, Specials and upgrades. Each hit in a row raises your combo, up to x8; a shot that misses resets it.
 Lose your last life, or let the formation reach your row, and the run ends. Your top 10 runs are kept

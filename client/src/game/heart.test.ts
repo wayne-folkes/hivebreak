@@ -36,7 +36,9 @@ import {
   HEART_START_Y,
   HEART_VEIN_COUNT,
   HEART_VEIN_HP,
-  HEART_AIM_OFFSET,
+  HEART_AIM_JITTER,
+  HEART_VEIN_BAR_SHARE,
+  HEART_AIM_SHOT,
   HEART_Y,
   heartHealth,
 } from './heart';
@@ -320,14 +322,14 @@ describe('damageBossFixed', () => {
 });
 
 describe('health', () => {
-  it('follows the heart alone: the veins are the way in, not the goal', () => {
+  it('counts the veins as a quarter of the bar, so cutting them shows, and the heart as the rest', () => {
     const boss = landed();
     expect(heartHealth(boss)).toBe(1);
     expect(bossHealth(boss)).toBe(1);
     for (const v of veins(boss)) v.hp = 0;
-    expect(bossHealth(boss)).toBe(1);
+    expect(bossHealth(boss)).toBeCloseTo(1 - HEART_VEIN_BAR_SHARE, 10);
     heartOf(boss).hp = HEART_HP / 2;
-    expect(bossHealth(boss)).toBeCloseTo(0.5, 10);
+    expect(bossHealth(boss)).toBeCloseTo((1 - HEART_VEIN_BAR_SHARE) / 2, 10);
     heartOf(boss).hp = 0;
     expect(bossHealth(boss)).toBe(0);
     expect(bossDefeated(boss)).toBe(true);
@@ -380,34 +382,37 @@ describe('beats and rings (phase 1)', () => {
     expect(gaps.filter((g) => g > HEART_RING_SPACING * 1.5)).toHaveLength(1);
   });
 
-  it('aims the gap near, but not at, the ship, so the ship has to move into it', () => {
+  it('aims a shot at the ship, with the gap just beside it, so a ship that stands still is hit', () => {
     for (const x of [-70, -30, 0, 30, 70]) {
       for (let seed = 1; seed <= 8; seed++) {
         const boss = landed();
-        const { events } = step(boss, [shipAt(x)], DT * 2, seed);
+        const { events, shots } = step(boss, [shipAt(x)], DT * 2, seed);
         const gap = (events.find((e) => e.type === 'heartBeat') as Extract<RunEvent, { type: 'heartBeat' }>).gapAngle;
         const aim = Math.atan2(SHIP_Y - boss.y, x - boss.x);
-        const off = Math.abs(gap - aim);
-        expect(off).toBeGreaterThanOrEqual(HEART_AIM_OFFSET.min - 1e-9);
-        expect(off).toBeLessThanOrEqual(HEART_AIM_OFFSET.max + 1e-9);
-        // The ship's direction is inside the gap, with room to spare.
-        expect(HEART_GAP_WIDTH / 2 - off).toBeGreaterThan(0.05);
+        expect(Math.abs(Math.abs(gap - aim) - HEART_AIM_SHOT * HEART_RING_SPACING)).toBeLessThanOrEqual(HEART_AIM_JITTER + 1e-9);
+        // A shot reaches the ship's row within the ship's width of where it stands.
+        const xs = shots.filter((s) => s.vy < 0).map(rowX);
+        expect(Math.min(...xs.map((v) => Math.abs(v - x)))).toBeLessThan(SHIP_HALF_WIDTH);
       }
     }
   });
 
-  it('leaves a gap at the ship row wide enough for the ship, and the ship inside it', () => {
+  it("leaves a gap at the ship's row wide enough for the ship, a short step away and on the field", () => {
     for (const x of [-76, -40, 0, 40, 76]) {
       for (let seed = 1; seed <= 8; seed++) {
         const boss = landed();
         const { shots } = step(boss, [shipAt(x)], DT * 2, seed);
         const xs = shots.filter((s) => s.vy < 0).map(rowX).sort((a, b) => a - b);
-        // The ring's shots on either side of the ship's x at the row: the ship fits between them.
-        const left = Math.max(...xs.filter((v) => v <= x), -Infinity);
-        const right = Math.min(...xs.filter((v) => v > x), Infinity);
-        expect(x - left).toBeGreaterThan(SHIP_HALF_WIDTH + 2);
-        expect(right - x).toBeGreaterThan(SHIP_HALF_WIDTH + 2);
-        expect(right - left).toBeGreaterThan(2 * SHIP_HALF_WIDTH + 8);
+        // The widest open stretch between neighbouring shots at the row near the ship.
+        let best = { left: 0, right: 0 };
+        for (let i = 1; i < xs.length; i++) {
+          if (Math.abs((xs[i] + xs[i - 1]) / 2 - x) > 90) continue;
+          if (xs[i] - xs[i - 1] > best.right - best.left) best = { left: xs[i - 1], right: xs[i] };
+        }
+        expect(best.right - best.left).toBeGreaterThan(2 * SHIP_HALF_WIDTH + 8);
+        const centre = (best.left + best.right) / 2;
+        expect(Math.abs(centre - x)).toBeLessThan(80);
+        expect(Math.abs(centre)).toBeLessThan(FIELD_WIDTH / 2 - SHIP_HALF_WIDTH);
       }
     }
   });
@@ -582,8 +587,8 @@ describe('phase 3: below a third of its health', () => {
       const [al, ah] = gapOf(a);
       const [bl, bh] = gapOf(b);
       expect(ah - al).toBeGreaterThan(2 * SHIP_HALF_WIDTH + 8);
-      expect(x).toBeGreaterThan(al + SHIP_HALF_WIDTH);
-      expect(x).toBeLessThan(ah - SHIP_HALF_WIDTH);
+      // A short step from where the ship stands.
+      expect(Math.abs((al + ah) / 2 - x)).toBeLessThan(80);
       // The two gaps overlap by at least a ship's width, so the ship need not cross a ring to get from one to the other.
       expect(Math.min(ah, bh) - Math.max(al, bl)).toBeGreaterThan(2 * SHIP_HALF_WIDTH + 4);
     }
@@ -859,5 +864,21 @@ describe('inside a run', () => {
     expect(run.boss!.beats).toBeGreaterThan(0);
     const ring = run.shots.filter((s) => s.owner === 'alien');
     expect(ring.length).toBeGreaterThan(HEART_RING_SHOTS - HEART_GAP_SHOTS - 1);
+  });
+});
+
+describe('the rings in a run', () => {
+  it('hit a ship that stands still in phase 1', () => {
+    let stillHits = 0;
+    for (let seed = 1; seed <= 4; seed++) {
+      const run = createRun(seed, 1, 14);
+      chooseSpecial(run, 'pulseBomb');
+      run.bunkers = [];
+      run.players[0].lives = 99;
+      for (let i = 0; i < 120 * 12; i++) {
+        for (const e of stepRun(run, [NO_INPUT], 1 / 120)) if (e.type === 'playerHit' || e.type === 'shieldHit') stillHits++;
+      }
+    }
+    expect(stillHits).toBeGreaterThan(4);
   });
 });

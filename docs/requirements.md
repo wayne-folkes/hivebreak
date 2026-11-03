@@ -49,8 +49,9 @@ slices but shapes the design now.
 - Slice 1 (shipped): 5 waves, a pool of 6 upgrades. Clearing wave 5 ends the run as a win.
 - Slice 2: a run is **10 waves in two sectors** of five, each sector ending in a boss (waves 5 and
   10). Clearing the wave-10 boss wins the run.
-- Slice 4a: sector 3 (waves 11-14) follows the Hive Mind, so a run is 14 waves and clearing wave 14
-  wins it. Slice 4b adds its boss, the Hive Heart, at wave 15. See plan-slice-4.md.
+- Slice 4: sector 3 (waves 11-15) follows the Hive Mind and ends in the Hive Heart, so a run is 15
+  waves and beating the Heart wins it. Winning once opens Boss Rush: the three bosses back to back,
+  on its own records table. See plan-slice-4.md.
 - Slice 2 makes upgrades matter more (play-testing found them weak and the run a little easy):
   - **Bigger numbers:** each existing upgrade is retuned so one pick is felt (e.g. rapid fire x0.65
     interval, thrusters x1.3, twin shot fans out).
