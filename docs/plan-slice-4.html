@@ -1,0 +1,749 @@
+<meta charset="utf-8">
+<title>Hivebreak Slice 4</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Barlow:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; concept pictures and the wave map break out wider. Single dark arcade look by choice, same system as the slice 1 to 3 pages. Concept pictures are pixel art drawn on 180 x 320 canvases. */
+:root {
+  --void: #0c0918;
+  --deep: #05030f;
+  --black: #000000;
+  --strip: #07050f;
+  --stage: #1d1638;
+  --well: #110c20;
+  --panel: #161128;
+  --line: #2c2450;
+  --ink: #ece8ff;
+  --muted: #9a92c4;
+  --hive: #ff4fd8;
+  --pilot: #4ff0ff;
+  --warm: #ffb04f;
+  --rare: #ffe14f;
+  --blood: #ff5a5a;
+  --green: #4fff9b;
+  --acid: #c6f23c;
+  --gold: #f5c542;
+  --violet: #a46bff;
+  --teal: #3fe8d0;
+  --scrim: rgb(12 9 24 / 0.66);
+  --pilot-soft: rgb(79 240 255 / 0.12);
+  --pilot-glow: rgb(79 240 255 / 0.25);
+  --hive-soft: rgb(255 79 216 / 0.14);
+  --blood-soft: rgb(255 90 90 / 0.12);
+  --acid-soft: rgb(198 242 60 / 0.13);
+  --rare-soft: rgb(255 225 79 / 0.14);
+  --f-display: 'Silkscreen', ui-monospace, monospace;
+  --f-body: 'Barlow', system-ui, -apple-system, sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--void); color: var(--ink); font-family: var(--f-body); font-size: 17px; line-height: 1.55; }
+.wrap { max-width: 1060px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 56px; }
+.prose { max-width: 66ch; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 400; text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(2.2rem, 7vw, 3.6rem); letter-spacing: 0.02em; }
+h1 .hive { color: var(--hive); }
+h2 { font-size: 1.45rem; margin-bottom: 14px; }
+h3 { font-size: 1rem; margin-bottom: 6px; }
+p { margin: 0 0 12px; }
+.eyebrow { font-family: var(--f-mono); font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+.lede { font-size: 1.2rem; }
+.muted { color: var(--muted); }
+section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+code { font-family: var(--f-mono); font-size: 0.85em; background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; overflow-wrap: anywhere; }
+.release { display: inline-block; font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 1px 7px; }
+.release.a { color: var(--pilot); } .release.b { color: var(--rare); } .release.both { color: var(--muted); }
+
+/* Wave map */
+.map { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.map-inner { min-width: 1020px; padding: 16px 18px 12px; display: grid; gap: 6px; }
+.map-row { display: grid; grid-template-columns: 64px repeat(15, minmax(0, 1fr)); gap: 3px; align-items: stretch; }
+.map-row .lab { grid-column: 1; font-family: var(--f-mono); font-size: 0.75rem; color: var(--muted); align-self: center; }
+.map-head .cell { font-family: var(--f-display); font-size: 0.7rem; color: var(--muted); text-align: center; }
+.map-head .cell.boss { color: var(--hive); }
+.seg { font-family: var(--f-display); font-size: 0.7rem; padding: 4px 6px; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s1 { background: var(--pilot-soft); color: var(--pilot); grid-column: 2 / span 5; }
+.s2 { background: var(--blood-soft); color: var(--blood); grid-column: 7 / span 5; }
+.s3 { background: var(--acid-soft); color: var(--acid); grid-column: 12 / span 5; }
+.tb { background: var(--hive-soft); color: var(--hive); text-align: center; }
+.r4a { background: var(--pilot-soft); color: var(--pilot); grid-column: 12 / span 4; }
+.r4b { background: var(--rare-soft); color: var(--rare); grid-column: 16; text-align: center; }
+.news { font-family: var(--f-mono); font-size: 0.56rem; line-height: 1.25; padding: 4px 3px; overflow-wrap: anywhere; border-radius: 2px; border: 1px solid var(--line); background: var(--well); color: var(--ink); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.85rem; color: var(--muted); padding: 10px 18px 14px; border-top: 1px solid var(--line); }
+.legend i { display: inline-block; width: 18px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+.k-s1 { background: var(--pilot); } .k-s2 { background: var(--blood); } .k-s3 { background: var(--acid); } .k-boss { background: var(--hive); } .k-4a { background: var(--pilot-glow); border: 1px solid var(--pilot); } .k-4b { background: var(--rare-soft); border: 1px solid var(--rare); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chip { font-family: var(--f-display); font-size: 0.75rem; border: 1px solid var(--line); background: var(--panel); border-radius: 3px; padding: 4px 8px; }
+
+/* Concept frames */
+.concepts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 32px; align-items: start; }
+figure { margin: 0; display: grid; gap: 10px; min-width: 0; }
+figcaption { font-size: 0.92rem; color: var(--muted); max-width: 46ch; }
+figcaption b { color: var(--ink); font-weight: 600; }
+.tag { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--hive); }
+.phone { position: relative; width: 100%; max-width: 360px; background: var(--black); border: 2px solid var(--line); border-radius: 26px; padding: 14px 10px 0; overflow: hidden; }
+.field { position: relative; width: 100%; aspect-ratio: 9 / 16; }
+canvas.px { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
+.strip { height: 56px; background: var(--strip); display: grid; place-items: center; font-family: var(--f-mono); font-size: 11px; color: var(--muted); text-align: center; padding: 0 12px; }
+.hud { position: absolute; left: 8px; right: 8px; top: 6px; display: flex; justify-content: space-between; font-family: var(--f-display); font-size: clamp(8px, 2.7vw, 10px); letter-spacing: 0.08em; color: var(--muted); pointer-events: none; }
+.bossbar { position: absolute; left: 8px; right: 8px; top: 6px; display: grid; gap: 4px; text-align: center; font-family: var(--f-display); font-size: clamp(9px, 3vw, 12px); letter-spacing: 0.08em; color: var(--hive); pointer-events: none; }
+.bossbar i { display: block; height: 6px; border: 1px solid var(--hive); border-radius: 2px; }
+.bossbar i b { display: block; height: 100%; width: 100%; background: var(--hive); }
+.overlay { position: absolute; inset: 0; display: grid; align-content: center; gap: 8px; padding: 0 7%; background: var(--scrim); }
+.overlay h4 { margin: 0 0 4px; font-family: var(--f-display); font-weight: 400; font-size: clamp(11px, 3.6vw, 15px); text-align: center; line-height: 1.3; }
+.overlay h4 span { color: var(--hive); display: block; }
+.card { border: 2px solid var(--line); background: var(--panel); border-radius: 4px; padding: 7px 10px; display: grid; gap: 2px; }
+.card.focus { border-color: var(--pilot); box-shadow: 0 0 0 2px var(--pilot-glow); }
+.card .name { font-family: var(--f-display); font-size: clamp(10px, 3.3vw, 13px); }
+.card .what { font-size: clamp(11px, 3.2vw, 13px); color: var(--muted); line-height: 1.3; }
+.card.clock .name { display: flex; justify-content: space-between; align-items: baseline; }
+.card.clock .name b { font-weight: 400; color: var(--rare); }
+.tabs { display: flex; justify-content: center; gap: 6px; }
+.tabs span { font-family: var(--f-display); font-size: clamp(9px, 2.8vw, 11px); border: 1px solid var(--line); border-radius: 3px; padding: 3px 8px; color: var(--muted); }
+.tabs span.on { color: var(--pilot); border-color: var(--pilot); }
+.board { border: 2px solid var(--line); background: var(--panel); border-radius: 4px; display: grid; }
+.board .row { display: grid; grid-template-columns: 1.6em 1fr 1fr 0.8fr; gap: 6px; padding: 5px 10px; font-family: var(--f-mono); font-size: clamp(10px, 3vw, 12px); border-bottom: 1px solid var(--line); }
+.board .row:last-child { border-bottom: 0; }
+.board .row.head { color: var(--muted); font-size: clamp(8px, 2.6vw, 10px); letter-spacing: 0.08em; }
+.board .row.win span:first-child { color: var(--rare); }
+.board .row.part span:last-child { color: var(--muted); }
+
+.lineup { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 16px; max-width: 780px; }
+.unit { display: grid; gap: 6px; justify-items: start; align-content: start; min-width: 0; }
+.unit .stage { width: 100%; aspect-ratio: 1; background: radial-gradient(circle at 50% 55%, var(--stage), var(--void) 70%); border: 1px solid var(--line); border-radius: 6px; }
+.unit .nm { font-family: var(--f-display); font-size: 0.95rem; color: var(--pilot); }
+.unit .nm.v { color: var(--violet); } .unit .nm.g { color: var(--green); } .unit .nm.r { color: var(--blood); }
+.unit p { font-size: 0.9rem; color: var(--muted); margin: 0; }
+
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; min-width: 600px; font-size: 0.93rem; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; background: var(--panel); }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-family: var(--f-display); white-space: nowrap; }
+.tables { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
+
+ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 0; display: grid; border-top: 1px solid var(--line); }
+ol.steps > li { counter-increment: step; display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 4px 16px; padding-block: 16px; border-bottom: 1px solid var(--line); }
+ol.steps > li::before { content: counter(step); font-family: var(--f-display); font-size: 1.6rem; color: var(--muted); line-height: 1; }
+ol.steps > li.par::before { color: var(--pilot); }
+ol.steps ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+ol.steps ul ul { margin-top: 4px; }
+.who { font-family: var(--f-mono); font-size: 0.8rem; color: var(--muted); }
+.who b { color: var(--ink); font-weight: 500; }
+.badge { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 1px 6px; margin-left: 8px; }
+.badge.p { color: var(--pilot); } .badge.m { color: var(--muted); }
+ul.ticks { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+ul.ticks li { padding-left: 22px; position: relative; }
+ul.ticks li::before { content: ""; position: absolute; left: 2px; top: 0.55em; width: 8px; height: 8px; background: var(--pilot); }
+ul.ticks.b li::before { background: var(--rare); }
+ul.ticks.m li::before { background: var(--muted); }
+ul.ticks ul { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 4px; }
+ul.ticks ul li::before { width: 5px; height: 5px; top: 0.7em; background: var(--muted); }
+.done { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px 32px; }
+.foot { font-size: 0.9rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 18px; overflow-wrap: anywhere; }
+</style>
+
+<div class="wrap">
+
+<header class="prose">
+  <div class="eyebrow">Plan · slice 4 of Hivebreak · draft, awaiting approval · 2026-11-03</div>
+  <h1>Hive<span class="hive">break</span> slice 4</h1>
+  <p class="lede" style="margin-top:16px">Sector 3 and Boss Rush. Goal: more game to play.</p>
+  <p class="muted">A third sector of five waves goes in after the Hive Mind, with new aliens, field hazards and new formation tricks, and it ends in a new boss. Winning a run then opens <b>Boss Rush</b>: every boss back to back, on its own high-score table. Everything stays in the browser, with no backend and no cost. The pictures are concept art drawn live as pixel art at the game's 180 × 320 resolution; the shapes are stand-ins for the Blender models.</p>
+</header>
+
+<section>
+  <h2>Decided with you on 2026-11-03</h2>
+  <ul class="ticks prose">
+    <li><b>New levels:</b> sector 3 with a new boss. The run becomes 15 waves.</li>
+    <li><b>New content:</b> new alien types, field hazards and new formation tricks.</li>
+    <li><b>Boss Rush unlock:</b> win a run once.</li>
+    <li><b>Boss Rush records:</b> its own table, ranked by score, with the clear time beside each entry.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Two releases</h2>
+  <p class="prose muted" style="margin-bottom:14px">It ships as two releases, each deployed and played before the next starts.</p>
+  <ul class="ticks prose">
+    <li><span class="release a">4a</span> <b>Sector 3:</b> waves 11–14, two new aliens, mines and acid rain, two formation tricks, the sector's look and music. For the length of 4a the run ends after wave 14, and the Hive Mind stays the last boss.</li>
+    <li><span class="release b">4b</span> <b>The Hive Heart and Boss Rush:</b> the new boss at wave 15, its music, Boss Rush (mode, records table, unlock), and the terminal version catching up.</li>
+  </ul>
+  <p class="prose muted" style="margin-top:14px">Not in this slice: the online leaderboard, local co-op.</p>
+</section>
+
+<section>
+  <h2>Release 4a: new aliens and a hazard</h2>
+  <p class="prose muted" style="margin-bottom:14px">Two new aliens and the mine. Each plays as drawn; numbers get tuned during the work.</p>
+  <div class="lineup">
+    <div class="unit"><canvas class="px stage" id="u-warper" width="48" height="48" aria-label="Concept: Warper blinking to another slot and leaving afterimages"></canvas><span class="nm v">Warper</span><p>2 HP. The first hit blinks it to an empty slot in the formation, with a short warp-in flash. Combos survive the blink.</p></div>
+    <div class="unit"><canvas class="px stage" id="u-mender" width="48" height="48" aria-label="Concept: Mender pulsing and healing two damaged aliens"></canvas><span class="nm g">Mender</span><p>3 HP. Every 4 s it pulses and restores 1 HP to damaged aliens next to it, shown by green links. Kill it first.</p></div>
+    <div class="unit"><canvas class="px stage" id="u-mine" width="48" height="48" aria-label="Concept: a mine"></canvas><span class="nm r">Mine</span><p>Drifts slowly down from the top. One shot bursts it and damages the aliens around it.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Release 4a in play</h2>
+  <div class="concepts">
+    <figure>
+      <div class="phone">
+        <div class="field"><canvas class="px" id="c-pincer" width="180" height="320" aria-label="Concept: the pincer, two half-formations flying in from the left and right edges"></canvas>
+          <div class="hud"><span>SECTOR 3</span><span>WAVE 11</span></div>
+        </div>
+        <div class="strip">two halves, one formation</div>
+      </div>
+      <figcaption><span class="tag">Concept · wave 11</span><br><b>The pincer.</b> The formation flies in as two halves from the sides and docks. Warpers are introduced.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone">
+        <div class="field"><canvas class="px" id="c-weave" width="180" height="320" aria-label="Concept: the weave, rows marching in opposite directions, with two Menders healing neighbours"></canvas>
+          <div class="hud"><span>SECTOR 3</span><span>WAVE 12</span></div>
+        </div>
+        <div class="strip">arrows show each row's direction</div>
+      </div>
+      <figcaption><span class="tag">Concept · wave 12</span><br><b>The weave, and Menders.</b> Rows march in opposite directions, so gaps open and close. Menders are introduced: every 4 s a Mender pulses and restores 1 HP to damaged aliens next to it, shown by green links. Kill it first.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone">
+        <div class="field"><canvas class="px" id="c-mines" width="180" height="320" aria-label="Concept: mines drifting through the formation, one bursting, plus two marked acid columns and one raining column eating a bunker"></canvas>
+          <div class="hud"><span>SECTOR 3</span><span>WAVE 14</span></div>
+        </div>
+        <div class="strip">dashed = rain is coming</div>
+      </div>
+      <figcaption><span class="tag">Concept · waves 13 and 14</span><br><b>Mines and acid rain.</b> Mines drift slowly down from the top; one shot bursts a mine and damages the aliens around it. On wave 14, columns are marked at the top for a second, then rain for 1.5 s. The rain hurts the ship and eats bunkers from above.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <h2>Release 4b in play</h2>
+  <div class="concepts">
+    <figure>
+      <div class="phone">
+        <div class="field"><canvas class="px" id="c-heart" width="180" height="320" aria-label="Concept: the Hive Heart pulsing at the top, fed by four veins, firing rings of shots with a gap the ship lines up with"></canvas>
+          <div class="bossbar"><span>HIVE HEART · PHASE 1</span><i><b></b></i></div>
+        </div>
+        <div class="strip">the ring's gap lines up with the ship</div>
+      </div>
+      <figcaption><span class="tag">Concept · wave 15, phase 1</span><br><b>The Hive Heart.</b> A huge heart in the hive's core, fed by four veins. The veins shield the Heart; every beat it fires a ring of shots with a gap in it, timed to the music.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone">
+        <div class="field"><canvas class="px" id="c-rush" width="180" height="320" aria-label="Concept: the Boss Rush start card listing the three bosses in order"></canvas>
+          <div class="overlay">
+            <h4>BOSS RUSH<span>EVERY BOSS, BACK TO BACK</span></h4>
+            <div class="card focus"><span class="name">START · 3 UPGRADE PICKS</span><span class="what">Choose a ship and a Special as usual.</span></div>
+            <div class="card"><span class="name">1 · BROOD MOTHER</span><span class="what">Then an upgrade pick and a partial bunker rebuild.</span></div>
+            <div class="card"><span class="name">2 · HIVE MIND</span><span class="what">Then an upgrade pick and a partial bunker rebuild.</span></div>
+            <div class="card"><span class="name">3 · HIVE HEART</span><span class="what">The last boss.</span></div>
+            <div class="card clock"><span class="name">CLEAR TIMER<b>0:00</b></span><span class="what">Lives carry over. A time bonus for each boss beaten under par.</span></div>
+          </div>
+        </div>
+        <div class="strip">locked until the first win</div>
+      </div>
+      <figcaption><span class="tag">Concept · Boss Rush</span><br><b>Boss Rush.</b> Take three upgrade picks, then fight the Brood Mother, the Hive Mind and the Hive Heart, with an upgrade pick and a partial bunker rebuild between bosses. Your lives carry over.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="phone">
+        <div class="field"><canvas class="px" id="c-records" width="180" height="320" aria-label="Concept: the Boss Rush records table with rank, score, clear time and bosses beaten"></canvas>
+          <div class="overlay">
+            <h4>RECORDS<span>BOSS RUSH · TOP 10 BY SCORE</span></h4>
+            <div class="tabs"><span>NORMAL</span><span class="on">BOSS RUSH</span></div>
+            <div class="board">
+              <div class="row head"><span>#</span><span>SCORE</span><span>TIME</span><span>BOSSES</span></div>
+              <div class="row win"><span>1</span><span>52,480</span><span>4:12</span><span>3/3</span></div>
+              <div class="row win"><span>2</span><span>47,310</span><span>4:31</span><span>3/3</span></div>
+              <div class="row win"><span>3</span><span>44,950</span><span>5:07</span><span>3/3</span></div>
+              <div class="row win"><span>4</span><span>38,120</span><span>5:48</span><span>3/3</span></div>
+              <div class="row part"><span>5</span><span>31,600</span><span>3:40</span><span>2/3</span></div>
+              <div class="row part"><span>6</span><span>24,870</span><span>3:02</span><span>2/3</span></div>
+              <div class="row part"><span>7</span><span>15,340</span><span>2:15</span><span>2/3</span></div>
+              <div class="row part"><span>8</span><span>8,910</span><span>1:09</span><span>1/3</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="strip">shown next to the normal records</div>
+      </div>
+      <figcaption><span class="tag">Concept · records</span><br><b>Boss Rush records.</b> A top 10 by score, each entry showing the clear time and how many bosses were beaten (1/3, 2/3 or 3/3). It is shown next to the normal records.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <h2>The 15 waves</h2>
+  <p class="prose muted" style="margin-bottom:14px">A normal run is 15 waves. Sector 3 goes in after the Hive Mind. For the length of 4a the run ends after wave 14.</p>
+  <div class="map" role="img" aria-label="Wave map: the fifteen waves of a run in three sectors of five, with the boss waves, what is new in sector 3, and the two releases marked">
+    <div class="map-inner">
+      <div class="map-row map-head"><span class="lab">wave</span><span class="cell">1</span><span class="cell">2</span><span class="cell">3</span><span class="cell">4</span><span class="cell boss">5</span><span class="cell">6</span><span class="cell">7</span><span class="cell">8</span><span class="cell">9</span><span class="cell boss">10</span><span class="cell">11</span><span class="cell">12</span><span class="cell">13</span><span class="cell">14</span><span class="cell boss">15</span></div>
+      <div class="map-row"><span class="lab">sector</span><span class="seg s1">SECTOR 1</span><span class="seg s2">SECTOR 2</span><span class="seg s3">SECTOR 3 · THE HEART OF THE HIVE</span></div>
+      <div class="map-row"><span class="lab">boss</span><span class="seg tb" style="grid-column:6">BOSS</span><span class="seg tb" style="grid-column:11">BOSS</span><span class="seg tb" style="grid-column:16">BOSS</span></div>
+      <div class="map-row"><span class="lab">new</span><span class="news" style="grid-column:12">pincer, Warpers</span><span class="news" style="grid-column:13">weave, Menders</span><span class="news" style="grid-column:14">mines</span><span class="news" style="grid-column:15">everything, acid rain</span><span class="news" style="grid-column:16">Hive Heart</span></div>
+      <div class="map-row"><span class="lab">release</span><span class="seg r4a">4A · WAVES 11–14</span><span class="seg r4b">4B</span></div>
+    </div>
+    <div class="legend"><span><i class="k-s1"></i>sector 1</span><span><i class="k-s2"></i>sector 2</span><span><i class="k-s3"></i>sector 3</span><span><i class="k-boss"></i>boss wave</span><span><i class="k-4a"></i>release 4a</span><span><i class="k-4b"></i>release 4b</span></div>
+  </div>
+  <div class="chips" aria-label="Bosses"><span class="chip">Wave 5 · Brood Mother</span><span class="chip">Wave 10 · Hive Mind</span><span class="chip">Wave 15 · Hive Heart (4b)</span></div>
+</section>
+
+<section>
+  <h2>Draft content</h2>
+  <p class="prose muted" style="margin-bottom:12px">To be tuned in the work.</p>
+  <div class="tables">
+    <div>
+      <h3>Sector 3: “The heart of the hive”</h3>
+      <p class="muted">Acid green and gold on near-black, after sector 1's cyan and sector 2's red.</p>
+      <div class="tablewrap"><table><thead><tr><th>Wave</th><th>What's new</th></tr></thead><tbody>
+        <tr><td>11</td><td>The <b>pincer</b>: the formation flies in as two halves from the sides and docks. Warpers are introduced.</td></tr>
+        <tr><td>12</td><td>The <b>weave</b>: rows march in opposite directions, so gaps open and close. Menders are introduced.</td></tr>
+        <tr><td>13</td><td><b>Mines</b> drift down through a dense formation.</td></tr>
+        <tr><td>14</td><td>Everything: weave, Warpers, Menders and mines, plus <b>acid rain</b>.</td></tr>
+        <tr><td>15</td><td>The <b>Hive Heart</b> (4b).</td></tr>
+      </tbody></table></div>
+    </div>
+    <div>
+      <h3>New aliens</h3>
+      <div class="tablewrap"><table><thead><tr><th>Alien</th><th>HP</th><th>Behaviour</th></tr></thead><tbody>
+        <tr><td>Warper</td><td>2</td><td>The first hit blinks it to an empty slot in the formation, with a short warp-in flash. Combos survive the blink.</td></tr>
+        <tr><td>Mender</td><td>3</td><td>Every 4 s it pulses and restores 1 HP to damaged aliens next to it, shown by green links. Kill it first.</td></tr>
+      </tbody></table></div>
+    </div>
+    <div>
+      <h3>Hazards</h3>
+      <ul class="ticks prose">
+        <li><b>Mines</b> drift slowly down from the top. One shot bursts a mine and damages the aliens around it, so it pays to shoot mines that sit near the formation. A mine that reaches the ship's row explodes, and the blast hurts the ship if it is close.</li>
+        <li><b>Acid rain</b> (wave 14): columns are marked at the top for a second, then rain for 1.5 s. The rain hurts the ship and eats bunkers from above.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>The Hive Heart</h3>
+      <p class="muted">A huge heart in the hive's core, fed by four veins.</p>
+      <div class="tablewrap"><table><thead><tr><th>Phase</th><th>Starts at</th><th>What happens</th></tr></thead><tbody>
+        <tr><td>1</td><td>Full health</td><td>The veins shield the Heart. Every beat it fires a ring of shots with a gap in it, timed to the music.</td></tr>
+        <tr><td>2</td><td>All four veins cut</td><td>The Heart is exposed. It launches Warpers and Menders, and the rings come faster.</td></tr>
+        <tr><td>3</td><td>Below 1/3 health</td><td>Double rings. The Heart sinks lower, so there is less room.</td></tr>
+      </tbody></table></div>
+    </div>
+    <div>
+      <h3>Boss Rush</h3>
+      <ul class="ticks prose">
+        <li><b>Unlock:</b> win a run. The milestone that unlocks the Gravity Well, “win a run”, now also opens Boss Rush. Players who won the 10-wave game already have it.</li>
+        <li><b>How it runs:</b>
+          <ul>
+            <li>Choose a ship and a Special as usual.</li>
+            <li>Take three upgrade picks.</li>
+            <li>Fight the Brood Mother, then the Hive Mind, then the Hive Heart, with an upgrade pick and a partial bunker rebuild between bosses.</li>
+            <li>Your lives carry over between bosses.</li>
+          </ul></li>
+        <li><b>Score:</b> points as usual, plus a time bonus for each boss beaten under par.</li>
+        <li><b>Records:</b> a top 10 by score, each entry showing the clear time and how many bosses were beaten (1/3, 2/3 or 3/3). It is shown next to the normal records.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Knock-on changes</h3>
+      <ul class="ticks prose">
+        <li>A normal run is 15 waves, so “win a run” gets harder. Records already note how many waves a run had, so old wins still read correctly.</li>
+        <li>The autopilot behind the title learns to deal with the new aliens and mines well enough to look good.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="prose" style="max-width:none">
+  <h2>Done means</h2>
+  <div class="done">
+    <div><h3 style="margin-bottom:10px"><span class="release a">4a</span></h3><ul class="ticks">
+      <li>Sector 3 opens with its banner after the Hive Mind.</li>
+      <li>Each new alien, hazard and formation trick plays as designed and reads clearly on a phone.</li>
+      <li>The sector has its own colours and track.</li>
+      <li>The autopilot bot still wins sometimes, and the win rate is lower than for a 10-wave run.</li></ul></div>
+    <div><h3 style="margin-bottom:10px"><span class="release b">4b</span></h3><ul class="ticks b">
+      <li>The Hive Heart fights in three phases and its music follows them.</li>
+      <li>Winning a run unlocks Boss Rush, with an UNLOCKED moment.</li>
+      <li>Boss Rush plays the three bosses in order, with upgrade picks between them.</li>
+      <li>Boss Rush has its own records table with score, time and bosses beaten.</li>
+      <li>The terminal version plays sector 3, the Hive Heart and Boss Rush.</li></ul></div>
+    <div><h3 style="margin-bottom:10px"><span class="release both">Both</span></h3><ul class="ticks m">
+      <li>Tests, typecheck and build pass; CI is green; deployed; you've played it.</li></ul></div>
+  </div>
+</section>
+
+<section>
+  <h2>How the work runs</h2>
+  <p class="prose muted" style="margin-bottom:12px">As in earlier slices: I write the contract for each release, Sonnet and Haiku workers build in parallel on separate files, the reviewer checks each round and re-checks the fixes, and I play-test before pushing. Balance is checked with the autopilot bot on seeded runs. Blue numbers run as parallel workers.</p>
+
+  <h3 style="margin:18px 0 10px"><span class="release a">4a</span> Sector 3</h3>
+  <ol class="steps">
+    <li><div><h3>Contract <span class="badge m">main session</span></h3><p><code>Sector</code> gains 3; <code>AlienKind</code> gains <code>warper</code> and <code>mender</code>; new <code>FormationBehaviour</code>s <code>weave</code> and <code>pincer</code>; hazards in the run state (<code>mines</code>, <code>acidRain</code>), and their events; the four wave definitions as data.</p></div></li>
+    <li class="par"><div><h3>Parallel workers <span class="badge p">4 in parallel</span></h3><ul>
+      <li><span class="who"><b>Sonnet</b></span> aliens and formations:
+        <ul>
+          <li>the Warper's blink and the Mender's heal;</li>
+          <li>the weave (rows march in opposite directions) and the pincer (the wave flies in from both sides and docks).</li>
+        </ul></li>
+      <li><span class="who"><b>Sonnet</b></span> hazards: mines (drift, burst, chain into aliens, explode at the ship's row) and acid rain (telegraphed columns that hurt the ship and eat bunkers from above).</li>
+      <li><span class="who"><b>Sonnet</b></span> models: Warper, Mender and the mine in Blender; the sector 3 nebula tint.</li>
+      <li><span class="who"><b>Sonnet</b></span> composer: the sector 3 track, in the existing song format.</li></ul></div></li>
+    <li><div><h3>Second round</h3><p>Renderer and effects (blink trails, heal links, mine bursts, rain telegraphs), the sector banner and HUD text, sounds for the new events, and the director picking the new track.</p></div></li>
+    <li><div><h3>Balance, review, play-test, ship</h3></div></li>
+  </ol>
+
+  <h3 style="margin:28px 0 10px"><span class="release b">4b</span> The Hive Heart and Boss Rush</h3>
+  <ol class="steps" style="counter-reset: step 4">
+    <li><div><h3>Contract <span class="badge m">main session</span></h3><ul>
+      <li><code>BossKind</code> gains <code>hiveHeart</code>; the run's <code>mode</code> is <code>'normal' | 'bossRush'</code>.</li>
+      <li>Boss Rush gets its records (<code>hivebreak.bossRush.v1</code>) and an unlock entry for the mode.</li></ul></div></li>
+    <li class="par"><div><h3>Parallel workers <span class="badge p">3 in parallel</span></h3><ul>
+      <li><span class="who"><b>Sonnet</b></span> boss: the Hive Heart's parts, phases and attacks.</li>
+      <li><span class="who"><b>Sonnet</b></span> Boss Rush:
+        <ul>
+          <li>run setup: three starting picks, then the bosses in order;</li>
+          <li>a pick and a partial bunker rebuild between bosses;</li>
+          <li>the clear timer and its time bonus;</li>
+          <li>the records table and the unlock check.</li>
+        </ul></li>
+      <li><span class="who"><b>Sonnet</b></span> models and music: the Hive Heart model; the heartbeat boss track, whose kick lines up with the boss's pulse rings.</li></ul></div></li>
+    <li><div><h3>Second round</h3><ul>
+      <li>Title menu: a Boss Rush entry, locked until the first win.</li>
+      <li>Boss Rush records next to the normal ones; the UNLOCKED moment for the mode.</li>
+      <li>Renderer and effects for the Heart.</li>
+      <li>Terminal version: sprites for the new aliens, mines and the Heart, and Boss Rush in its menus and records.</li></ul></div></li>
+    <li><div><h3>Wiring, balance, review, play-test, ship</h3></div></li>
+  </ol>
+</section>
+
+<section>
+  <h2>Open for later</h2>
+  <ul class="ticks prose">
+    <li>Online leaderboard (Supabase), possibly with daily seeded runs and a daily Boss Rush.</li>
+    <li>Local co-op for controllers.</li>
+    <li>New unlocks tied to sector 3 and Boss Rush (a ship or Special for clearing Boss Rush).</li>
+  </ul>
+</section>
+
+<p class="foot">This plan as Markdown: <code>docs/plan-slice-4.md</code></p>
+</div>
+
+<script>
+(function () {
+  const W = 180, H = 320;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- Colours: read the page tokens; shades are derived from them ----
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const K = {};
+  ['deep', 'ink', 'muted', 'hive', 'pilot', 'warm', 'rare', 'blood', 'green', 'acid', 'gold', 'violet', 'teal'].forEach((n) => { K[n] = css('--' + n); });
+  const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const mix = (a, b, t) => { const A = rgb(a), B = rgb(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+  const dk = (c, t) => mix(c, '#000000', t == null ? 0.45 : t);
+  const lt = (c, t) => mix(c, '#ffffff', t == null ? 0.5 : t);
+  const WHITE = '#ffffff';
+
+  // ---- Small helpers ----
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const lerp = (a, b, u) => a + (b - a) * u;
+  const ease = (p) => 1 - Math.pow(1 - p, 3);
+  const hash = (n) => { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); };
+  const ctx = (id) => { const c = document.getElementById(id); const x = c && c.getContext('2d'); if (x) x.imageSmoothingEnabled = false; return x; };
+  const rect = (c, col, x, y, w, h) => { c.fillStyle = col; c.fillRect(Math.round(x), Math.round(y), w, h); };
+  function dots(c, x0, y0, x1, y1, step, col, a, s) {
+    const n = Math.floor(Math.hypot(x1 - x0, y1 - y0) / step);
+    c.globalAlpha = a; c.fillStyle = col;
+    for (let i = 0; i <= n; i++) { const u = n ? i / n : 0; c.fillRect(Math.round(lerp(x0, x1, u)), Math.round(lerp(y0, y1, u)), s, s); }
+    c.globalAlpha = 1;
+  }
+  function ring(c, x, y, r, col, n, a, s) {
+    c.globalAlpha = a; c.fillStyle = col;
+    for (let i = 0; i < n; i++) { const an = (i / n) * Math.PI * 2; c.fillRect(Math.round(x + Math.cos(an) * r), Math.round(y + Math.sin(an) * r), s, s); }
+    c.globalAlpha = 1;
+  }
+  function disk(c, x, y, r, col, a) {
+    c.globalAlpha = a; c.fillStyle = col;
+    for (let dy = -r; dy <= r; dy++) { const w = Math.floor(Math.sqrt(r * r - dy * dy)); c.fillRect(Math.round(x) - w, Math.round(y) + dy, 2 * w + 1, 1); }
+    c.globalAlpha = 1;
+  }
+  function dashBox(c, x0, y0, w, h, col, a, off) {
+    c.globalAlpha = a; c.fillStyle = col;
+    let i = Math.floor(off);
+    const p = (x, y) => { if ((i++ & 3) < 2) c.fillRect(x, y, 1, 1); };
+    for (let x = x0; x < x0 + w; x++) p(x, y0);
+    for (let y = y0 + 1; y < y0 + h; y++) p(x0 + w - 1, y);
+    for (let x = x0 + w - 2; x >= x0; x--) p(x, y0 + h - 1);
+    for (let y = y0 + h - 2; y > y0; y--) p(x0, y);
+    c.globalAlpha = 1;
+  }
+  function plus(c, x, y, col, a) { c.globalAlpha = a; c.fillStyle = col; c.fillRect(x - 1, y, 3, 1); c.fillRect(x, y - 1, 1, 3); c.globalAlpha = 1; }
+  function crack(c, x, y) { // a damaged alien
+    rect(c, K.deep, x - 2, y - 2, 1, 1); rect(c, K.deep, x - 1, y - 1, 1, 1); rect(c, K.deep, x, y, 1, 1); rect(c, K.deep, x + 1, y + 1, 1, 1);
+    rect(c, K.blood, x + 1, y - 1, 1, 1);
+  }
+
+  // ---- Sprites: pixel rows with a palette, baked once per tint ----
+  const mk = (rows, pal) => ({ rows, pal, w: rows[0].length, h: rows.length, cache: {} });
+  function img(S, tint) {
+    const key = tint || '';
+    if (!S.cache[key]) {
+      const cv = document.createElement('canvas'); cv.width = S.w; cv.height = S.h;
+      const x = cv.getContext('2d');
+      S.rows.forEach((r, j) => { for (let i = 0; i < r.length; i++) { const k = r[i]; if (k === '.') continue; x.fillStyle = tint || S.pal[k]; x.fillRect(i, j, 1, 1); } });
+      S.cache[key] = cv;
+    }
+    return S.cache[key];
+  }
+  function put(c, S, cx, cy, o) {
+    o = o || {}; const s = o.s || 1;
+    c.save(); if (o.a != null) c.globalAlpha = o.a;
+    c.drawImage(img(S, o.tint), Math.round(cx - (S.w * s) / 2), Math.round(cy - (S.h * s) / 2), S.w * s, S.h * s);
+    c.restore();
+  }
+  const DRONE = ['..d......d..', '...d....d...', '..gggggggg..', '.ggeggggegg.', 'gggggggggggg', 'g.gggggggg.g', 'd.g......g.d', '...dd..dd...'];
+  const WARPER = ['.....vv.....', '....vvvv....', '...vvvvvv...', '..vvttttvv..', '.vvvtwwtvvv.', 'vvv.tttt.vvv', 'vv...tt...vv', 'v...t..t...v'];
+  const MENDER = ['...gggggg...', '..gggwwggg..', '.ggggwwgggg.', '.gwwwwwwwwg.', '.gwwwwwwwwg.', '.ggggwwgggg.', '..gggwwggg..', '...dddddd...', '..d..dd..d..'];
+  const MINE = ['.....d.....', '..d..d..d..', '...sssss...', '.shsssssss.', 'dsssrrrsssd', 'sssssrsssss', '.sssssssss.', '...sssss...', '..d..d..d..', '.....d.....'];
+  const SHIP = ['......h......', '.....www.....', '.....wpw.....', '....wwpww....', '..c.wwwww.c..', '.ccbwwwwwbcc.', 'cccbbwwwbbccc', 'cc.bbbbbbb.cc', '....o...o....'];
+  const ARROW = ['#...', '##..', '###.', '####', '###.', '##..', '#...'];
+  const mineSteel = { s: K.muted, d: dk(K.muted, 0.55), h: lt(K.muted) };
+  const S = {
+    drone: mk(DRONE, { g: K.acid, d: dk(K.acid), e: K.deep }),
+    droneG: mk(DRONE, { g: K.gold, d: dk(K.gold), e: K.deep }),
+    warper: mk(WARPER, { v: K.violet, t: K.teal, w: WHITE }),
+    mender: mk(MENDER, { g: dk(K.green, 0.25), d: dk(K.green, 0.6), w: WHITE }),
+    mine: mk(MINE, Object.assign({ r: K.blood }, mineSteel)),
+    mineOff: mk(MINE, Object.assign({ r: dk(K.blood, 0.6) }, mineSteel)),
+    ship: mk(SHIP, { h: WHITE, w: '#d8f6ff', p: K.pilot, c: '#2bb6d9', b: '#1a7a99', o: K.warm }),
+    arR: mk(ARROW, { '#': K.muted }),
+    arL: mk(ARROW.map((r) => r.split('').reverse().join('')), { '#': K.muted }),
+  };
+
+  // ---- Shared scenery ----
+  let seed = 4; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const stars = []; for (let i = 0; i < 80; i++) stars.push([Math.floor(rnd() * W), rnd() * H, rnd() < 0.2 ? 2 : 1, rnd() < 0.15]);
+  function sky(c, t) {
+    rect(c, K.deep, 0, 0, W, H);
+    c.globalAlpha = 0.035; // sector 3 haze, in pixel bands
+    for (let i = 0; i < 6; i++) rect(c, dk(K.acid, 0.5), 0, 150 + i * 28, W, H);
+    c.globalAlpha = 1;
+    for (const [x, y, sz, tw] of stars) {
+      const yy = Math.floor((y + t * (sz === 2 ? 14 : 7)) % H);
+      rect(c, tw && Math.sin(t * 5 + x) > 0.5 ? K.ink : sz === 2 ? mix(K.muted, K.deep, 0.2) : mix(K.muted, K.deep, 0.6), x, yy, 1, sz);
+    }
+  }
+  function bunker(c, cx, top, depth) { // 24 x 12, with an arch; `depth` is how far acid has eaten each column
+    const x0 = cx - 12, body = dk(K.green, 0.5), edge = dk(K.green, 0.2);
+    for (let i = 0; i < 24; i++) {
+      const d = depth ? depth[i] : 0, bottom = i >= 8 && i < 16 ? 7 : 12;
+      if (d >= bottom) continue;
+      rect(c, d ? K.acid : edge, x0 + i, top + d, 1, 1);
+      if (bottom - d > 1) rect(c, body, x0 + i, top + d + 1, 1, bottom - d - 1);
+    }
+  }
+  function floor(c, t, shipX, depths) {
+    [30, 90, 150].forEach((x, i) => bunker(c, x, 244, depths && depths[i]));
+    for (let i = 0; i < 3; i++) rect(c, K.pilot, shipX - 1, 280 - ((t * 110 + i * 50) % 150), 2, 5);
+    put(c, S.ship, shipX, 292);
+  }
+
+  // ---- Unit strip (48 x 48 stages) ----
+  function uWarper(c, t) {
+    c.clearRect(0, 0, 48, 48);
+    const T = 2.4, n = Math.floor(t / T), u = t - n * T, odd = n % 2, A = 14, B = 34, y = 26;
+    const from = odd ? B : A, to = odd ? A : B;
+    if (u < 0.9) {
+      dashBox(c, to - 13, y - 9, 25, 18, K.teal, 0.5 + 0.25 * Math.sin(t * 10), t * 6);
+      put(c, S.warper, from, y, { s: 2 });
+    } else {
+      const b = (u - 0.9) / 1.5;
+      for (let g = 0; g < 3; g++) put(c, S.warper, lerp(from, to, g / 4), y, { s: 2, tint: K.teal, a: Math.max(0, (1 - b) * (0.55 - g * 0.15)) });
+      if (b < 0.4) ring(c, to, y, 4 + (b / 0.4) * 13, WHITE, 16, 1 - b / 0.4, 1);
+      put(c, S.warper, to, y, { s: 2, tint: b < 0.1 ? WHITE : null });
+    }
+  }
+  function link(c, x0, y0, x1, y1, t, a) {
+    const n = Math.max(2, Math.floor(Math.hypot(x1 - x0, y1 - y0) / 3));
+    for (let i = 0; i <= n; i++) {
+      const u = i / n, hot = Math.abs(u - ((t * 1.6) % 1)) < 0.12;
+      c.globalAlpha = a * (hot ? 1 : 0.5); c.fillStyle = hot ? WHITE : K.green;
+      c.fillRect(Math.round(lerp(x0, x1, u)), Math.round(lerp(y0, y1, u)), 1, 1);
+    }
+    c.globalAlpha = 1;
+  }
+  function uMender(c, t) {
+    c.clearRect(0, 0, 48, 48);
+    const q = (t % 2) / 2, mx = 24, my = 15, N = [[8, 40, S.drone], [40, 40, S.droneG]];
+    if (q < 0.7) ring(c, mx, my + 2, 4 + (q / 0.7) * 22, K.green, 20, 1 - q / 0.7, 1);
+    if (q > 0.04 && q < 0.7) for (const n of N) link(c, mx, my + 8, n[0], n[1] - 3, t, 1);
+    put(c, S.mender, mx, my, { s: 2, tint: q < 0.1 ? WHITE : null });
+    for (const n of N) {
+      put(c, n[2], n[0], n[1]);
+      if (q < 0.5) crack(c, n[0], n[1]);
+      else if (q < 0.9) plus(c, n[0], n[1] - 7 - (q - 0.5) * 10, K.green, 1 - (q - 0.5) / 0.4);
+    }
+  }
+  function uMine(c, t) {
+    c.clearRect(0, 0, 48, 48);
+    put(c, Math.floor(t * 3) % 2 ? S.mine : S.mineOff, 24, 23 + Math.round(Math.sin(t * 2) * 1.5), { s: 3 });
+  }
+
+  // ---- 4a scenes ----
+  function arrow(c, right, x, y) { put(c, right ? S.arR : S.arL, x, y, { a: 0.9 }); }
+
+  // The pincer: two half-formations fly in from the edges, with motion trails, then dock.
+  function pincer(c, t) {
+    sky(c, t);
+    const p = clamp(((t * 0.45) % 2) / 1.3, 0, 1);
+    for (let r = 0; r < 3; r++) for (let k = 0; k < 6; k++) {
+      const sx = 90 + (k - 2.5) * 24, sy = 54 + r * 20, dir = k < 3 ? -1 : 1;
+      const pr = clamp((p - r * 0.07) / 0.86, 0, 1), x = sx + dir * 118 * (1 - ease(pr));
+      const sp = 3 * (1 - pr) * (1 - pr), spr = (r === 1 && (k === 1 || k === 4)) ? S.warper : dir < 0 ? S.drone : S.droneG;
+      const col = dir < 0 ? K.acid : K.gold;
+      if (pr < 1) {
+        dashBox(c, Math.round(sx) - 7, sy - 5, 14, 10, K.muted, 0.35, 0);
+        for (let n = 7; n < 7 + 22 * sp; n++) rect(c, col, x + dir * n, sy, 1, 1);
+        for (let g = 1; g <= 4; g++) put(c, spr, x + dir * g * 6 * Math.min(1, sp + 0.2), sy, { a: Math.min(1, sp * 1.4) * 0.34 / g });
+      }
+      put(c, spr, x, sy);
+    }
+    arrow(c, true, 12, 150); arrow(c, false, 168, 150);
+    floor(c, t, 90 + Math.sin(t * 0.8) * 30);
+  }
+
+  // The weave: rows march in opposite directions; two Menders pulse green links to damaged neighbours.
+  function weave(c, t) {
+    sky(c, t);
+    const w = Math.sin(t * 0.9), dw = Math.cos(t * 0.9), q = (t % 2.4) / 2.4;
+    const heal = { '1,2': ['1,1', '0,2'], '2,4': ['2,5', '3,4'] }, hurt = [].concat(heal['1,2'], heal['2,4']);
+    const P = {};
+    for (let r = 0; r < 4; r++) {
+      const s = r % 2 ? 1 : -1, right = s * dw > 0;
+      for (let k = 0; k < 6; k++) P[r + ',' + k] = [90 + (k - 2.5) * 22 + s * w * 14, 48 + r * 20];
+      arrow(c, right, right ? 174 : 6, 48 + r * 20);
+    }
+    if (q < 0.7) for (const m in heal) {
+      const [mx, my] = P[m];
+      ring(c, mx, my, 3 + (q / 0.7) * 30, K.green, 24, (1 - q / 0.7) * 0.8, 1);
+      if (q > 0.04) for (const h of heal[m]) link(c, mx, my, P[h][0], P[h][1], t, 1);
+    }
+    for (const key in P) {
+      const [x, y] = P[key], r = +key[0], isM = key in heal, spr = isM ? S.mender : r % 2 ? S.droneG : S.drone;
+      put(c, spr, x, y, { tint: isM && q < 0.12 ? WHITE : null });
+      if (hurt.includes(key) && (q < 0.55 || q > 0.95)) crack(c, x, y);
+    }
+    floor(c, t, 90 + Math.sin(t * 0.7 + 1) * 34);
+  }
+
+  // Mines drift through the formation, one bursts and catches aliens; two marked acid columns and one raining column eating a bunker.
+  const eaten = []; for (let i = 0; i < 24; i++) { const d = Math.abs(i - 11.5); eaten.push(clamp(Math.round(d < 9 ? 7 - d * 0.7 + hash(i) * 2 : hash(i + 40) * 1.4), 0, 9)); }
+  function mines(c, t) {
+    sky(c, t);
+    // acid: two telegraphed columns (dashed at the top) and one raining column
+    for (const cx of [30, 150]) {
+      const blink = 0.55 + 0.35 * Math.sin(t * 6);
+      c.globalAlpha = 0.07; rect(c, K.gold, cx - 10, 16, 20, 32); c.globalAlpha = 1;
+      dashBox(c, cx - 10, 16, 20, 32, K.gold, blink, t * 8);
+      dots(c, cx - 10, 48, cx - 10, 240, 6, K.gold, 0.18, 1); dots(c, cx + 9, 48, cx + 9, 240, 6, K.gold, 0.18, 1);
+    }
+    c.globalAlpha = 0.11; rect(c, K.acid, 80, 14, 20, 230); c.globalAlpha = 0.45; rect(c, K.acid, 80, 14, 1, 230); rect(c, K.acid, 99, 14, 1, 230); c.globalAlpha = 1;
+    for (let i = 0; i < 14; i++) {
+      const y = 14 + (t * (120 + hash(i + 9) * 90) + hash(i + 3) * 230) % 226, x = 81 + Math.floor(hash(i) * 18);
+      rect(c, K.acid, x, y, 1, 5); rect(c, lt(K.acid, 0.6), x, y + 4, 1, 1);
+    }
+    // formation, with the burst
+    const sway = Math.sin(t * 0.6) * 4, T = 3.4, u = t % T, bx = 112 + sway, by = 62, b = (u - 1.8) / 1.2;
+    for (let r = 0; r < 3; r++) for (let k = 0; k < 6; k++) {
+      const x = 90 + (k - 2.5) * 22 + sway, y = 44 + r * 18, hit = u >= 1.8 && Math.hypot(x - bx, y - by) < 26;
+      put(c, r % 2 ? S.droneG : S.drone, x, y, { tint: hit && b < 0.18 ? WHITE : null });
+      if (hit && b >= 0.18) crack(c, x, y);
+    }
+    if (u < 1.8) put(c, S.mine, bx, 14 + (u / 1.8) * (by - 14));
+    else if (u < 3.0) {
+      disk(c, bx, by, Math.max(0, Math.round((1 - b) * 9)), K.warm, 0.9);
+      ring(c, bx, by, 4 + b * 28, K.rare, 22, 1 - b, 2);
+      ring(c, bx, by, 2 + b * 18, K.warm, 12, 1 - b, 2);
+    }
+    [[22, 0.0], [158, 0.4], [64, 0.7], [140, 0.2]].forEach(([x, ph], i) => {
+      put(c, Math.floor(t * 3 + i) % 2 ? S.mine : S.mineOff, x + Math.sin(t * 0.8 + i) * 3, (t * 11 + ph * 260) % 230);
+    });
+    floor(c, t, 62 + Math.sin(t * 0.7) * 20, [null, eaten, null]);
+    // acid dripping off the eaten bunker
+    for (let i = 0; i < 4; i++) rect(c, K.acid, 84 + Math.floor(hash(i + 7) * 14), 252 + ((t * 20 + i * 9) % 18), 1, 2);
+  }
+
+  // ---- 4b scenes ----
+  const heartCache = {};
+  function heartImg(s) { // the Heart, baked per pulse size
+    const key = Math.round(s * 40);
+    if (heartCache[key]) return heartCache[key];
+    const cv = document.createElement('canvas'); cv.width = cv.height = 68;
+    const x = cv.getContext('2d'), u = 25 * s, base = mix(K.blood, K.hive, 0.2);
+    const inside = (px, py) => { const a = px / u, b = -py / u + 0.12, q = a * a + b * b - 1; return q * q * q - a * a * b * b * b <= 0; };
+    for (let py = -34; py < 34; py++) for (let px = -34; px < 34; px++) {
+      if (!inside(px, py)) continue;
+      let col;
+      if (!inside(px + 1, py) || !inside(px - 1, py) || !inside(px, py + 1) || !inside(px, py - 1)) col = dk(base, 0.65);
+      else { const d = Math.hypot(px + 8 * s, py + 8 * s) / (u * 1.3); col = d < 0.2 ? lt(base, 0.6) : d < 0.42 ? lt(base, 0.28) : d < 0.9 ? base : dk(base, 0.3); }
+      x.fillStyle = col; x.fillRect(px + 34, py + 34, 1, 1);
+    }
+    return (heartCache[key] = cv);
+  }
+  const VEINS = [[[74, 56], [40, 30], [8, 34]], [[106, 56], [140, 30], [172, 34]], [[70, 86], [36, 100], [8, 118]], [[110, 86], [144, 100], [172, 118]]];
+  const bez = (v, u) => [0, 1].map((i) => (1 - u) * (1 - u) * v[0][i] + 2 * (1 - u) * u * v[1][i] + u * u * v[2][i]);
+  function heart(c, t) {
+    sky(c, t);
+    const cx = 90, cy = 72, P = 1.2, n = Math.floor(t / P), beat = Math.exp(-(t - n * P) * 7);
+    VEINS.forEach((v, vi) => {
+      for (let i = 0; i <= 44; i++) { const [x, y] = bez(v, i / 44); rect(c, dk(K.hive, 0.55), x - 1, y - 1, 3, 3); }
+      for (let i = 0; i <= 44; i++) { const [x, y] = bez(v, i / 44); rect(c, mix(K.hive, K.blood, 0.3 - beat * 0.3), x, y, 1, 1); }
+      for (let j = 0; j < 3; j++) { const [x, y] = bez(v, 1 - ((t * 0.5 + j / 3 + vi * 0.13) % 1)); rect(c, lt(K.hive, 0.55), x - 1, y - 1, 2, 2); }
+      disk(c, v[2][0], v[2][1], 4, K.hive, 1); disk(c, v[2][0], v[2][1], 2, lt(K.hive, 0.5), 1);
+    });
+    disk(c, cx, cy, Math.round(36 + beat * 8), K.hive, 0.07 + beat * 0.12);
+    c.drawImage(heartImg(1 + 0.07 * beat), cx - 34, cy - 34);
+    // rings: a gap in each, aimed at where the ship will be when the ring arrives
+    const PASS = 2.97, SPD = 70, N = 44, SY = 292;
+    const gapAng = (k) => Math.PI / 2 + Math.sin(k * 1.9) * 0.14;
+    const target = (k) => cx - (SY - cy) * Math.tan(gapAng(k) - Math.PI / 2);
+    for (let k = Math.max(0, n - 3); k <= n; k++) {
+      const R = 32 + (t - k * P) * SPD;
+      if (R > 300) continue;
+      for (let j = 1; j < N; j++) {
+        const an = gapAng(k) + (j / N) * Math.PI * 2;
+        rect(c, j % 2 ? K.hive : K.rare, cx + Math.cos(an) * R - 1, cy + Math.sin(an) * R - 1, 3, 3);
+      }
+    }
+    const k0 = t > PASS ? Math.floor((t - PASS) / P) + 1 : 0;
+    const sh = k0 >= 1 ? lerp(target(k0 - 1), target(k0), ease(clamp((t - ((k0 - 1) * P + PASS)) / 0.55, 0, 1))) : target(0);
+    const a0 = gapAng(k0);
+    dots(c, cx + Math.cos(a0) * 34, cy + Math.sin(a0) * 34, cx + Math.cos(a0) * 226, cy + Math.sin(a0) * 226, 7, K.pilot, 0.3, 1);
+    for (let i = 0; i < 3; i++) rect(c, K.pilot, sh - 1, 280 - ((t * 110 + i * 50) % 150), 2, 5);
+    put(c, S.ship, sh, SY);
+  }
+
+  const skyOnly = (c, t) => sky(c, t);
+
+  // ---- Run everything ----
+  const all = [
+    ['u-warper', uWarper, 1.15], ['u-mender', uMender, 0.6], ['u-mine', uMine, 0.5],
+    ['c-pincer', pincer, 1.44], ['c-weave', weave, 0.72], ['c-mines', mines, 2.2],
+    ['c-heart', heart, 1.7], ['c-rush', skyOnly, 1], ['c-records', skyOnly, 2],
+  ].map(([id, fn, ts]) => ({ el: document.getElementById(id), c: ctx(id), fn, ts })).filter((f) => f.c);
+  let last = -1;
+  function frame(ms) {
+    const t = ms / 1000;
+    if (ms - last > 33) {
+      last = ms;
+      for (const f of all) { const r = f.el.getBoundingClientRect(); if (r.bottom > 0 && r.top < innerHeight) f.fn(f.c, t); }
+    }
+    requestAnimationFrame(frame);
+  }
+  if (reduce) all.forEach((f) => f.fn(f.c, f.ts)); else requestAnimationFrame(frame);
+})();
+</script>
