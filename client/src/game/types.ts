@@ -410,6 +410,9 @@ export interface BossState {
    */
   beatTimer?: number;
   beats?: number;
+  /** Hive Heart, phase 3: seconds until the echo ring follows the beat's ring (0 or absent: none pending), and that ring's gap angle, radians. */
+  heartEcho?: number;
+  heartEchoGap?: number;
 }
 
 /**

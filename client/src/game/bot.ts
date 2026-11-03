@@ -39,7 +39,8 @@ export function botInput(run: RunState): ShipInput {
     if (target === null || Math.abs(a.x - ship.x) < Math.abs(target - ship.x)) target = a.x;
   }
   if (target === null && run.boss) {
-    const plates = standingParts(run.boss, 'plate');
+    // The shields first (the Brood Mother's plates, the Hive Heart's veins), then the core.
+    const plates = [...standingParts(run.boss, 'plate'), ...standingParts(run.boss, 'vein')];
     const parts = plates.length > 0 ? plates : standingParts(run.boss, 'core');
     for (const p of parts) {
       const x = run.boss.x + p.dx;

@@ -338,7 +338,7 @@ describe('pickUpgrade', () => {
 });
 
 describe('a whole run', () => {
-  it('is won by a bot with spare lives: it clears every wave and defeats both bosses', () => {
+  it('is won by a bot with spare lives: it clears every wave and defeats all three bosses', () => {
     const { run, steps: n, events } = playWithBot(1, 99, 120 * 60 * 10);
     expect(run.phase).toBe('won');
     expect(run.wave).toBe(WAVE_COUNT - 1);
@@ -347,6 +347,7 @@ describe('a whole run', () => {
     expect(events.filter((e) => e.type === 'bossKilled')).toEqual([
       expect.objectContaining({ kind: 'broodMother', points: BOSS_POINTS.core }),
       expect.objectContaining({ kind: 'hiveMind', points: BOSS_POINTS.core }),
+      expect.objectContaining({ kind: 'hiveHeart', points: BOSS_POINTS.core }),
     ]);
     expect(events.filter((e) => e.type === 'bossPartDestroyed' && e.part === 'plate')).toHaveLength(4);
     expect(events.filter((e) => e.type === 'sectorStart')).toEqual([
@@ -354,7 +355,8 @@ describe('a whole run', () => {
       { type: 'sectorStart', sector: 2 },
       { type: 'sectorStart', sector: 3 },
     ]);
-    expect(events.filter((e) => e.type === 'bossPhase')).toEqual([2, 2, 3].map((phase) => ({ type: 'bossPhase', phase })));
+    expect(events.filter((e) => e.type === 'bossPhase')).toEqual([2, 2, 3, 2, 3].map((phase) => ({ type: 'bossPhase', phase })));
+    expect(events.filter((e) => e.type === 'bossPartDestroyed' && e.part === 'vein')).toHaveLength(4);
     expect(run.aliens.filter((a) => a.mode === 'free')).toEqual([]);
     expect(n).toBeLessThan(120 * 60 * 10);
     expect(run.score).toBeGreaterThan(0);
