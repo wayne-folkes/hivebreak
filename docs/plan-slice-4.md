@@ -71,7 +71,7 @@ before pushing. Balance is checked with the autopilot bot on seeded runs.
    - **Sonnet, boss:** the Hive Heart's parts, phases and attacks.
    - **Sonnet, Boss Rush:**
      - run setup: three starting picks, then the bosses in order;
-     - a pick and a partial bunker rebuild between bosses;
+     - a pick and fresh bunkers between bosses;
      - the clear timer and its time bonus;
      - the records table and the unlock check.
    - **Sonnet, models and music:** the Hive Heart model; the heartbeat boss track, whose kick
@@ -130,8 +130,7 @@ A huge heart in the hive's core, fed by four veins.
 - **How it runs:**
   - Choose a ship and a Special as usual.
   - Take three upgrade picks.
-  - Fight the Brood Mother, then the Hive Mind, then the Hive Heart, with an upgrade pick and a
-    partial bunker rebuild between bosses.
+  - Fight the Brood Mother, then the Hive Mind, then the Hive Heart, with an upgrade pick and fresh bunkers between bosses.
   - Your lives carry over between bosses.
 - **Score:** points as usual, plus a time bonus for each boss beaten under par.
 - **Records:** a top 10 by score, each entry showing the clear time and how many bosses were
