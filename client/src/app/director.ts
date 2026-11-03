@@ -56,14 +56,32 @@ function trackFor(wave: number): TrackId {
   return def.boss === 'hiveHeart' ? 'heart' : def.boss ? 'boss' : def.sector === 3 ? 'sector3' : def.sector === 2 ? 'sector2' : 'sector1';
 }
 
+/**
+ * Boss Rush: the track of the boss the open pick leads to, or null when the run isn't on such a
+ * pick. The starting picks look ahead to the first boss; the pick after a boss, to the next one.
+ * (The last boss has no pick after it: beating it wins the rush.)
+ */
+function rushPickTrack(run: RunState): TrackId | null {
+  const rush = run.rush;
+  if (!rush || run.phase !== 'upgradePick') return null;
+  const next = rush.stages[rush.stage + (rush.picksLeft > 0 ? 0 : 1)];
+  return next === undefined ? null : trackFor(next);
+}
+
 /** What the music should be doing for this mode and run. */
 export function musicState(mode: Mode, run: RunState): MusicState {
   if (mode === 'title' || mode === 'special') return { track: 'title', ...QUIET };
   // The game-over card, and a run that is won or lost (its ending stinger fades the track).
   if (mode === 'over' || run.phase === 'won' || run.phase === 'lost') return { track: null, ...QUIET };
 
+  // Boss Rush picks play the next boss's track, calm: from the starting picks on, the first boss's
+  // theme is already under the cards and carries straight into its fight; after a boss, the next
+  // boss's. (A rush's waves are all boss waves, so the normal rule below would pick the wrong track.)
+  const rushNext = rushPickTrack(run);
+  if (rushNext) return { track: rushNext, ...QUIET };
+
   // With a boss beaten, its theme gives way to the next wave's track under the upgrade card.
-  const bossBeaten = run.phase === 'upgradePick' && WAVES[run.wave].boss && run.wave + 1 < WAVE_COUNT;
+  const bossBeaten = !run.rush && run.phase === 'upgradePick' && WAVES[run.wave].boss && run.wave + 1 < WAVE_COUNT;
   if (bossBeaten) return { track: trackFor(run.wave + 1), ...QUIET };
   const track = trackFor(run.wave);
   // The enemy clocks only run (and so only wind down) in these phases; a Time Stop left over when

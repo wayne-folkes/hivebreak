@@ -6,7 +6,7 @@ import { unlockedEntries } from './unlockview';
 
 // The end-of-run "UNLOCKED" moment, shown before the game-over card when the run met milestones:
 // a gold heading and, for each milestone met, the reward (a ship shows its icon), what kind it is,
-// and "for: <what you did>". The items pop in one after another (CSS; still when the player
+// and "for: <what you did>" (the first win also lists Boss Rush, as a Mode). The items pop in one after another (CSS; still when the player
 // prefers reduced motion), then Continue. Confirm and clicks are ignored for the first 0.6 s
 // after it opens, so mashing fire as the run ends can't skip it.
 //

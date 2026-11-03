@@ -5,12 +5,12 @@ import '@fontsource/silkscreen/700.css';
 
 export { Banner } from './banner';
 export { byId, MenuCard } from './card';
-export { bossDownHeading, waveClearHeading } from './format';
+export { bossDownHeading, RUSH_HEADING, rushPickAsk, timeBonusLabel, waveClearHeading } from './format';
 export { GameOverCard, type GameOverActions, type RunResult } from './gameover';
 export { Hud } from './hud';
 export { HowToCard } from './howto';
 export { PauseCard, type PauseActions } from './pause';
-export { RecordsCard } from './records';
+export { RecordsCard, type RecordSources, type RecordsTab } from './records';
 export { ShipCard } from './ship';
 export { SpecialCard } from './special';
 export { SettingsCard, type SettingsOptions } from './settings';

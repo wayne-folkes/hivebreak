@@ -1,6 +1,7 @@
 import type { Fit } from '../game/playfield';
 import { LEGACY_RECORD_WAVES } from '../game/records';
 import type { RunRecord } from '../game/records';
+import type { RushRecord } from '../game/rushrecords';
 import type { SourceKind } from '../game/controls';
 import type { ActivePowerUp, BossKind, PowerUpKind, Rarity, Sector, ShipDef, SpecialId, SynergyId, UpgradeId } from '../game/types';
 import type { Unlock } from '../game/progress';
@@ -346,5 +347,66 @@ export function shipStatPips(def: ShipDef, all: readonly ShipDef[]): ShipStatPip
     speed: statPips(def.stats.speed, Math.max(...all.map((s) => s.stats.speed))),
     fireRate: statPips(rate(def), Math.max(...all.map(rate))),
     lives: statPips(def.lives, Math.max(...all.map((s) => s.lives))),
+  };
+}
+
+// --- Boss Rush ----------------------------------------------------------------------------------
+
+/** How many bosses a Boss Rush plays (the boss waves). */
+export const RUSH_BOSS_COUNT = WAVES.filter((w) => w.boss !== undefined).length;
+
+/** The title button's hint while Boss Rush is locked. */
+export const BOSS_RUSH_LOCK_HINT = 'Win a run to unlock';
+
+/** The pick card's heading for a rush's starting picks. */
+export const RUSH_HEADING = 'BOSS RUSH';
+
+/** A time as m:ss, minutes growing past 59: 75.9 reads 1:15. Bad numbers read 0:00. */
+export function formatClock(seconds: number): string {
+  const whole = Math.max(0, Math.floor(Number.isFinite(seconds) ? seconds : 0));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+}
+
+/** The HUD's boss progress for the boss being fought (`stage` counts from 0): "2/3". */
+export function rushBossLabel(stage: number, total: number): string {
+  return waveLabel(Math.min(Math.max(0, Math.floor(stage)) + 1, total), total);
+}
+
+/** The pick card's second line: "PICK 1 OF 3" for the starting picks (`picksLeft` still to take, this one included), else "PICK ONE". */
+export function rushPickAsk(picksLeft: number, total: number): string {
+  return picksLeft > 0 ? `PICK ${Math.max(1, total - picksLeft + 1)} OF ${total}` : 'PICK ONE';
+}
+
+/** The time bonus line on the pick after a boss: "+1,250 TIME BONUS". */
+export function timeBonusLabel(points: number): string {
+  return `+${Math.max(0, Math.round(points)).toLocaleString('en-US')} TIME BONUS`;
+}
+
+/** A Boss Rush's end heading: clearing all the bosses, else the ways to lose as in a normal run. */
+export function rushEndTitle(won: boolean, reason?: 'lives' | 'invaded'): string {
+  return won ? 'RUSH CLEARED' : endTitle(false, reason);
+}
+
+/** The result card's time row: the clear time of a won rush, how long a lost one lasted. */
+export function rushTimeLabel(won: boolean): string {
+  return won ? 'Clear time' : 'Time survived';
+}
+
+export interface RushRecordRowText {
+  rank: string;
+  score: string;
+  time: string;
+  bosses: string;
+  date: string;
+}
+
+/** One line of the Boss Rush list: rank, score, time, bosses beaten ("2/3") and the date. */
+export function rushRecordRowText(index: number, record: RushRecord): RushRecordRowText {
+  return {
+    rank: String(index + 1),
+    score: formatScore(record.score),
+    time: formatClock(record.time),
+    bosses: waveLabel(record.bosses, RUSH_BOSS_COUNT),
+    date: formatDate(record.date),
   };
 }

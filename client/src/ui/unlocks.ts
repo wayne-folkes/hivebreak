@@ -84,7 +84,7 @@ function rowItem(row: UnlockRow): HTMLLIElement {
     li.append(h('span', 'unlock-state', row.starter ? 'Starter' : 'Unlocked'));
   } else {
     li.append(h('span', 'unlock-state', `\u{1F512} ${row.hint ?? 'Locked'}`));
-    if (row.progress) li.append(progressBar(row.progress, `${unlockLabel(row.unlock)} progress`));
+    if (row.progress) li.append(progressBar(row.progress, `${row.unlock ? unlockLabel(row.unlock) : row.name} progress`));
   }
   return li;
 }

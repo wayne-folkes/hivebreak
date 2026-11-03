@@ -14,6 +14,7 @@ import { Keyboard } from './game/input';
 import { FIELD_WIDTH } from './game/playfield';
 import {
   MILESTONES,
+  bossRushUnlocked,
   emptyProgress,
   exportCode,
   importCode,
@@ -24,10 +25,11 @@ import {
 } from './game/progress';
 import type { MilestoneDef, Progress } from './game/progress';
 import { RECORDS_KEY, addRecord, bestScore, loadRecords } from './game/records';
-import { WAVE_COUNT, WAVE_INTRO_SECONDS, chooseSpecial, createRun, pickUpgrade, stepRun } from './game/run';
+import { RUSH_START_PICKS, WAVE_COUNT, WAVE_INTRO_SECONDS, chooseSpecial, createRun, pickUpgrade, rushBossesBeaten, stepRun } from './game/run';
+import { RUSH_RECORDS_KEY, addRushRecord, bestRushScore, loadRushRecords } from './game/rushrecords';
 import { TouchControls } from './game/touch';
 import { NO_INPUT } from './game/types';
-import type { RunEvent, RunState, ShipId, ShipInput, SpecialId } from './game/types';
+import type { RunEvent, RunMode, RunState, ShipId, ShipInput, SpecialId } from './game/types';
 import { SPECIAL_IDS } from './game/special';
 import { completesSynergy } from './game/synergies';
 import { stackCount } from './game/upgrades';
@@ -49,14 +51,20 @@ import {
   UnlockedCard,
   UnlocksCard,
   UpgradeCard,
+  RUSH_HEADING,
   bossDownHeading,
+  rushPickAsk,
+  timeBonusLabel,
 } from './ui';
-import { pickReady } from './ui/format';
+import { pickReady, rushBossLabel } from './ui/format';
 import type { MenuCard, RunResult } from './ui';
 
 // The game: the loop that steps the simulation and draws it, the input sources, sound, storage
 // and the flow between screens (title, ship choice, Special choice, run, upgrade pick, pause,
 // UNLOCKED moment, game over, Unlocks). The title plays an autopilot demo run behind it, silently.
+// Boss Rush (unlocked by the first win) goes through the same screens, with the rush's three
+// starting picks as upgrade cards before the bosses; it has its own records and is not counted
+// towards the unlocks.
 // What the player has unlocked (game/progress.ts) decides the ship choice, the Specials on offer
 // and the upgrade pool of a real run; every real run is recorded (app/runlog.ts) and counted once
 // when it ends. Music follows the screen and the run: every frame the
@@ -187,6 +195,8 @@ function clearStack(): void {
 let mode: Mode = 'title';
 /** The ship the real run (or the one being set up on the ship card) flies. The demo is always the Breaker. */
 let runShip: ShipId = 'breaker';
+/** What kind of real run is being set up or played; the demo is always a normal run. */
+let runMode: RunMode = 'normal';
 let run: RunState = createRun(1);
 let paused = false;
 let accumulator = 0;
@@ -201,6 +211,8 @@ let specialCarry = false;
 /** Events from outside the loop (a tapped upgrade), played with the next frame's. */
 let pending: RunEvent[] = [];
 let lostReason: 'lives' | 'invaded' | undefined;
+/** Boss Rush: the time bonus of the boss just beaten, for the pick card; null when it came in over par. */
+let rushBonus: number | null = null;
 /** Where the finished run landed in the records, once saved; null until then. */
 let savedRank: number | null = null;
 let lastResult: RunResult | null = null;
@@ -215,14 +227,17 @@ const live = (): boolean => mode === 'playing' && !paused;
 
 /**
  * Dev server only, for testing: `?wave=5` starts real runs at that wave (1-based), and
- * `?charged` starts them with a full Special meter. Production builds drop both.
+ * `?charged` starts them with a full Special meter. `?rush` starts a Boss Rush with everything
+ * unlocked (progress is not saved), `?unlockAll` just unlocks everything. Production builds drop all of them.
  */
 const DEV_PARAMS = import.meta.env.DEV ? new URLSearchParams(location.search) : null;
 const DEV_WAVE = Number(DEV_PARAMS?.get('wave'));
 const DEV_FIRST_WAVE = Number.isFinite(DEV_WAVE) && DEV_WAVE >= 1 ? DEV_WAVE - 1 : 0;
 const DEV_CHARGED = DEV_PARAMS?.has('charged') ?? false;
 /** `?unlockAll`: everything counts as unlocked this session, and progress is not saved. */
-const DEV_UNLOCK_ALL = DEV_PARAMS?.has('unlockAll') ?? false;
+const DEV_RUSH = DEV_PARAMS?.has('rush') ?? false;
+/** `?rush` also unlocks everything, so it can open straight onto a Boss Rush's ship card. */
+const DEV_UNLOCK_ALL = (DEV_PARAMS?.has('unlockAll') ?? false) || DEV_RUSH;
 
 // Unlock progress ----------------------------------------------------------------------------
 
@@ -253,13 +268,14 @@ function settleRun(): readonly MilestoneDef[] {
 function newRun(seed: number): void {
   run = demo()
     ? createRun(seed, 1, 0)
-    : createRun(seed, 1, DEV_FIRST_WAVE, { ships: [runShip], upgrades: unlockedUpgrades(progress) });
+    : createRun(seed, 1, DEV_FIRST_WAVE, { mode: runMode, ships: [runShip], upgrades: unlockedUpgrades(progress) });
   // The title demo picks its Special itself, silently; a real run waits for the Special card.
   if (demo()) chooseSpecial(run, SPECIAL_IDS[seed % SPECIAL_IDS.length]);
   accumulator = 0;
   carry = 0;
   specialCarry = false;
   lostReason = undefined;
+  rushBonus = null;
   savedRank = null;
   view.reset();
   view.stepped(run);
@@ -286,15 +302,18 @@ function showTitle(): void {
  * is picked. The run exists from the start (with the last ship used, which the ship pick replaces
  * if it differs), so the cards sit over a real run in its Special-choice phase.
  */
-function startRun(): void {
+function startRun(kind: RunMode = 'normal'): void {
+  // The button is dimmed while locked, but a stale click or the dev params shouldn't get past it.
+  if (kind === 'bossRush' && !bossRushUnlocked(progress)) return;
   settleRun();
   clearStack();
   const ships = unlockedShips(progress);
   runShip = loadLastShip(storage, progress) ?? ships[0];
+  runMode = kind;
   mode = 'special';
   paused = false;
   newRun(Date.now());
-  hud.setBest(bestScore(storage));
+  hud.setBest(runMode === 'bossRush' ? bestRushScore(storage) : bestScore(storage));
   hud.setVisible(true);
   hud.update(run, controls.lastUsed);
   controls.holdFireUntilReleased();
@@ -318,12 +337,14 @@ function takeSpecial(special: SpecialId): void {
   pending.push(...chooseSpecial(run, special));
   // Choosing resets the meter, so the dev `?charged` fill comes after it.
   if (DEV_CHARGED) for (const p of run.players) p.specialCharge = 1;
-  runLog.start(runShip, special);
+  // A Boss Rush is not recorded for the unlocks: it plays only the bosses, so its totals and
+  // milestones (waves cleared, kills, sector reached) would not mean what a normal run's do.
+  if (run.mode === 'normal') runLog.start(runShip, special);
   mode = 'playing';
   // The ship card may be underneath.
   clearStack();
   controls.holdFireUntilReleased();
-  screenView('/play');
+  screenView(playPath());
 }
 
 function pauseRun(): void {
@@ -333,6 +354,11 @@ function pauseRun(): void {
   specialCarry = false;
   banner.hide();
   enter(pauseScreen);
+}
+
+/** The page view of the play screen: a Boss Rush counts apart from a normal run. */
+function playPath(): string {
+  return run.mode === 'bossRush' ? '/rush' : '/play';
 }
 
 /** The wave whose intro announced a sector, so a resumed intro shows the same banner. */
@@ -348,11 +374,12 @@ function resumeRun(): void {
   // The wave banner was cut short by the pause; show what is left of it.
   if (run.phase === 'waveIntro') {
     const seconds = Math.max(0.3, WAVE_INTRO_SECONDS - run.phaseTime);
+    if (run.rush) banner.show(`BOSS ${rushBossLabel(run.rush.stage, run.rush.stages.length)}`, seconds);
     // A wave that opened a sector (the sim's sectorStart, which also covers a run that starts
     // mid-sector) got the sector banner, not the plain one.
-    if (run.wave !== sectorWave || !banner.sector(WAVES[run.wave].sector, seconds, run.wave + 1)) banner.show(`WAVE ${run.wave + 1}`, seconds);
+    else if (run.wave !== sectorWave || !banner.sector(WAVES[run.wave].sector, seconds, run.wave + 1)) banner.show(`WAVE ${run.wave + 1}`, seconds);
   }
-  screenView('/play');
+  screenView(playPath());
 }
 
 function openPick(): void {
@@ -367,19 +394,30 @@ function takeUpgrade(index: number): void {
   specialCarry = false;
   leave();
   controls.holdFireUntilReleased();
-  screenView('/play');
+  screenView(playPath());
 }
 
-/** Saves the finished run to the records, once. Returns its place in the top 10 (0 is best, -1 if it missed). */
+/**
+ * Saves the finished run to the records, once: a Boss Rush to its own table (time, bosses
+ * beaten), a normal run to the normal one. Returns its place in the top 10 (0 is best, -1 if it missed).
+ */
 function saveRun(): number {
   if (savedRank !== null) return savedRank;
+  const date = new Date().toISOString();
+  const won = run.phase === 'won';
+  if (run.rush) {
+    const { rank } = addRushRecord(storage, { score: run.score, time: run.rush.time, bosses: rushBossesBeaten(run), won, date });
+    savedRank = rank;
+    hud.setBest(bestRushScore(storage));
+    return rank;
+  }
   const { rank } = addRecord(storage, {
     score: run.score,
     wave: run.wave + 1,
     waves: WAVE_COUNT,
     bestCombo: run.bestCombo,
-    won: run.phase === 'won',
-    date: new Date().toISOString(),
+    won,
+    date,
   });
   savedRank = rank;
   hud.setBest(bestScore(storage));
@@ -396,6 +434,7 @@ function finishRun(): void {
     wave: run.wave + 1,
     bestCombo: run.bestCombo,
     rank,
+    ...(run.rush ? { rush: { time: run.rush.time, bosses: rushBossesBeaten(run), total: run.rush.stages.length } } : {}),
   };
   mode = 'over';
   carry = 0;
@@ -420,13 +459,15 @@ function continueToResult(): void {
 
 const titleCard = new TitleCard(
   {
-    start: startRun,
+    start: () => startRun('normal'),
+    rush: () => startRun('bossRush'),
     howToPlay: () => enter(howtoScreen),
     settings: () => enter(settingsScreen),
     records: () => enter(recordsScreen),
     unlocks: () => enter(unlocksScreen),
   },
   () => bestScore(storage),
+  () => bossRushUnlocked(progress),
 );
 const howtoCard = new HowToCard(leave);
 const settingsCard = new SettingsCard(
@@ -448,8 +489,10 @@ const settingsCard = new SettingsCard(
     setMusicVolume: (volume) => {
       music.volume = volume;
     },
+    // Erases both tables (the confirm text says so): Settings has no tab to say which one.
     resetRecords: () => {
       storage.setItem(RECORDS_KEY, '[]');
+      storage.setItem(RUSH_RECORDS_KEY, '[]');
       hud.setBest(0);
     },
     exportProgress: () => exportCode(progress),
@@ -466,14 +509,18 @@ const settingsCard = new SettingsCard(
 );
 document.getElementById('settings-volume')?.addEventListener('change', saveSound);
 document.getElementById('settings-music-volume')?.addEventListener('change', saveMusic);
-const recordsCard = new RecordsCard(() => loadRecords(storage), leave);
+const recordsCard = new RecordsCard(
+  { normal: () => loadRecords(storage), rush: () => loadRushRecords(storage), rushOpen: () => bossRushUnlocked(progress) },
+  leave,
+);
 const pauseCard = new PauseCard({ resume: resumeRun, settings: () => enter(settingsScreen), quit: showTitle });
 const unlocksCard = new UnlocksCard(() => progress, leave);
 const shipCard = new ShipCard(takeShip);
 const specialCard = new SpecialCard(takeSpecial);
 const unlockedCard = new UnlockedCard(continueToResult);
 const upgradeCard = new UpgradeCard(takeUpgrade);
-const overCard = new GameOverCard({ playAgain: startRun, title: showTitle });
+// Play again starts the same kind of run again.
+const overCard = new GameOverCard({ playAgain: () => startRun(run.mode), title: showTitle });
 
 const titleScreen: Screen = { card: titleCard, open: () => titleCard.show(), path: '/' };
 const howtoScreen: Screen = { card: howtoCard, open: () => howtoCard.show(), path: '/howto' };
@@ -496,8 +543,14 @@ const pickScreen: Screen = {
   open: () => {
     const player = run.players[0];
     // run.boss is only set on a boss wave, and stays until the next wave starts.
+    const rush = run.rush;
+    // A rush's starting picks come before its first boss (picksLeft counts the ones still to take);
+    // the pick after a boss is the usual boss-down heading, with the time bonus if it came in under par.
+    const starting = rush !== null && rush.picksLeft > 0;
     upgradeCard.show(run.offer, run.wave + 1, (id) => stackCount(player, id), {
-      ...(run.boss ? { heading: bossDownHeading(run.boss.kind) } : {}),
+      ...(starting ? { heading: RUSH_HEADING } : run.boss ? { heading: bossDownHeading(run.boss.kind) } : {}),
+      ...(rush ? { ask: rushPickAsk(rush.picksLeft, RUSH_START_PICKS) } : {}),
+      ...(!starting && rushBonus !== null ? { bonus: timeBonusLabel(rushBonus) } : {}),
       completes: (id) => completesSynergy(player, id),
     });
   },
@@ -594,12 +647,16 @@ function reactTo(events: readonly RunEvent[]): void {
   for (const e of events) {
     if (e.type === 'sectorStart') {
       sectorWave = run.wave;
-      sectorBanner = banner.sector(e.sector, WAVE_INTRO_SECONDS, run.wave + 1);
+      // A rush's bosses get the "BOSS 2/3" banner (below), not a sector one.
+      sectorBanner = !run.rush && banner.sector(e.sector, WAVE_INTRO_SECONDS, run.wave + 1);
     }
     else if (e.type === 'waveStart') {
-      if (!sectorBanner) banner.show(`WAVE ${e.wave + 1}`, WAVE_INTRO_SECONDS);
+      rushBonus = null;
+      if (run.rush) banner.show(`BOSS ${rushBossLabel(run.rush.stage, run.rush.stages.length)}`, WAVE_INTRO_SECONDS);
+      else if (!sectorBanner) banner.show(`WAVE ${e.wave + 1}`, WAVE_INTRO_SECONDS);
       sectorBanner = false;
     }
+    else if (e.type === 'rushBonus') rushBonus = e.points;
     else if (e.type === 'playerHit') controls.rumble(0.8, 250);
     else if (e.type === 'shieldHit') controls.rumble(0.3, 120);
     else if (e.type === 'bossKilled') controls.rumble(1, 500);
@@ -705,6 +762,7 @@ async function start(): Promise<void> {
   hud.setMuted(!sound.enabled);
   hud.setBest(bestScore(storage));
   showTitle();
+  if (DEV_RUSH) startRun('bossRush');
   last = performance.now();
   requestAnimationFrame(frame);
 }

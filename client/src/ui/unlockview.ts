@@ -1,4 +1,5 @@
 import {
+  bossRushUnlocked,
   isUnlocked,
   MILESTONES,
   milestoneFor,
@@ -34,6 +35,13 @@ export function shipIconUrl(id: ShipId): string {
 export function unlockHint(unlock: Unlock): string | null {
   return milestoneFor(unlock)?.description ?? null;
 }
+
+// --- Modes --------------------------------------------------------------------------------------
+
+/** The milestone that opens Boss Rush (see bossRushUnlocked). */
+const BOSS_RUSH_MILESTONE: MilestoneDef['id'] = 'victor';
+const BOSS_RUSH_NAME = 'Boss Rush';
+const MODE_KIND = 'Mode';
 
 // --- Ship choice --------------------------------------------------------------------------------
 
@@ -95,7 +103,7 @@ export interface UnlockedEntry {
   milestone: MilestoneDef['id'];
   /** The reward's name: "Lancer". */
   name: string;
-  /** "Ship", "Special" or "Upgrade". */
+  /** "Ship", "Special", "Upgrade" or "Mode". */
   kind: string;
   /** "for: Defeat the Brood Mother". */
   reason: string;
@@ -104,13 +112,17 @@ export interface UnlockedEntry {
 }
 
 export function unlockedEntries(met: readonly MilestoneDef[]): UnlockedEntry[] {
-  return met.map((m) => ({
-    milestone: m.id,
-    name: unlockName(m.reward),
-    kind: unlockKindLabel(m.reward.kind),
-    reason: `for: ${m.description}`,
-    shipId: m.reward.kind === 'ship' ? m.reward.id : null,
-  }));
+  return met.flatMap((m) => {
+    const entry: UnlockedEntry = {
+      milestone: m.id,
+      name: unlockName(m.reward),
+      kind: unlockKindLabel(m.reward.kind),
+      reason: `for: ${m.description}`,
+      shipId: m.reward.kind === 'ship' ? m.reward.id : null,
+    };
+    // The first win opens Boss Rush as well as its own reward, so it is announced beside it.
+    return m.id === BOSS_RUSH_MILESTONE ? [entry, { ...entry, name: BOSS_RUSH_NAME, kind: MODE_KIND, shipId: null }] : [entry];
+  });
 }
 
 // --- Unlocks screen -----------------------------------------------------------------------------
@@ -121,7 +133,8 @@ export interface ProgressView {
 }
 
 export interface UnlockRow {
-  unlock: Unlock;
+  /** What it unlocks; null for a game mode (Boss Rush), which is not a ship, Special or upgrade. */
+  unlock: Unlock | null;
   name: string;
   unlocked: boolean;
   /** In the starting pool, so no milestone unlocks it. */
@@ -134,7 +147,7 @@ export interface UnlockRow {
 
 export interface GoalRow {
   id: MilestoneDef['id'];
-  /** What it unlocks: "Ship · Interceptor". */
+  /** What it unlocks: "Ship · Interceptor" ("Special · Gravity Well + Mode · Boss Rush" for the first win). */
   reward: string;
   description: string;
   progress: ProgressView | null;
@@ -167,6 +180,19 @@ function row(progress: Progress, unlock: Unlock): UnlockRow {
   };
 }
 
+/** The Boss Rush row of the Modes section: open once the first win is in. */
+function bossRushRow(progress: Progress): UnlockRow {
+  const unlocked = bossRushUnlocked(progress);
+  return {
+    unlock: null,
+    name: BOSS_RUSH_NAME,
+    unlocked,
+    starter: false,
+    hint: unlocked ? null : (MILESTONES.find((m) => m.id === BOSS_RUSH_MILESTONE)?.description ?? null),
+    progress: null,
+  };
+}
+
 /** How many milestones are met, counting only ones in the table. */
 export function metCount(progress: Progress): number {
   return MILESTONES.filter((m) => progress.milestones.includes(m.id)).length;
@@ -181,13 +207,14 @@ export function unlocksOverview(progress: Progress, goalCount = 3): UnlocksOverv
     countText: unlockedCountLabel(met, total),
     goals: nextGoals(progress, goalCount).map((m) => ({
       id: m.id,
-      reward: unlockLabel(m.reward),
+      reward: m.id === BOSS_RUSH_MILESTONE ? `${unlockLabel(m.reward)} + ${MODE_KIND} · ${BOSS_RUSH_NAME}` : unlockLabel(m.reward),
       description: m.description,
       progress: progressView(progress, m),
     })),
     sections: [
       { title: 'Ships', rows: SHIP_IDS.map((id) => row(progress, { kind: 'ship', id })) },
       { title: 'Specials', rows: SPECIAL_IDS.map((id) => row(progress, { kind: 'special', id })) },
+      { title: 'Modes', rows: [bossRushRow(progress)] },
       { title: 'Upgrades', rows: UPGRADES.map((u) => row(progress, { kind: 'upgrade', id: u.id })) },
     ],
   };

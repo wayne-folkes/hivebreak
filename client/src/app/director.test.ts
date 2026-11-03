@@ -69,6 +69,80 @@ describe('musicState: which track', () => {
   });
 });
 
+describe('musicState: Boss Rush', () => {
+  /** A rush past the Special choice: on its starting picks (3 left) until `stage` and `picksLeft` are changed. */
+  function rushRun(): RunState {
+    const run = createRun(1, 1, 0, { mode: 'bossRush' });
+    chooseSpecial(run, 'pulseBomb');
+    return run;
+  }
+
+  /** The rush at the pick after the boss of `stage`. */
+  function pickAfterBoss(stage: number): RunState {
+    const run = rushRun();
+    const rush = run.rush!;
+    rush.picksLeft = 0;
+    rush.stage = stage;
+    run.wave = rush.stages[stage];
+    run.phase = 'upgradePick';
+    return run;
+  }
+
+  it('starts a rush on the starting picks, with the first boss', () => {
+    const run = rushRun();
+    expect(run.phase).toBe('upgradePick');
+    expect(run.rush?.picksLeft).toBe(3);
+    expect(run.wave).toBe(BOSS_WAVES[0]);
+  });
+
+  it('plays the title track on the ship and Special cards, as a normal run does', () => {
+    expect(musicState('special', createRun(1, 1, 0, { mode: 'bossRush' })).track).toBe('title');
+    expect(musicState('special', rushRun()).track).toBe('title');
+  });
+
+  it("plays the first boss's track, calm, under each of the starting picks", () => {
+    const run = rushRun();
+    for (const picksLeft of [3, 2, 1]) {
+      run.rush!.picksLeft = picksLeft;
+      expect(musicState('pick', run)).toMatchObject({ track: 'boss', intensity: 0, danger: false, bossPhase: 1, timeScale: 1 });
+      // The pick opens a frame after the phase changes, while the mode is still `playing`.
+      expect(musicState('playing', run).track).toBe('boss');
+    }
+  });
+
+  it("plays the next boss's track, calm, under the pick after a boss", () => {
+    expect(WAVES[BOSS_WAVES[2]].boss).toBe('hiveHeart');
+    expect(musicState('pick', pickAfterBoss(0))).toMatchObject({ track: 'boss', intensity: 0, bossPhase: 1 });
+    expect(musicState('pick', pickAfterBoss(1))).toMatchObject({ track: 'heart', intensity: 0, bossPhase: 1 });
+  });
+
+  it('does not use the normal rule for the sector after a boss (every rush wave is a boss wave)', () => {
+    // Normal runs go from the Brood Mother (wave 5) to the sector 2 track; a rush goes to the next boss.
+    expect(musicState('pick', runAt(4, 'upgradePick')).track).toBe('sector2');
+    expect(musicState('pick', pickAfterBoss(0)).track).not.toBe('sector2');
+  });
+
+  it("plays each boss's own track in its fight, with the usual intensity", () => {
+    const run = rushRun();
+    run.rush!.picksLeft = 0;
+    run.phase = 'playing';
+    for (const [stage, track] of [[0, 'boss'], [1, 'boss'], [2, 'heart']] as const) {
+      run.rush!.stage = stage;
+      run.wave = run.rush!.stages[stage];
+      expect(musicState('playing', run).track).toBe(track);
+    }
+  });
+
+  it('is silent once the rush is won or lost', () => {
+    const run = pickAfterBoss(2);
+    run.phase = 'won';
+    expect(musicState('playing', run).track).toBeNull();
+    expect(musicState('over', run).track).toBeNull();
+    run.phase = 'lost';
+    expect(musicState('playing', run).track).toBeNull();
+  });
+});
+
 describe('musicState: intensity', () => {
   it('is 0 during the wave intro and the title', () => {
     const run = runAt(2, 'waveIntro');

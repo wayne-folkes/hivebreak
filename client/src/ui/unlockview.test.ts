@@ -116,6 +116,20 @@ describe('unlocked entries', () => {
     expect(b).toMatchObject({ kind: 'Upgrade', reason: 'for: Unlock a synergy', shipId: null });
     expect(unlockedEntries([])).toEqual([]);
   });
+
+  it('adds Boss Rush as a Mode beside the first win\'s own reward', () => {
+    const victor = MILESTONES.find((m) => m.id === 'victor')!;
+    const entries = unlockedEntries([victor]);
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({ name: 'Gravity Well', kind: 'Special', reason: 'for: Win a run', shipId: null });
+    expect(entries[1]).toMatchObject({ milestone: 'victor', name: 'Boss Rush', kind: 'Mode', reason: 'for: Win a run', shipId: null });
+  });
+
+  it('does not mention Boss Rush for other milestones', () => {
+    const others = MILESTONES.filter((m) => m.id !== 'victor');
+    expect(unlockedEntries(others).some((e) => e.kind === 'Mode')).toBe(false);
+    expect(unlockedEntries(others)).toHaveLength(others.length);
+  });
 });
 
 describe('unlocks overview', () => {
@@ -124,10 +138,11 @@ describe('unlocks overview', () => {
     expect(o.met).toBe(0);
     expect(o.total).toBe(MILESTONES.length);
     expect(o.countText).toBe(`0 / ${MILESTONES.length} unlocked`);
-    expect(o.sections.map((s) => s.title)).toEqual(['Ships', 'Specials', 'Upgrades']);
+    expect(o.sections.map((s) => s.title)).toEqual(['Ships', 'Specials', 'Modes', 'Upgrades']);
     expect(o.sections[0]!.rows).toHaveLength(SHIP_IDS.length);
     expect(o.sections[1]!.rows).toHaveLength(SPECIAL_IDS.length);
-    expect(o.sections[2]!.rows).toHaveLength(UPGRADES.length);
+    expect(o.sections[2]!.rows).toHaveLength(1);
+    expect(o.sections[3]!.rows).toHaveLength(UPGRADES.length);
   });
 
   it('shows the next goals, with progress where a milestone counts', () => {
@@ -143,11 +158,24 @@ describe('unlocks overview', () => {
   it('marks starters, unlocked and locked rows', () => {
     const p = withMilestones('deepSpace');
     const ships = unlocksOverview(p).sections[0]!.rows;
-    expect(ships.find((r) => r.unlock.id === 'breaker')).toMatchObject({ unlocked: true, starter: true, hint: null });
-    expect(ships.find((r) => r.unlock.id === 'interceptor')).toMatchObject({ unlocked: true, starter: false });
-    const bastion = ships.find((r) => r.unlock.id === 'bastion')!;
+    expect(ships.find((r) => r.unlock?.id === 'breaker')).toMatchObject({ unlocked: true, starter: true, hint: null });
+    expect(ships.find((r) => r.unlock?.id === 'interceptor')).toMatchObject({ unlocked: true, starter: false });
+    const bastion = ships.find((r) => r.unlock?.id === 'bastion')!;
     expect(bastion).toMatchObject({ unlocked: false, hint: 'Destroy 300 aliens in total' });
     expect(bastion.progress).toEqual({ text: '0 / 300', percent: 0 });
+  });
+
+  it('lists Boss Rush as a mode, locked with its hint until the first win', () => {
+    const locked = unlocksOverview(emptyProgress()).sections.find((s) => s.title === 'Modes')!.rows[0]!;
+    expect(locked).toMatchObject({ name: 'Boss Rush', unlocked: false, starter: false, hint: 'Win a run', progress: null, unlock: null });
+    const open = unlocksOverview(withMilestones('victor')).sections.find((s) => s.title === 'Modes')!.rows[0]!;
+    expect(open).toMatchObject({ name: 'Boss Rush', unlocked: true, hint: null });
+  });
+
+  it('names Boss Rush in the first win\'s goal', () => {
+    const goal = unlocksOverview(emptyProgress(), MILESTONES.length).goals.find((g) => g.id === 'victor');
+    expect(goal?.reward).toBe('Special · Gravity Well + Mode · Boss Rush');
+    expect(unlocksOverview(emptyProgress(), MILESTONES.length).goals.find((g) => g.id === 'broodSlayer')?.reward).toMatch(/^Ship · /);
   });
 
   it('has no goals when everything is met', () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Fit } from '../game/playfield';
 import { fitPlayfield } from '../game/playfield';
 import type { RunRecord } from '../game/records';
+import type { RushRecord } from '../game/rushrecords';
 import {
   bossBarLabel,
   bossBarPercent,
@@ -9,6 +10,7 @@ import {
   bossDownHeading,
   comboLabel,
   endTitle,
+  formatClock,
   formatDate,
   formatScore,
   hudLayout,
@@ -19,6 +21,12 @@ import {
   PAUSE_RESERVE,
   PICK_GUARD_SECONDS,
   rankBadge,
+  RUSH_BOSS_COUNT,
+  rushBossLabel,
+  rushEndTitle,
+  rushPickAsk,
+  rushRecordRowText,
+  rushTimeLabel,
   sectorBanner,
   recordRowText,
   specialHint,
@@ -27,6 +35,7 @@ import {
   stackLabel,
   summarizeUpgrades,
   synergyToast,
+  timeBonusLabel,
   waveClearHeading,
   waveSector,
   waveLabel,
@@ -302,5 +311,58 @@ describe('specialPrompt', () => {
     expect(specialPrompt('pulseBomb', 'keyboard')).toBe('PULSE BOMB READY · PRESS X');
     expect(specialPrompt('shieldBurst', 'gamepad')).toBe('SHIELD BURST READY · PRESS B / LT');
     expect(specialPrompt('timeStop', 'touch')).toBe('TIME STOP READY · TAP SPECIAL');
+  });
+});
+
+describe('Boss Rush labels', () => {
+  it('counts three bosses', () => {
+    expect(RUSH_BOSS_COUNT).toBe(3);
+  });
+
+  it('writes the clear timer as m:ss', () => {
+    expect(formatClock(0)).toBe('0:00');
+    expect(formatClock(5.9)).toBe('0:05');
+    expect(formatClock(75.4)).toBe('1:15');
+    expect(formatClock(600)).toBe('10:00');
+    expect(formatClock(3725)).toBe('62:05');
+    expect(formatClock(-3)).toBe('0:00');
+    expect(formatClock(Number.NaN)).toBe('0:00');
+  });
+
+  it('writes the boss being fought, counting from 1 and never past the last', () => {
+    expect(rushBossLabel(0, 3)).toBe('1/3');
+    expect(rushBossLabel(1, 3)).toBe('2/3');
+    expect(rushBossLabel(2, 3)).toBe('3/3');
+    expect(rushBossLabel(3, 3)).toBe('3/3');
+  });
+
+  it('numbers the starting picks, then says PICK ONE', () => {
+    expect(rushPickAsk(3, 3)).toBe('PICK 1 OF 3');
+    expect(rushPickAsk(2, 3)).toBe('PICK 2 OF 3');
+    expect(rushPickAsk(1, 3)).toBe('PICK 3 OF 3');
+    expect(rushPickAsk(0, 3)).toBe('PICK ONE');
+  });
+
+  it('writes the time bonus with a thousands separator', () => {
+    expect(timeBonusLabel(1250)).toBe('+1,250 TIME BONUS');
+    expect(timeBonusLabel(50)).toBe('+50 TIME BONUS');
+    expect(timeBonusLabel(0)).toBe('+0 TIME BONUS');
+  });
+
+  it('headlines a cleared rush, and loses like a normal run', () => {
+    expect(rushEndTitle(true)).toBe('RUSH CLEARED');
+    expect(rushEndTitle(false, 'lives')).toBe('SHIP LOST');
+    expect(rushEndTitle(false, 'invaded')).toBe('THE HIVE LANDED');
+  });
+
+  it('says clear time for a win and time survived for a loss', () => {
+    expect(rushTimeLabel(true)).toBe('Clear time');
+    expect(rushTimeLabel(false)).toBe('Time survived');
+  });
+
+  it('turns a Boss Rush record into a list row', () => {
+    const record: RushRecord = { score: 12500, time: 245.7, bosses: 2, won: false, date: '2026-10-29T12:00:00' };
+    expect(rushRecordRowText(0, record)).toEqual({ rank: '1', score: '012500', time: '4:05', bosses: '2/3', date: formatDate(record.date) });
+    expect(rushRecordRowText(4, { ...record, bosses: 3, won: true }).bosses).toBe('3/3');
   });
 });

@@ -81,10 +81,14 @@
         </div>
         <div class="hud-col hud-col-right">
           <div class="hud-stat">
-            <span class="hud-label">Wave<span id="hud-sector-tag" class="hud-sector-tag">S1</span></span>
-            <span id="hud-wave" class="hud-value">1/10</span>
+            <span class="hud-label"><span id="hud-wave-name">Wave</span><span id="hud-sector-tag" class="hud-sector-tag">S1</span></span>
+            <span id="hud-wave" class="hud-value">1/15</span>
           </div>
-          <div class="hud-stat hud-sector-stat">
+          <div id="hud-clock-stat" class="hud-stat hud-clock" hidden>
+            <span class="hud-label">Time</span>
+            <span id="hud-clock" class="hud-value">0:00</span>
+          </div>
+          <div id="hud-sector-stat" class="hud-stat hud-sector-stat">
             <span class="hud-label">Sector</span>
             <span id="hud-sector" class="hud-value">1</span>
           </div>
@@ -118,6 +122,10 @@
         <p id="title-best" class="best" hidden></p>
         <div class="stack">
           <button id="title-start" class="btn" type="button">Start run</button>
+          <button id="title-rush" class="btn btn-secondary" type="button">
+            <span>Boss Rush</span>
+            <span id="title-rush-lock" class="btn-lock" hidden></span>
+          </button>
           <button id="title-howto" class="btn btn-secondary" type="button">How to play</button>
           <button id="title-settings" class="btn btn-secondary" type="button">Settings</button>
           <button id="title-records" class="btn btn-secondary" type="button">Records</button>
@@ -138,7 +146,7 @@
       <div class="panel" role="dialog" aria-labelledby="howto-heading">
         <h2 id="howto-heading" class="heading">How to play</h2>
         <p class="text">
-          Clear all fourteen waves of the hive to win, across three sectors; the first two end in a boss.
+          Clear all fifteen waves of the hive to win, across three sectors; each ends in a boss.
           After each wave you pick one of three upgrades, and they stack for the rest of the run, so
           no two runs build the same way. Every hit in a row raises your combo multiplier, up to x8;
           a shot that misses resets it, so aim rather than spray. Lose your last life, or let the
@@ -188,6 +196,13 @@
           ring are wasted, so aim through the gaps. Later it fires beams, shown as a dashed warning
           line first: get behind a bunker, which blocks them. When the ring breaks, the core comes
           for you.
+        </p>
+        <h3 class="subheading">Boss Rush</h3>
+        <p class="text">
+          Win a run to open Boss Rush on the title screen: pick a ship and a Special, take three
+          upgrades, then fight the bosses back to back with a pick between them. A clock runs the
+          whole way, and every boss beaten under its par time scores a time bonus. It has its own
+          records, and it does not count towards unlocks.
         </p>
         <h3 class="subheading">Keyboard</h3>
         <dl class="keys">
@@ -270,7 +285,7 @@
           <button id="settings-back" class="btn btn-secondary" type="button">Back</button>
         </div>
         <div id="settings-confirm" hidden>
-          <p class="text">Erase every saved record? This cannot be undone. Sound settings are kept.</p>
+          <p class="text">Erase every saved record, normal runs and Boss Rush? This cannot be undone. Sound settings are kept.</p>
           <div class="stack">
             <button id="settings-reset-no" class="btn" type="button">Cancel</button>
             <button id="settings-reset-yes" class="btn btn-danger" type="button">Erase records</button>
@@ -290,8 +305,15 @@
     <div id="records" class="menu" hidden>
       <div class="panel" role="dialog" aria-labelledby="records-heading">
         <h2 id="records-heading" class="heading">Records</h2>
-        <p id="records-empty" class="text" hidden>No runs yet. Finish one and it lands here.</p>
-        <ol id="records-list" class="records-list" aria-label="Top 10 runs"></ol>
+        <div class="tabs" role="tablist" aria-label="Records">
+          <button id="records-tab-normal" class="tab" type="button" role="tab" aria-selected="true" aria-controls="records-panel">Normal</button>
+          <button id="records-tab-rush" class="tab" type="button" role="tab" aria-selected="false" aria-controls="records-panel">Boss Rush</button>
+        </div>
+        <div id="records-panel" role="tabpanel" aria-labelledby="records-tab-normal">
+          <p id="records-empty" class="text" hidden>No runs yet. Finish one and it lands here.</p>
+          <ol id="records-list" class="records-list" aria-label="Top 10 runs"></ol>
+        </div>
+        <p class="hint">tap a tab · left / right to switch</p>
         <div class="stack">
           <button id="records-back" class="btn btn-secondary" type="button">Back</button>
         </div>
@@ -347,8 +369,9 @@
     <div id="pick" class="menu" hidden>
       <div class="panel panel-wide" role="dialog" aria-labelledby="pick-heading">
         <h2 id="pick-heading" class="heading heading-center">
-          <span id="pick-wave">WAVE 1 CLEAR</span><span class="pick-sep" aria-hidden="true"> · </span><span class="pick-ask">PICK ONE</span>
+          <span id="pick-wave">WAVE 1 CLEAR</span><span class="pick-sep" aria-hidden="true"> · </span><span id="pick-ask" class="pick-ask">PICK ONE</span>
         </h2>
+        <p id="pick-bonus" class="pick-bonus" role="status" hidden></p>
         <div class="pick-cards">
           <button id="pick-0" class="pick-card" type="button">
             <span id="pick-0-name" class="pick-name"></span>
@@ -386,7 +409,9 @@
         <p id="over-badge" class="badge" hidden></p>
         <dl class="result-stats">
           <div><dt>Score</dt><dd id="over-score">000000</dd></div>
-          <div><dt>Wave reached</dt><dd id="over-wave">1 / 10</dd></div>
+          <div id="over-wave-row"><dt>Wave reached</dt><dd id="over-wave">1 / 15</dd></div>
+          <div id="over-time-row" hidden><dt id="over-time-label">Clear time</dt><dd id="over-time">0:00</dd></div>
+          <div id="over-bosses-row" hidden><dt>Bosses beaten</dt><dd id="over-bosses">0 / 3</dd></div>
           <div><dt>Best combo</dt><dd id="over-combo">x1</dd></div>
         </dl>
         <div class="stack">

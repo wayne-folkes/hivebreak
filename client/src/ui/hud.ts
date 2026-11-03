@@ -8,11 +8,13 @@ import { byId } from './card';
 import {
   bossBarPercent,
   comboLabel,
+  formatClock,
   formatScore,
   hudLayout,
   meterCells,
   METER_CELLS,
   powerUpChips,
+  rushBossLabel,
   SPECIAL_SHORT,
   specialHint,
   specialPrompt,
@@ -24,7 +26,7 @@ import {
   bossPhaseLabel,
 } from './format';
 
-// The in-run display: score, combo, wave (1/10 to 10/10, with a small sector tag on phones), lives,
+// The in-run display: score, combo, wave (1/15 to 15/15, with a small sector tag on phones), lives,
 // the Special meter, power-up timer chips, the boss bar (the Hive Mind's shows its phase), a toast
 // line and the mute button. On a phone these overlay the top of the field (score, combo, the
 // Special meter and the power-up chips down the left; wave and lives right, clear of the touch
@@ -37,7 +39,9 @@ import {
 // game's only mute button); `setVisible(true)` while a run is on screen, false behind the title;
 // `update(run, controls.lastUsed)` once per frame, which is cheap because it only touches the DOM
 // when a value changes (the second argument picks the Special's key hint: X, B / LT or "tap the
-// button"). The Special meter, chips and boss bar all come from `run`. For the synergy banner, call
+// button"). The Special meter, chips and boss bar all come from `run`. In a Boss Rush (`run.rush`)
+// the wave stat reads "BOSS 2/3" instead, the sector tag and stat go, and a running clock (m:ss from
+// `run.rush.time`) shows beside it; the rest is the same. For the synergy banner, call
 // `synergyUnlocked(id)` on a `synergyUnlocked` event; `toast(text, sub?)` shows any short line.
 
 const MAX_LIFE_ICONS = 5;
@@ -53,8 +57,12 @@ export class Hud {
   private readonly combo = byId('hud-combo');
   private readonly high = byId('hud-high');
   private readonly wave = byId('hud-wave');
+  private readonly waveName = byId('hud-wave-name');
+  private readonly clockStat = byId('hud-clock-stat');
+  private readonly clock = byId('hud-clock');
   private readonly sectorTag = byId('hud-sector-tag');
   private readonly sector = byId('hud-sector');
+  private readonly sectorStat = byId('hud-sector-stat');
   private readonly lives = byId('hud-lives');
   private readonly upgrades = byId('hud-upgrades');
   private readonly mute = byId<HTMLButtonElement>('hud-mute');
@@ -81,7 +89,9 @@ export class Hud {
   private shownScore = -1;
   private shownCombo = -1;
   private shownHigh = -1;
-  private shownWave = -1;
+  private shownWave = '';
+  private shownRush: boolean | null = null;
+  private shownClock = -1;
   private shownSector = -1;
   private shownBossPhase = -1;
   private shownBossKind = '';
@@ -191,19 +201,7 @@ export class Hud {
       if (rose) this.pulse();
     }
 
-    // Counting from 1 for the player, and never past the last wave when the run has just been won.
-    const wave = Math.min(run.wave + 1, WAVE_COUNT);
-    if (wave !== this.shownWave) {
-      this.shownWave = wave;
-      this.wave.textContent = waveLabel(wave, WAVE_COUNT);
-    }
-
-    const sector = waveSector(Math.min(run.wave, WAVE_COUNT - 1));
-    if (sector !== this.shownSector) {
-      this.shownSector = sector;
-      this.sector.textContent = String(sector);
-      this.sectorTag.textContent = `S${sector}`;
-    }
+    this.drawProgress(run);
 
     const lives = player?.lives ?? 0;
     if (lives !== this.shownLives) {
@@ -222,6 +220,47 @@ export class Hud {
     this.drawPrompt(run, player, device);
     this.drawPowerUps(player);
     this.drawBoss(run);
+  }
+
+  /**
+   * Where the run is: "WAVE 3/15" with its sector, or in a Boss Rush "BOSS 2/3" (no sector) and the
+   * clear timer. Counts from 1 for the player, never past the last wave when the run has just been won.
+   */
+  private drawProgress(run: RunState): void {
+    const rush = run.rush;
+    if ((rush !== null) !== this.shownRush) {
+      this.shownRush = rush !== null;
+      this.shownWave = '';
+      this.shownClock = -1;
+      this.waveName.textContent = rush ? 'Boss' : 'Wave';
+      this.clockStat.hidden = !rush;
+      this.sectorTag.hidden = this.sectorStat.hidden = rush !== null;
+    }
+    if (rush) {
+      const text = rushBossLabel(rush.stage, rush.stages.length);
+      if (text !== this.shownWave) {
+        this.shownWave = text;
+        this.wave.textContent = text;
+      }
+      const seconds = Math.floor(rush.time);
+      if (seconds !== this.shownClock) {
+        this.shownClock = seconds;
+        this.clock.textContent = formatClock(seconds);
+      }
+      return;
+    }
+    const wave = Math.min(run.wave + 1, WAVE_COUNT);
+    const text = waveLabel(wave, WAVE_COUNT);
+    if (text !== this.shownWave) {
+      this.shownWave = text;
+      this.wave.textContent = text;
+    }
+    const sector = waveSector(Math.min(run.wave, WAVE_COUNT - 1));
+    if (sector !== this.shownSector) {
+      this.shownSector = sector;
+      this.sector.textContent = String(sector);
+      this.sectorTag.textContent = `S${sector}`;
+    }
   }
 
   /** The Special meter: hidden until one is chosen; "READY" and a key hint once full. */

@@ -372,12 +372,37 @@ kbd {
 
 .btn:focus-visible,
 .btn.is-menu-focus,
+.tab:focus-visible,
+.tab.is-menu-focus,
 .pick-card:focus-visible,
 .pick-card.is-menu-focus,
 .slider:focus-visible,
 .slider.is-menu-focus {
   outline: 3px solid var(--pilot);
   outline-offset: 3px;
+}
+
+/* A locked button (Boss Rush before the first win): dimmed, with what unlocks it under the label. */
+.btn:disabled,
+.btn:disabled:hover,
+.btn:disabled:active {
+  cursor: default;
+  filter: none;
+  transform: none;
+}
+
+.btn.is-locked {
+  gap: 2px;
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.btn-lock {
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--warm);
 }
 
 /* Two hint lines in a row sit closer together. */
@@ -469,6 +494,56 @@ kbd {
   border: 1px solid var(--line);
   border-radius: 3px;
   background: var(--void);
+}
+
+/* Boss Rush: rank, score, time and bosses beaten, the date under them. */
+.record-row.is-rush {
+  grid-template-columns: 1.5em 1fr 3.4em 2.6em;
+}
+
+.record-time {
+  color: var(--pilot);
+}
+
+.record-bosses {
+  color: var(--hive);
+  text-align: right;
+}
+
+.record-row.is-won .record-bosses {
+  color: var(--warm);
+}
+
+/* The Records card's two lists. */
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tab {
+  margin: 0;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--line);
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tab[aria-selected='true'] {
+  background: var(--void);
+  box-shadow: inset 0 0 0 2px var(--hive);
+  color: var(--ink);
 }
 
 .record-rank {
@@ -590,6 +665,16 @@ kbd {
 
 .pick-synergy {
   color: var(--pilot);
+}
+
+/* The Boss Rush time bonus under the pick's heading. */
+.pick-bonus {
+  margin: -6px 0 14px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  color: var(--warm);
 }
 
 /* The Special choice reuses the pick cards, without the rarity line. */
