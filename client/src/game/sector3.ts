@@ -1,5 +1,7 @@
 import { ALIEN_SPECS, MEND_INTERVAL } from './aliens';
-import { slotPosition } from './formation';
+import { INVADE_MARGIN, SIDE_MARGIN, SLOT_SPACING_Y, slotPosition } from './formation';
+import { FIELD_WIDTH } from './playfield';
+import { SHIP_TOP } from './player';
 import type { Alien, RunEvent, RunState } from './types';
 import { WAVES, waveColumns } from './waves';
 
@@ -40,6 +42,7 @@ export function alienHitSurvived(run: RunState, alien: Alien, events: RunEvent[]
   const def = WAVES[run.wave];
   const cols = waveColumns(def);
   const rows = def.rows.length;
+  const spec = ALIEN_SPECS.warper;
 
   occupiedScratch.clear();
   for (const a of run.aliens) if (a.col >= 0 && a.hp > 0) occupiedScratch.add(slotKey(a.col, a.row));
@@ -48,7 +51,7 @@ export function alienHitSurvived(run: RunState, alien: Alien, events: RunEvent[]
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       const key = slotKey(col, row);
-      if (occupiedScratch.has(key)) continue;
+      if (occupiedScratch.has(key) || !blinkable(run, col, row, cols, spec)) continue;
       const far = Math.max(Math.abs(col - alien.col), Math.abs(row - alien.row)) >= BLINK_MIN_DISTANCE;
       (far ? farScratch : nearScratch).push(key);
     }
@@ -72,7 +75,24 @@ export function alienHitSurvived(run: RunState, alien: Alien, events: RunEvent[]
 }
 
 /**
- * Ticks Menders' pulses and Warpers' warp-ins, on enemy time (not called while frozen or stunned).
+ * Whether a Warper may blink to this slot: it must be on the field now (a wiped-out column can be
+ * past the wall once the formation has marched up to its remaining edge; a blink there would make
+ * the march snap the whole formation back) and a row clear of the invade line (a blink into an
+ * emptied low row mustn't end the run).
+ */
+function blinkable(run: RunState, col: number, row: number, cols: number, spec: { halfWidth: number; halfHeight: number }): boolean {
+  const pos = slotPosition(run.formation, col, row, cols);
+  if (Math.abs(pos.x) + spec.halfWidth > FIELD_WIDTH / 2 - SIDE_MARGIN) return false;
+  return pos.y - spec.halfHeight > SHIP_TOP + INVADE_MARGIN + SLOT_SPACING_Y;
+}
+
+/** Counts Warpers' warp-ins down, on real time: a Time Stop or a stun mustn't keep one untouchable. */
+export function stepWarps(run: RunState, dt: number): void {
+  for (const a of run.aliens) if (a.warp !== undefined && a.warp > 0) a.warp = Math.max(0, a.warp - dt);
+}
+
+/**
+ * Ticks Menders' pulses, on enemy time (not called while frozen or stunned).
  *
  * A Mender only counts down while it sits in the formation (not while diving or returning). When
  * its timer runs out it heals 1 hp to each damaged living alien in the slots around it (within one
@@ -81,7 +101,6 @@ export function alienHitSurvived(run: RunState, alien: Alien, events: RunEvent[]
  */
 export function stepSector3Aliens(run: RunState, dt: number, events: RunEvent[]): void {
   for (const a of run.aliens) {
-    if (a.warp !== undefined && a.warp > 0) a.warp = Math.max(0, a.warp - dt);
     if (a.kind !== 'mender' || a.hp <= 0 || a.mode !== 'formation') continue;
     a.mendTimer = (a.mendTimer ?? MEND_INTERVAL) - dt;
     if (a.mendTimer > 0) continue;

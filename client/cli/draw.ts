@@ -26,7 +26,7 @@ import {
   spriteWidth,
 } from './sprites';
 import { ALIEN_SPECS } from '../src/game/aliens';
-import { bunkerPixelSolid } from '../src/game/bunkers';
+import { beamStopY, bunkerPixelSolid } from '../src/game/bunkers';
 import { BOSS_HALF_WIDTH, bossHealth, partBox, platesStanding } from '../src/game/boss';
 import { beamBunkerContacts } from '../src/game/hivemind';
 import {
@@ -691,7 +691,10 @@ export class FieldView {
       const half = col.halfWidth || ACID_HALF_WIDTH;
       const left = Math.round(toPixel(col.x - half, 0).px);
       const right = Math.max(left + 1, Math.round(toPixel(col.x + half, 0).px));
-      const bottom = Math.round(toPixel(0, SHIP_Y).py);
+      // Down to the ship's row, or to the top of a bunker in the column's middle, which shelters
+      // what's under it (as the sim does).
+      const shelter = run.bunkers.length > 0 ? beamStopY(run.bunkers, col.x, FIELD_HEIGHT / 2, 'down') : null;
+      const bottom = Math.round(toPixel(0, shelter ?? SHIP_Y).py);
       const t = run.time;
       if (col.state === 'warn') {
         const blink = 0.55 + 0.45 * Math.sin(t * 24);

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ALIEN_SPECS, createAlien, damageAlien } from './aliens';
 import { firstAlienHit } from './collision';
 import {
+  INVADE_MARGIN,
   PINCER_SECONDS,
   SIDE_MARGIN,
   WEAVE_AMPLITUDE,
@@ -13,8 +14,9 @@ import {
   stepFormationEntry,
 } from './formation';
 import { FIELD_WIDTH } from './playfield';
+import { SHIP_TOP } from './player';
 import { computeBeam } from './powerups';
-import { MEND_INTERVAL, WARP_SECONDS, alienHitSurvived, canBeHit, stepSector3Aliens } from './sector3';
+import { MEND_INTERVAL, WARP_SECONDS, alienHitSurvived, canBeHit, stepSector3Aliens, stepWarps } from './sector3';
 import { WAVE_INTRO_SECONDS, chooseSpecial, createRun, stepRun } from './run';
 import { WAVES, waveColumns } from './waves';
 import { NO_INPUT } from './types';
@@ -104,10 +106,9 @@ describe('Warper', () => {
     run.players[0].x = warper.x;
     expect(computeBeam(run.players[0], run.aliens, null, []).target?.alienId).not.toBe(warper.id);
 
-    const events: RunEvent[] = [];
-    stepSector3Aliens(run, WARP_SECONDS / 2, events);
+    stepWarps(run, WARP_SECONDS / 2);
     expect(canBeHit(warper)).toBe(false);
-    stepSector3Aliens(run, WARP_SECONDS, events);
+    stepWarps(run, WARP_SECONDS);
     expect(warper.warp).toBe(0);
     expect(canBeHit(warper)).toBe(true);
     expect(firstAlienHit(shotAt(warper.x, warper.y), run.aliens)).toBe(warper);
@@ -440,5 +441,37 @@ describe('pincer', () => {
       const pos = slotPosition(run.formation, a.col, a.row, cols);
       expect(a.x).toBeCloseTo(pos.x, 6);
     }
+  });
+});
+
+describe('review fixes', () => {
+  it('a Warper only blinks to a slot that is on the field and clear of the invade line', () => {
+    let blinks = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const run = runOn(WAVE_11, seed);
+      // Wipe out the two right-hand columns and push the formation against the right wall.
+      run.aliens = run.aliens.filter((a) => a.col < 4);
+      run.formation.offsetX = 65;
+      const warper = run.aliens.find((a) => a.kind === 'warper')!;
+      const before = { col: warper.col, row: warper.row };
+      hurt(run, warper);
+      if (!warper.warped) continue;
+      blinks++;
+      expect(Math.abs(warper.x) + ALIEN_SPECS.warper.halfWidth).toBeLessThanOrEqual(90 - SIDE_MARGIN);
+      expect(warper.y - ALIEN_SPECS.warper.halfHeight).toBeGreaterThan(SHIP_TOP + INVADE_MARGIN);
+      expect({ col: warper.col, row: warper.row }).not.toEqual(before);
+    }
+    expect(blinks).toBeGreaterThan(20);
+  });
+
+  it("a Warper's warp-in runs on real time: Time Stop doesn't keep it untouchable", () => {
+    const run = createRun(5, 1, WAVE_11);
+    chooseSpecial(run, 'timeStop');
+    const warper = run.aliens.find((a) => a.kind === 'warper')!;
+    while (run.phase !== 'playing') stepRun(run, [NO_INPUT], 1 / 120);
+    warper.warp = WARP_SECONDS;
+    run.freeze = 3;
+    for (let i = 0; i < 120; i++) stepRun(run, [NO_INPUT], 1 / 120);
+    expect(canBeHit(warper)).toBe(true);
   });
 });

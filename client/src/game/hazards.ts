@@ -280,8 +280,12 @@ function stepAcid(run: RunState, dt: number, events: RunEvent[], hurt: Box[] | n
         events.push({ type: 'acidColumn', columnId: column.id, state: 'end', x: column.x, halfWidth: column.halfWidth });
         continue;
       }
-      // From the top of the field to the ship's row; the run only hurts a ship that is vulnerable.
-      (hurt ??= []).push({ x: column.x, y: (top + SHIP_Y) / 2, halfWidth: column.halfWidth, halfHeight: (top - SHIP_Y) / 2 });
+      // From the top of the field down to the ship's row, or to the top of a bunker standing in the
+      // column's middle: a bunker shelters the ship under it until the rain has eaten through. The
+      // run only hurts a ship that is vulnerable.
+      const shelter = run.bunkers.length > 0 ? beamStopY(run.bunkers, column.x, top, 'down') : null;
+      const bottom = shelter ?? SHIP_Y;
+      (hurt ??= []).push({ x: column.x, y: (top + bottom) / 2, halfWidth: column.halfWidth, halfHeight: (top - bottom) / 2 });
       // A bite out of the top of each bunker under the column every ACID_ERODE_INTERVAL: about one
       // pixel row each, so it takes the whole rain to dig a few rows in, not an instant.
       if (run.bunkers.length > 0 && Math.floor(before / ACID_ERODE_INTERVAL) !== Math.floor(column.timeLeft / ACID_ERODE_INTERVAL)) {

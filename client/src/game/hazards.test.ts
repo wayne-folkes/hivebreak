@@ -436,6 +436,23 @@ describe('hazards in a run', () => {
     expect(run.players[0].lives).toBe(lives - 1);
   });
 
+  it('a bunker shelters the ship under it while the rain eats into it', () => {
+    const run = playingRun();
+    run.bunkers = createBunkers(() => run.nextId++);
+    const bunker = run.bunkers[1];
+    const x = bunker.x + bunker.width / 2;
+    run.players[0].x = x;
+    const lives = run.players[0].lives;
+    const solid = bunkerSolidCount(bunker);
+    columnAt(run, x, 'rain', 1);
+    for (let i = 0; i < 120 * 1.1; i++) {
+      run.shots = [];
+      stepRun(run, [NO_INPUT], DT);
+    }
+    expect(run.players[0].lives).toBe(lives);
+    expect(bunkerSolidCount(bunker)).toBeLessThan(solid);
+  });
+
   it('a column beside the ship costs nothing', () => {
     const run = playingRun();
     const lives = run.players[0].lives;

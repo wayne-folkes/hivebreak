@@ -262,6 +262,8 @@ export class GameView {
   private readonly lightColor = new Color();
   private readonly lightWeights = [1, 0, 0];
   private sectorBlend = 0;
+  /** The pincer is flying in this frame (set by drawAliens). */
+  private flyingIn = false;
   private sectorSnap = true;
   private lastSectorApplied = -1;
   private enemyScale = 1;
@@ -907,6 +909,8 @@ export class GameView {
   private drawAliens(run: RunState, alpha: number, dt: number, enemyScale: number): void {
     for (const kind of ALIEN_KINDS) this.alienViews[kind].begin();
     const stunned = run.stun > 0;
+    // Only the pincer's fly-in leaves trails (a fast march late in a wave mustn't).
+    this.flyingIn = (run.formation.entry ?? 0) > 0;
     for (const a of run.aliens) this.drawAlien(a, alpha, dt, enemyScale, stunned);
     for (const kind of ALIEN_KINDS) this.alienViews[kind].end();
   }
@@ -931,7 +935,7 @@ export class GameView {
     model.setLook(look);
     if (stunned && a.mode === 'formation') this.stun.add(x, y + 9, 5, 2, this.time, a.id * 1.3);
     // The pincer's halves rush in from the sides: each leaves a short trail of pixels behind it.
-    if (known && a.mode === 'formation' && Math.abs(dx) > TRAIL_SPEED && (this.frame + a.id) % 3 === 0) {
+    if (this.flyingIn && known && a.mode === 'formation' && Math.abs(dx) > TRAIL_SPEED && (this.frame + a.id) % 3 === 0) {
       const side = dx > 0 ? -1 : 1;
       this.effects.trailPixel(x + side * 7, y + (((a.id * 7 + this.frame) % 5) - 2) * 2, PINCER_TRAIL[dx > 0 ? 0 : 1]);
     }

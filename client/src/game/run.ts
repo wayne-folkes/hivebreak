@@ -49,7 +49,7 @@ import type { Alien, Box, Pickup, PlayerState, RunEvent, RunOptions, RunPhase, R
 import { NO_INPUT } from './types';
 import { CHAIN_DAMAGE, CHAIN_RANGE, UPGRADES, applyUpgrade, offerUpgrades } from './upgrades';
 import { WAVE_COUNT, WAVES, waveColumns } from './waves';
-import { alienHitSurvived, canBeHit, stepSector3Aliens } from './sector3';
+import { alienHitSurvived, canBeHit, stepSector3Aliens, stepWarps } from './sector3';
 import { stepWell } from './well';
 
 // A whole run: the phases from the Special choice to a win or loss, and the fixed simulation step
@@ -250,10 +250,11 @@ function stepIntro(run: RunState, inputs: readonly ShipInput[], dt: number, even
 function stepPlaying(run: RunState, inputs: readonly ShipInput[], dt: number, events: RunEvent[]): void {
   const def = WAVES[run.wave];
 
-  // 1-2. Effects and ships, on real time.
+  // 1-2. Effects, ships and Warpers' warp-ins, on real time.
   tickRunEffects(run, dt);
   run.time += dt;
   stepShips(run, inputs, dt, true, events);
+  stepWarps(run, dt);
 
   // 3. Specials.
   for (const p of run.players) {
@@ -488,7 +489,7 @@ function chainSparks(run: RunState, origin: Alien, killer: PlayerState, events: 
 function burstAround(run: RunState, source: Alien, killer: PlayerState, events: RunEvent[]): void {
   events.push({ type: 'blast', x: source.x, y: source.y, radius: BURST_RADIUS });
   for (const alien of run.aliens) {
-    if (alien.hp <= 0 || Math.hypot(alien.x - source.x, alien.y - source.y) > BURST_RADIUS) continue;
+    if (alien.hp <= 0 || !canBeHit(alien) || Math.hypot(alien.x - source.x, alien.y - source.y) > BURST_RADIUS) continue;
     let killed = false;
     for (let i = 0; i < BURST_DAMAGE && !killed; i++) killed = damageAlien(alien);
     if (killed) killAlien(run, alien, killer, { charge: true, burst: false, kind: null }, events);
@@ -503,12 +504,13 @@ function alienHurt(run: RunState, alien: Alien, events: RunEvent[]): void {
 }
 
 /** A shot mine's burst: every living alien within MINE_BURST_RADIUS takes MINE_BURST_DAMAGE, credited to the shooter. */
-function mineBurstAt(run: RunState, x: number, y: number, killer: PlayerState | null, events: RunEvent[]): void {
+function mineBurstAt(run: RunState, x: number, y: number, killer: PlayerState | null, byMissile: boolean, events: RunEvent[]): void {
   for (const alien of run.aliens) {
-    if (alien.hp <= 0 || Math.hypot(alien.x - x, alien.y - y) > MINE_BURST_RADIUS) continue;
+    if (alien.hp <= 0 || !canBeHit(alien) || Math.hypot(alien.x - x, alien.y - y) > MINE_BURST_RADIUS) continue;
     let killed = false;
     for (let i = 0; i < MINE_BURST_DAMAGE && !killed; i++) killed = damageAlien(alien);
-    if (killed) killAlien(run, alien, killer, { charge: true, burst: false, kind: null }, events);
+    // A missile's mine pops charge nothing, like its kills (a swarm mustn't refill its own meter).
+    if (killed) killAlien(run, alien, killer, { charge: !byMissile, burst: false, kind: null }, events);
     else alienHurt(run, alien, events);
   }
 }
@@ -835,14 +837,14 @@ function landVolley(run: RunState, shot: Shot, raiseCombo: boolean): void {
 function resolvePlayerShots(run: RunState, events: RunEvent[]): void {
   for (const shot of run.shots) {
     if (shot.owner !== 'player') continue;
-    // A mine in the way bursts and takes the shot with it; its burst is the shot's hit (it counts
-    // for the volley, and its kills raise the combo as kills do).
+    // A mine in the way bursts and takes the shot with it. Popping it is the shot's hit: it lands
+    // the volley and raises the combo, so shooting mines by the formation pays.
     if (run.mines.length > 0) {
       const burst = shootMine(run, shot, events);
       if (burst) {
         const shooter = shot.playerId === null ? null : (run.players[shot.playerId] ?? null);
-        mineBurstAt(run, burst.x, burst.y, shooter, events);
-        landVolley(run, shot, false);
+        mineBurstAt(run, burst.x, burst.y, shooter, shot.kind === 'missile', events);
+        landVolley(run, shot, true);
         idScratch.add(shot.id);
         continue;
       }
@@ -918,8 +920,9 @@ function hitAlien(run: RunState, shot: Shot, alien: Alien, events: RunEvent[]): 
   // can't refill the meter that fired it.
   const special = shot.kind === 'missile';
   if (killed) killAlien(run, alien, killer, { charge: !special, burst: !special, kind: shot.kind }, events);
-  else alienHurt(run, alien, events);
+  // Sparks arc from where the shot hit, before a surviving Warper blinks away.
   if (killer && killer.stats.chain > 0) chainSparks(run, alien, killer, events);
+  if (!killed) alienHurt(run, alien, events);
   landVolley(run, shot, true);
 }
 

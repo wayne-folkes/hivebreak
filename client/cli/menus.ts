@@ -814,7 +814,7 @@ export function howToMenu(keyMode: KeyMode, back: () => void): Menu {
     lines(width) {
       const lines: StyledLine[] = [
         ...paragraph(
-          'Clear ten waves of the hive, in two sectors of five; each sector ends in a boss. After each wave pick one of three upgrades. Every hit in a row raises your combo; a miss resets it, so aim rather than spray. Lose your last life, or let the formation reach your row, and the run is over.',
+          'Clear all fourteen waves of the hive, across three sectors; the first two end in a boss. After each wave pick one of three upgrades. Every hit in a row raises your combo; a miss resets it, so aim rather than spray. Lose your last life, or let the formation reach your row, and the run is over.',
           width,
           C.text,
         ),
