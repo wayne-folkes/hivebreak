@@ -115,9 +115,9 @@ describe('mines', () => {
     expect(events.some((e) => e.type === 'acidColumn')).toBe(false);
   });
 
-  it('wave 13 does not start a mine at once', () => {
+  it('wave 13 does not start a mine at once (the first comes 0.8-1.6 s in)', () => {
     const run = hazardRun(MINE_WAVE);
-    advance(run, 1);
+    advance(run, 0.5);
     expect(run.mines).toEqual([]);
   });
 

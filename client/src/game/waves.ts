@@ -62,8 +62,10 @@ export const WAVES: readonly WaveDef[] = [
   },
   // 10: the Hive Mind. No formation; the boss has its own shots, so these numbers are unused.
   { rows: [], boss: 'hiveMind', marchSpeed: 0, fireRate: 0, diveRate: 0, sector: 2 },
-  // Sector 3, the heart of the hive (slice 4a; the Hive Heart at wave 15 comes in 4b). Draft
-  // numbers, tuned with the bot.
+  // Sector 3, the heart of the hive (slice 4a; the Hive Heart at wave 15 comes in 4b). Its aliens
+  // are armoured: one extra hit point each. A player who reaches sector 3 is well upgraded, and
+  // without it the bot cleared these waves in two or three seconds, before a mine or acid column
+  // had even arrived.
   // 11: the pincer: the formation flies in as two halves and docks. Warpers ('t') join.
   {
     rows: ['.wttw.', 'dvddvd', 'tddddt', 'dddddd'],
@@ -72,6 +74,7 @@ export const WAVES: readonly WaveDef[] = [
     diveRate: 0.25,
     sector: 3,
     behaviours: ['pincer'],
+    armour: 1,
   },
   // 12: the weave: rows march in opposite directions, so gaps open and close. Menders ('m') join.
   {
@@ -81,6 +84,7 @@ export const WAVES: readonly WaveDef[] = [
     diveRate: 0.26,
     sector: 3,
     behaviours: ['weave'],
+    armour: 1,
   },
   // 13: mines drift down through a dense formation.
   {
@@ -90,6 +94,7 @@ export const WAVES: readonly WaveDef[] = [
     diveRate: 0.28,
     sector: 3,
     mineRate: 0.35,
+    armour: 1,
   },
   // 14: everything: the weave, Warpers, Menders and mines, plus acid rain.
   {
@@ -101,6 +106,7 @@ export const WAVES: readonly WaveDef[] = [
     behaviours: ['weave', 'pairedDives'],
     mineRate: 0.3,
     acidRate: 0.25,
+    armour: 1,
   },
 ];
 

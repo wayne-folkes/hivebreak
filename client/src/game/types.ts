@@ -421,6 +421,8 @@ export interface WaveDef {
   boss?: BossKind;
   sector: Sector;
   behaviours?: readonly FormationBehaviour[];
+  /** Extra hit points for every alien in the formation (sector 3's armoured hive; absent = none). */
+  armour?: number;
   /** Mines drifting down per second (sector 3; absent = none). */
   mineRate?: number;
   /** Acid rain columns started per second (sector 3; absent = none). */

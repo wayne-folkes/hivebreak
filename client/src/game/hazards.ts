@@ -48,16 +48,16 @@ const MINE_SPAWN_Y = FIELD_HEIGHT / 2 - MINE_HALF_SIZE;
 /** The y at which a mine counts as having reached the ship's row. */
 export const MINE_GROUND_Y = SHIP_Y;
 /** The first mine arrives this long after the wave starts playing (a range, seconds). */
-const MINE_FIRST_DELAY_MIN = 2.5;
-const MINE_FIRST_DELAY_MAX = 4;
+const MINE_FIRST_DELAY_MIN = 0.8;
+const MINE_FIRST_DELAY_MAX = 1.6;
 
 /** Acid columns live at once. */
 export const MAX_ACID = 2;
 /** Half width of an acid column, art pixels. */
 export const ACID_HALF_WIDTH = 7;
 /** The first column starts this long after the wave starts playing (a range, seconds). */
-const ACID_FIRST_DELAY_MIN = 4;
-const ACID_FIRST_DELAY_MAX = 6.5;
+const ACID_FIRST_DELAY_MIN = 1.5;
+const ACID_FIRST_DELAY_MAX = 2.5;
 /** Seconds between a raining column's bites out of the bunkers under it (one pixel row each). */
 export const ACID_ERODE_INTERVAL = 0.3;
 /** Half width of each acid bite; three bites side by side cover a column. */

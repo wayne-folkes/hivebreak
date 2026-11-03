@@ -93,10 +93,12 @@ export function stepSector3Aliens(run: RunState, dt: number, events: RunEvent[])
 /** One Mender's pulse: heals what's damaged next to it. */
 function mendAround(run: RunState, mender: Alien, events: RunEvent[]): void {
   let healed: { x: number; y: number }[] | null = null;
+  // Heals up to the wave's full strength: its armour counts.
+  const armour = WAVES[run.wave]?.armour ?? 0;
   for (const a of run.aliens) {
     if (a === mender || a.mode !== 'formation' || a.col < 0 || a.hp <= 0) continue;
     if (Math.abs(a.col - mender.col) > 1 || Math.abs(a.row - mender.row) > 1) continue;
-    if (a.hp >= ALIEN_SPECS[a.kind].hp) continue;
+    if (a.hp >= ALIEN_SPECS[a.kind].hp + armour) continue;
     a.hp++;
     (healed ??= []).push({ x: a.x, y: a.y });
   }

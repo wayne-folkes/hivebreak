@@ -120,7 +120,9 @@ export function spawnFormation(def: WaveDef, newId: () => number): { aliens: Ali
       const kind = KINDS[char];
       if (!kind) throw new Error(`Unknown alien '${char}' in wave row '${rowText}'`);
       const pos = slotPosition(formation, col, row, cols);
-      aliens.push(createAlien(kind, newId(), col, row, pos.x, pos.y));
+      const alien = createAlien(kind, newId(), col, row, pos.x, pos.y);
+      alien.hp += def.armour ?? 0;
+      aliens.push(alien);
     });
   });
   formation.startCount = aliens.length;

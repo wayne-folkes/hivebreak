@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FIELD_WIDTH } from './playfield';
-import { SLOT_SPACING_X } from './formation';
+import { ALIEN_SPECS } from './aliens';
+import { SLOT_SPACING_X, spawnFormation } from './formation';
 import { WAVES, WAVE_COUNT, waveAlienCount, waveColumns } from './waves';
 
 describe('WAVES', () => {
@@ -122,5 +123,11 @@ describe('waveAlienCount', () => {
   it('counts the aliens, not the gaps', () => {
     expect(waveAlienCount({ rows: ['.ww.', 'dddd'], marchSpeed: 1, fireRate: 0, diveRate: 0, sector: 1 })).toBe(6);
     expect(waveColumns({ rows: ['.ww.', 'ddddd'], marchSpeed: 1, fireRate: 0, diveRate: 0, sector: 1 })).toBe(5);
+  });
+
+  it('armours sector 3: each alien gets one extra hit point when the wave spawns', () => {
+    for (const w of WAVES) expect(w.armour ?? 0).toBe(w.sector === 3 ? 1 : 0);
+    const { aliens } = spawnFormation(WAVES[11], ((id) => () => id++)(1));
+    for (const a of aliens) expect(a.hp).toBe(ALIEN_SPECS[a.kind].hp + 1);
   });
 });

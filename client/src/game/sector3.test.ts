@@ -175,11 +175,12 @@ describe('Warper', () => {
 });
 
 describe('Mender', () => {
-  /** Wave 12: a Mender at (2,0), wardens either side, a splitter below it. */
+  /** Wave 12: a Mender at (2,0), wardens either side, a splitter below it. Its other Menders are taken out, so only this one heals. */
   function mendRun() {
     const run = runOn(WAVE_12);
     const mender = at(run, 2, 0);
     expect(mender.kind).toBe('mender');
+    run.aliens = run.aliens.filter((a) => a === mender || a.kind !== 'mender');
     return { run, mender };
   }
 
@@ -212,17 +213,18 @@ describe('Mender', () => {
     expect(healed).toContainEqual({ x: diagonal.x, y: diagonal.y });
   });
 
-  it('never heals past full hp, and says nothing when nobody needs it', () => {
+  it("never heals past full hp (the wave's armour counts), and says nothing when nobody needs it", () => {
     const { run } = mendRun();
-    const damaged = at(run, 1, 0); // a warden, 2 hp
-    damaged.hp = 1;
+    const full = ALIEN_SPECS.warden.hp + (WAVES[WAVE_12].armour ?? 0);
+    const damaged = at(run, 1, 0); // a warden
+    damaged.hp = full - 1;
     const events: RunEvent[] = [];
     stepSector3Aliens(run, MEND_INTERVAL, events);
-    expect(damaged.hp).toBe(ALIEN_SPECS.warden.hp);
+    expect(damaged.hp).toBe(full);
     expect(events).toHaveLength(1);
     events.length = 0;
     stepSector3Aliens(run, MEND_INTERVAL, events);
-    expect(damaged.hp).toBe(ALIEN_SPECS.warden.hp);
+    expect(damaged.hp).toBe(full);
     expect(events).toEqual([]);
   });
 

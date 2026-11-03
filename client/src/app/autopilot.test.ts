@@ -33,4 +33,19 @@ describe('autopilot', () => {
     run.aliens = [];
     expect(autopilot(run).move).toBe(0);
   });
+
+  it('steps out of an acid column, towards the side its target is on', () => {
+    const run = createRun(1);
+    run.players[0].x = 0;
+    run.aliens = run.aliens.slice(0, 1);
+    run.aliens[0].x = 4;
+    run.acid = [{ id: 1, x: 0, halfWidth: 7, state: 'rain', timeLeft: 1 }];
+    expect(autopilot(run).move).toBe(1);
+    run.aliens[0].x = -4;
+    expect(autopilot(run).move).toBe(-1);
+    // A column elsewhere changes nothing.
+    run.acid[0].x = 60;
+    run.aliens[0].x = 0;
+    expect(autopilot(run).move).toBe(0);
+  });
 });
