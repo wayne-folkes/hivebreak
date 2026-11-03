@@ -315,20 +315,26 @@ describe('weave', () => {
       const limit = FIELD_WIDTH / 2 - SIDE_MARGIN;
       let turns = 0;
       let last = formation.dir;
+      // The widest any alien reached on each side, checked once at the end (an expect per alien
+      // per step made this test slow on CI).
+      let left = Infinity;
+      let right = -Infinity;
       for (let i = 0; i < 60 * 120; i++) {
         stepFormation(formation, aliens, def, DT);
         if (formation.dir !== last) {
           turns++;
           last = formation.dir;
         }
-        // Keep the formation from descending out of the way of the test: only x is checked.
+        // Only x is checked, so the formation descending doesn't matter here.
         for (const a of aliens) {
           const x = slotPosition(formation, a.col, a.row, cols).x;
           const half = ALIEN_SPECS[a.kind].halfWidth;
-          expect(x - half).toBeGreaterThanOrEqual(-limit - 1e-6);
-          expect(x + half).toBeLessThanOrEqual(limit + 1e-6);
+          left = Math.min(left, x - half);
+          right = Math.max(right, x + half);
         }
       }
+      expect(left).toBeGreaterThanOrEqual(-limit - 1e-6);
+      expect(right).toBeLessThanOrEqual(limit + 1e-6);
       // The weave must not make it turn constantly (and drop a row each time).
       expect(turns).toBeLessThan(60 * 3);
     }
