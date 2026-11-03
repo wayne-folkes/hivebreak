@@ -2,7 +2,7 @@ import { ALIEN_SPECS, createAlien } from './aliens';
 import { FIELD_WIDTH } from './playfield';
 import { SHIP_TOP } from './player';
 import type { Rng } from './rng';
-import type { Alien, AlienKind, FormationState, SplitState, WaveDef } from './types';
+import type { Alien, AlienKind, FormationState, SplitState, WaveDef, WeaveState } from './types';
 import { waveColumns } from './waves';
 
 // The formation: a grid of slots that marches side to side, drops a row at each edge, speeds
@@ -49,6 +49,16 @@ export const SPLIT_DROP = DROP_DISTANCE / 2;
 /** Two divers count as neighbours when their x is within this many slot widths. */
 const PAIR_REACH = 1.5;
 
+/** Most the weave shifts a row either way, art pixels (less on a wide formation, see weaveAmplitude). */
+export const WEAVE_AMPLITUDE = 14;
+/** How fast the weave shifts, art pixels per second: a full swing from one side to the other takes about 3.5 s. */
+export const WEAVE_SPEED = 16;
+/**
+ * Seconds of the pincer's fly-in, counted from the wave's start: the wave intro (1.5 s, run.ts's
+ * WAVE_INTRO_SECONDS) plus half a second of play before the formation docks, marches, fires and dives.
+ */
+export const PINCER_SECONDS = 2;
+
 const KINDS: Record<string, AlienKind> = { d: 'drone', w: 'warden', v: 'diver', c: 'carrier', s: 'splitter', t: 'warper', m: 'mender' };
 
 // Scratch space for stepFormation, so a step allocates nothing; the sim is synchronous.
@@ -77,16 +87,32 @@ export function createSplitState(cols: number): SplitState {
 export function slotPosition(formation: FormationState, col: number, row: number, cols: number): { x: number; y: number } {
   const split = formation.split;
   const half = split ? (col < split.splitColumn ? split.leftOffsetX : split.rightOffsetX) : 0;
+  const weave = formation.weave ? (row % 2 === 0 ? formation.weave.offset : -formation.weave.offset) : 0;
   return {
-    x: (col - (cols - 1) / 2) * SLOT_SPACING_X + formation.offsetX + half,
+    x: (col - (cols - 1) / 2) * SLOT_SPACING_X + formation.offsetX + half + weave + pincerShift(formation, col, cols),
     y: FORMATION_TOP_Y - row * SLOT_SPACING_Y + formation.offsetY,
   };
+}
+
+/**
+ * How far the pincer holds a column out from its slot: the left half is shifted left (negative)
+ * and the right half right, easing from a field's width (off screen) to nothing as `entry` runs
+ * out. Squaring the remaining fraction makes the halves rush in and settle gently.
+ */
+function pincerShift(formation: FormationState, col: number, cols: number): number {
+  const entry = formation.entry;
+  if (entry === undefined || entry <= 0) return 0;
+  const left = Math.min(1, entry / PINCER_SECONDS);
+  return (col < Math.ceil(cols / 2) ? -1 : 1) * FIELD_WIDTH * left * left;
 }
 
 /** Builds a wave's aliens on their slots, handing out ids with `newId`. */
 export function spawnFormation(def: WaveDef, newId: () => number): { aliens: Alien[]; formation: FormationState } {
   const cols = waveColumns(def);
   const formation: FormationState = { offsetX: 0, offsetY: 0, dir: 1, startCount: 0 };
+  // Set before the aliens are placed, so a pincer wave starts with its halves off screen.
+  if (def.behaviours?.includes('weave')) formation.weave = { offset: 0, dir: 1 };
+  if (def.behaviours?.includes('pincer')) formation.entry = PINCER_SECONDS;
   const aliens: Alien[] = [];
   def.rows.forEach((rowText, row) => {
     [...rowText].forEach((char, col) => {
@@ -104,10 +130,21 @@ export function spawnFormation(def: WaveDef, newId: () => number): { aliens: Ali
 
 /**
  * The pincer's fly-in during the wave intro: advances `formation.entry` and puts the formation's
- * aliens on their (moving) slots. Does nothing on other waves.
- * TODO(4a worker): implement with the pincer.
+ * aliens on their (moving) slots. Does nothing on other waves. The aliens in formation mode are
+ * set straight on their slots (the intro doesn't run stepAlien); stepFormation counts the rest of
+ * the entry down once play begins.
  */
-export function stepFormationEntry(_formation: FormationState, _aliens: readonly Alien[], _def: WaveDef, _dt: number): void {}
+export function stepFormationEntry(formation: FormationState, aliens: readonly Alien[], def: WaveDef, dt: number): void {
+  if (formation.entry === undefined || formation.entry <= 0) return;
+  formation.entry = Math.max(0, formation.entry - dt);
+  const cols = waveColumns(def);
+  for (const a of aliens) {
+    if (a.mode !== 'formation' || a.col < 0) continue;
+    const pos = slotPosition(formation, a.col, a.row, cols);
+    a.x = pos.x;
+    a.y = pos.y;
+  }
+}
 
 /** Whether the formation may fire and dive: not while the pincer is still flying in. */
 export function formationReady(formation: FormationState): boolean {
@@ -140,6 +177,12 @@ export function stepFormation(formation: FormationState, aliens: readonly Alien[
   for (const a of aliens) if (a.mode !== 'free') slotted.push(a);
   if (slotted.length === 0) return null;
   const cols = waveColumns(def);
+  // The pincer's halves are still flying in: the formation holds, then marches once docked.
+  if (formation.entry !== undefined && formation.entry > 0) {
+    formation.entry = Math.max(0, formation.entry - dt);
+    return null;
+  }
+  if (formation.weave) stepWeave(formation.weave, weaveAmplitude(slotted, cols), dt);
   const split = formation.split;
   if (split && split.mode !== 'joined') return stepSplit(formation, split, slotted, def, cols, dt);
 
@@ -156,13 +199,25 @@ export function stepFormation(formation: FormationState, aliens: readonly Alien[
 
   const limit = FIELD_WIDTH / 2 - SIDE_MARGIN;
   if (formation.dir === 1 && maxEdge > limit) {
-    formation.offsetX -= maxEdge - limit;
+    const excess = maxEdge - limit;
+    formation.offsetX -= excess;
+    minEdge -= excess;
+    maxEdge -= excess;
     formation.dir = -1;
     formation.offsetY -= DROP_DISTANCE;
   } else if (formation.dir === -1 && minEdge < -limit) {
-    formation.offsetX += -limit - minEdge;
+    const excess = -limit - minEdge;
+    formation.offsetX += excess;
+    minEdge += excess;
+    maxEdge += excess;
     formation.dir = 1;
     formation.offsetY -= DROP_DISTANCE;
+  }
+  // The weave can push an edge out on its own, against the march: slide the formation back in
+  // without turning it or dropping a row. (weaveAmplitude leaves room for both edges.)
+  if (formation.weave) {
+    if (maxEdge > limit) formation.offsetX -= maxEdge - limit;
+    else if (minEdge < -limit) formation.offsetX += -limit - minEdge;
   }
 
   if (split) {
@@ -176,6 +231,30 @@ export function stepFormation(formation: FormationState, aliens: readonly Alien[
     }
   }
   return null;
+}
+
+/**
+ * How far the weave may shift a row on this formation: WEAVE_AMPLITUDE, or less when the formation
+ * is wide, so that the two edges the weave pushes apart (one row each way) still leave a quarter of
+ * the free room for the march. Six columns of drones leave 32 px, so they weave 8 px; five leave 56.
+ */
+function weaveAmplitude(aliens: readonly Alien[], cols: number): number {
+  let halfWidth = 0;
+  for (const a of aliens) halfWidth = Math.max(halfWidth, ALIEN_SPECS[a.kind].halfWidth);
+  const room = FIELD_WIDTH - 2 * SIDE_MARGIN - ((cols - 1) * SLOT_SPACING_X + 2 * halfWidth);
+  return Math.max(0, Math.min(WEAVE_AMPLITUDE, room / 4));
+}
+
+/** Moves the weave's offset by one step, bouncing between ±amplitude (a smaller amplitude pulls it in). */
+function stepWeave(weave: WeaveState, amplitude: number, dt: number): void {
+  weave.offset += weave.dir * WEAVE_SPEED * dt;
+  if (weave.offset > amplitude) {
+    weave.offset = Math.max(-amplitude, 2 * amplitude - weave.offset);
+    weave.dir = -1;
+  } else if (weave.offset < -amplitude) {
+    weave.offset = Math.min(amplitude, -2 * amplitude - weave.offset);
+    weave.dir = 1;
+  }
 }
 
 /** The left or right half's outer edges right now (slots in use, divers included), or null if it has no aliens. */

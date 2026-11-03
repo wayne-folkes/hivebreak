@@ -46,6 +46,9 @@ export const MINI_OFFSET_X = 4;
  */
 export const PAIR_DIVE_SPREAD = 8;
 
+/** Seconds between a Mender's healing pulses (enemy time); sector3.ts re-exports it. */
+export const MEND_INTERVAL = 4;
+
 /** Seconds of white flash after a hit. */
 export const HIT_FLASH_SECONDS = 0.08;
 /** A diver is worth this many times its points while it's diving. */
@@ -60,7 +63,10 @@ export const DIVE_SWAY = 24;
 export const RETURN_SPEED = 110;
 
 export function createAlien(kind: AlienKind, id: number, col: number, row: number, x: number, y: number): Alien {
-  return { id, kind, hp: ALIEN_SPECS[kind].hp, col, row, x, y, mode: 'formation', modeTime: 0, flash: 0 };
+  const alien: Alien = { id, kind, hp: ALIEN_SPECS[kind].hp, col, row, x, y, mode: 'formation', modeTime: 0, flash: 0 };
+  // A Mender's first pulse is a full interval after the wave starts.
+  if (kind === 'mender') alien.mendTimer = MEND_INTERVAL;
+  return alien;
 }
 
 export function alienBox(alien: Alien): Box {

@@ -22,15 +22,18 @@ describe('musicState: which track', () => {
     expect(musicState('special', run).track).toBe('title');
   });
 
-  it('plays the sector track by the wave, switching to sector 2 at wave 6', () => {
+  it('plays the sector track by the wave, switching to sector 2 at wave 6 and sector 3 at wave 11', () => {
     for (let wave = 0; wave < WAVE_COUNT; wave++) {
       const def = WAVES[wave];
-      const expected = def.boss ? 'boss' : def.sector === 1 ? 'sector1' : 'sector2';
+      const expected = def.boss ? 'boss' : def.sector === 1 ? 'sector1' : def.sector === 2 ? 'sector2' : 'sector3';
       expect(musicState('playing', runAt(wave)).track).toBe(expected);
     }
     expect(musicState('playing', runAt(4)).track).toBe('boss');
     expect(musicState('playing', runAt(5)).track).toBe('sector2');
     expect(musicState('playing', runAt(3)).track).toBe('sector1');
+    expect(musicState('playing', runAt(9)).track).toBe('boss');
+    expect(musicState('playing', runAt(10)).track).toBe('sector3');
+    expect(musicState('playing', runAt(13)).track).toBe('sector3');
   });
 
   it('plays the boss track from the boss wave intro on', () => {

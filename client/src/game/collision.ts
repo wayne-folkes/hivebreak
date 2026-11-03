@@ -1,4 +1,5 @@
 import { alienBox } from './aliens';
+import { canBeHit } from './sector3';
 import type { Alien, Box, Shot } from './types';
 
 // Overlap tests. Axis-aligned boxes are enough: the playfield is flat and the fastest thing
@@ -17,14 +18,15 @@ export function shotBox(shot: Shot): Box {
 }
 
 /**
- * The living alien a shot is touching, or null. If it touches several, the lowest one wins
+ * The living alien a shot is touching, or null. A Warper that is warping in is passed through
+ * (see canBeHit). If it touches several, the lowest one wins
  * (the first a shot fired from below would reach), then the lowest id.
  */
 export function firstAlienHit(shot: Shot, aliens: readonly Alien[]): Alien | null {
   const box = shotBox(shot);
   let best: Alien | null = null;
   for (const a of aliens) {
-    if (a.hp <= 0 || !overlaps(box, alienBox(a))) continue;
+    if (a.hp <= 0 || !canBeHit(a) || !overlaps(box, alienBox(a))) continue;
     if (!best || a.y < best.y || (a.y === best.y && a.id < best.id)) best = a;
   }
   return best;

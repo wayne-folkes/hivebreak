@@ -49,7 +49,7 @@ import type { Alien, Box, Pickup, PlayerState, RunEvent, RunOptions, RunPhase, R
 import { NO_INPUT } from './types';
 import { CHAIN_DAMAGE, CHAIN_RANGE, UPGRADES, applyUpgrade, offerUpgrades } from './upgrades';
 import { WAVE_COUNT, WAVES, waveColumns } from './waves';
-import { alienHitSurvived, stepSector3Aliens } from './sector3';
+import { alienHitSurvived, canBeHit, stepSector3Aliens } from './sector3';
 import { stepWell } from './well';
 
 // A whole run: the phases from the Special choice to a win or loss, and the fixed simulation step
@@ -465,7 +465,7 @@ function chainSparks(run: RunState, origin: Alien, killer: PlayerState, events: 
       let target: Alien | null = null;
       let best = CHAIN_RANGE;
       for (const a of run.aliens) {
-        if (a.hp <= 0 || used.has(a.id)) continue;
+        if (a.hp <= 0 || used.has(a.id) || !canBeHit(a)) continue;
         const d = Math.hypot(a.x - from.x, a.y - from.y);
         if (d <= best && (target === null || d < best)) {
           best = d;
@@ -866,11 +866,12 @@ function resolvePlayerShots(run: RunState, events: RunEvent[]): void {
     }
     const alien = firstAlienHit(shot, run.aliens);
     if (alien) {
+      const hitY = alien.y; // a Warper blinks away when it survives the hit
       hitAlien(run, shot, alien, events);
       if (shot.pierceLeft > 0) {
         // Move the shot just past the alien so it can't hit the same one again next step.
         shot.pierceLeft--;
-        shot.y = alien.y + ALIEN_SPECS[alien.kind].halfHeight + SHOT_HALF_HEIGHT;
+        shot.y = hitY + ALIEN_SPECS[alien.kind].halfHeight + SHOT_HALF_HEIGHT;
       } else {
         idScratch.add(shot.id);
       }

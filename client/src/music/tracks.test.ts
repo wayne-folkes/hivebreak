@@ -14,8 +14,8 @@ const tokensIn = (text: string): string[] => text.split(/\s+/).filter((t) => t !
 const barLengths = (text: string): number[] => text.split('|').map((bar) => tokensIn(bar).length);
 
 describe('the soundtrack', () => {
-  it('has the four tracks, each filed under its own id', () => {
-    expect(Object.keys(TRACKS).sort()).toEqual(['boss', 'sector1', 'sector2', 'title']);
+  it('has the five tracks, each filed under its own id', () => {
+    expect(Object.keys(TRACKS).sort()).toEqual(['boss', 'sector1', 'sector2', 'sector3', 'title']);
     for (const [id, song] of Object.entries(TRACKS)) expect(song.id).toBe(id);
   });
 
@@ -86,7 +86,7 @@ describe('the soundtrack', () => {
     expect(title.channels.some((c) => c.name === 'lead')).toBe(true);
   });
 
-  it.each([TRACKS.sector1, TRACKS.sector2].map((s) => [s.id, s] as const))(
+  it.each([TRACKS.sector1, TRACKS.sector2, TRACKS.sector3].map((s) => [s.id, s] as const))(
     '%s: base stands alone (drums and bass), with mid, high and danger layers',
     (_id, song) => {
       const base = song.channels.filter((c) => c.layer === 'base');
@@ -103,6 +103,25 @@ describe('the soundtrack', () => {
     expect(TRACKS.sector1.channels.find((c) => c.name === 'bass')?.loop).not.toBe(
       TRACKS.sector2.channels.find((c) => c.name === 'bass')?.loop,
     );
+  });
+
+  it('sector 3 has its own tempo and music, and a heartbeat kick on every half bar', () => {
+    const bass = (song: Song) => song.channels.find((c) => c.name === 'bass')?.loop;
+    const s3 = TRACKS.sector3;
+    for (const other of [TRACKS.sector1, TRACKS.sector2]) {
+      expect(s3.bpm).not.toBe(other.bpm);
+      expect(bass(s3)).not.toBe(bass(other));
+    }
+    // Lub (accented) and dub (two steps later), then a rest, in each half of every kick/snare bar.
+    const drums = s3.channels.find((c) => c.name === 'drums');
+    const hits = parsePattern(drums?.loop ?? '', true).notes;
+    for (let bar = 0; bar < s3.loopSteps / s3.stepsPerBar; bar++) {
+      for (const half of [0, 8]) {
+        const at = bar * s3.stepsPerBar + half;
+        expect(hits.find((n) => n.at === at && n.drum === 'k')?.accent, `bar ${bar + 1} lub`).toBe(true);
+        expect(hits.some((n) => n.at === at + 2 && n.drum === 'k'), `bar ${bar + 1} dub`).toBe(true);
+      }
+    }
   });
 
   it('boss: three phases that speed up and climb, and every layer is used', () => {

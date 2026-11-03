@@ -5,6 +5,7 @@ import { overlaps } from './collision';
 import { FIELD_HEIGHT } from './playfield';
 import { SHIP_BOX_OFFSET_Y, SHIP_TOP, SHIP_Y, isAlive, shipBox } from './player';
 import type { Rng } from './rng';
+import { canBeHit } from './sector3';
 import { VOLLEY_HIT } from './scoring';
 import type { Alien, AlienKind, Beam, BossPart, BossState, Box, Bunker, Pickup, PlayerState, PowerUpKind, RunState, Shot } from './types';
 
@@ -222,7 +223,7 @@ export function computeBeam(
   let bottom = FIELD_HEIGHT / 2;
   let hit: Alien | null = null;
   for (const a of aliens) {
-    if (a.hp <= 0) continue;
+    if (a.hp <= 0 || !canBeHit(a)) continue; // the beam passes through a Warper warping in
     const spec = ALIEN_SPECS[a.kind];
     if (Math.abs(a.x - player.x) >= spec.halfWidth + BEAM_HALF_WIDTH) continue;
     if (a.y + spec.halfHeight <= SHIP_TOP) continue; // wholly below the nose
