@@ -35,6 +35,10 @@ export type ModelName =
   | 'carrier'
   | 'splitter'
   | 'mini'
+  | 'warper'
+  | 'mender'
+  | 'mine'
+  | 'acid_drop'
   | 'brood_mother'
   | 'hive_mind'
   | 'helper'
@@ -58,6 +62,10 @@ const FILES: Record<string, readonly ModelName[]> = {
   carrier: ['carrier'],
   splitter: ['splitter'],
   mini: ['mini'],
+  warper: ['warper'],
+  mender: ['mender'],
+  mine: ['mine'],
+  acid_drop: ['acid_drop'],
   brood_mother: ['brood_mother'],
   hive_mind: ['hive_mind'],
   helper: ['helper'],
@@ -77,7 +85,9 @@ const SHIP_MODELS: readonly ModelName[] = ['player', 'interceptor', 'lancer', 'b
 export const LOOK_NORMAL = 0;
 export const LOOK_SLOW = 1;
 export const LOOK_FROZEN = 2;
-export type Look = typeof LOOK_NORMAL | typeof LOOK_SLOW | typeof LOOK_FROZEN;
+/** A Warper's warp-in: the whole model washed teal (flickered against its own colours). */
+export const LOOK_WARP = 3;
+export type Look = typeof LOOK_NORMAL | typeof LOOK_SLOW | typeof LOOK_FROZEN | typeof LOOK_WARP;
 
 /** Outline thickness in art pixels (world units). */
 const OUTLINE_THICKNESS = 0.8;
@@ -92,6 +102,7 @@ const wreckMaterial = new MeshBasicMaterial({ color: 0x1b1530 });
 
 const COOL = new Color(0x4f8bff);
 const ICE = new Color(0x8fb4ff);
+const TEAL = new Color(0x3fe8d0);
 
 /** A material's three looks (normal, slow, frozen), found by the material the Blender file gave a mesh. */
 const looksOf = new WeakMap<Material, readonly Material[]>();
@@ -105,6 +116,12 @@ export function coolColor(source: Color, out: Color): Color {
 export function frozenColor(source: Color, out: Color): Color {
   const grey = source.r * 0.2126 + source.g * 0.7152 + source.b * 0.0722;
   return out.setRGB(grey, grey, grey).lerp(ICE, 0.35).multiplyScalar(0.9);
+}
+
+/** The warp-in's look of a colour: mostly teal, with a little of the colour's own light and dark kept. */
+export function warpColor(source: Color, out: Color): Color {
+  const grey = source.r * 0.2126 + source.g * 0.7152 + source.b * 0.0722;
+  return out.copy(TEAL).multiplyScalar(0.35 + 0.8 * Math.min(1, grey * 1.6));
 }
 
 function toonGradient(): DataTexture {
@@ -164,6 +181,7 @@ function stylize(root: Object3D): void {
         material,
         make(coolColor(source.color, new Color())),
         make(frozenColor(source.color, new Color())),
+        make(warpColor(source.color, new Color())),
       ]);
     }
     if (!glows) {

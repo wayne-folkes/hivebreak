@@ -44,6 +44,15 @@ export const ARC_SPARK: readonly number[] = [0xffffff, 0x9dfafd, 0x52ddeb];
 /** A missile's exhaust trail: hot sparks, and a little grey smoke. */
 const MISSILE_SPARK: readonly number[] = [0xffe164, 0xff8a45, 0xffffff];
 const MISSILE_SMOKE: readonly number[] = [0x9391b9, 0x7869aa];
+/** Sector 3: acid and gold, the Warper's teal, the Mender's green, and a mine's gold, red and dust. */
+export const ACID_SPARK: readonly number[] = [0xc6f23c, 0x8db52a, 0xffffff, 0xf5c542];
+export const WARP_SPARK: readonly number[] = [0x3fe8d0, 0x1d8a7c, 0xffffff];
+export const MEND_SPARK: readonly number[] = [0x4fff9b, 0x1f9e63, 0xffffff];
+const MINE_GOLD: readonly number[] = [0xf5c542, 0xffe164, 0xff8a45, 0xffffff];
+const MINE_RED: readonly number[] = [0xff5a5a, 0xff8a45, 0xffe164, 0xc0392b];
+const MINE_DUST: readonly number[] = [0x9391b9, 0x7869aa, 0x3fd6a0, 0x7af0c8];
+/** The pincer's trails: acid green from the left half, gold from the right. */
+export const PINCER_TRAIL: readonly (readonly number[])[] = [[0xc6f23c, 0x8db52a], [0xf5c542, 0x8a6a1a]];
 const COLORS = [
   ...new Set([
     ...FIRE,
@@ -63,6 +72,13 @@ const COLORS = [
     ...ARC_SPARK,
     ...MISSILE_SPARK,
     ...MISSILE_SMOKE,
+    ...ACID_SPARK,
+    ...WARP_SPARK,
+    ...MEND_SPARK,
+    ...MINE_GOLD,
+    ...MINE_RED,
+    ...MINE_DUST,
+    ...PINCER_TRAIL.flat(),
   ]),
 ];
 
@@ -274,6 +290,72 @@ export class Effects {
       m.visible = true;
     }
     this.kick(SHAKE_SECONDS * 0.8, 2);
+  }
+
+  /**
+   * A mine went off, `radius` art pixels across. Shot: a big gold ring at the burst's full reach
+   * and a scatter of fire, so the player sees which aliens it caught. Bunker: a small puff of
+   * dust. Ground: a red-orange blast at the ship's row, with a shake.
+   */
+  mineBurst(x: number, y: number, radius: number, cause: 'shot' | 'bunker' | 'ground'): void {
+    if (cause === 'shot') {
+      this.waves.start(x, y, radius * 0.25, radius, 0.3, 2, 0xf5c542);
+      this.waves.start(x, y, radius * 0.1, radius * 0.65, 0.22, 2, 0xff8a45);
+      this.emit(x, y, 16, MINE_GOLD, radius * 3.4, 2.6, 0.45);
+      this.emit(x, y, 6, FIRE, radius * 1.6, 3.4, 0.35);
+      this.kick(SHAKE_SECONDS * 0.5, 1);
+    } else if (cause === 'bunker') {
+      this.emit(x, y, 7, MINE_DUST, radius * 5, 1.8, 0.4);
+      this.waves.start(x, y, 2, radius, 0.2, 1, 0x9391b9);
+    } else {
+      this.waves.start(x, y, radius * 0.3, radius * 1.3, 0.3, 2, 0xff5a5a);
+      this.emit(x, y, 14, MINE_RED, radius * 4.2, 2.8, 0.5);
+      this.emit(x, y, 5, FIRE, radius * 2, 3.6, 0.4);
+      this.kick(SHAKE_SECONDS * 0.7, 2);
+    }
+  }
+
+  /** A Warper blinked from (fromX, fromY) to (toX, toY): teal pixels strewn along the path, a pop at each end. */
+  warpTrail(fromX: number, fromY: number, toX: number, toY: number): void {
+    const steps = Math.max(3, Math.min(10, Math.round(Math.hypot(toX - fromX, toY - fromY) / 12)));
+    for (let n = 0; n <= steps; n++) {
+      const u = n / steps;
+      // Still pixels that shrink away, the ones nearest the old spot lasting longest (they fade in order).
+      this.emitOne(fromX + (toX - fromX) * u, fromY + (toY - fromY) * u, 0, 0, WARP_SPARK, 3, 0.2 + (1 - u) * 0.25);
+    }
+    this.emit(fromX, fromY, 8, WARP_SPARK, 60, 2.6, 0.35);
+    this.waves.start(fromX, fromY, 2, 14, 0.22, 1, 0x3fe8d0);
+  }
+
+  /** A Warper finished warping in: a quick teal ring and a few sparks. */
+  warpArrived(x: number, y: number): void {
+    this.waves.start(x, y, 3, 16, 0.2, 1, 0x3fe8d0);
+    this.emit(x, y, 6, WARP_SPARK, 45, 2, 0.3);
+  }
+
+  /** A Mender pulsed: a green ring spreads from it. */
+  mendRing(x: number, y: number): void {
+    this.waves.start(x, y, 3, 30, 0.4, 1.5, 0x4fff9b);
+    this.emit(x, y, 6, MEND_SPARK, 40, 2, 0.35);
+  }
+
+  /** An alien was healed: a few green sparks lifting off it. */
+  mended(x: number, y: number): void {
+    for (let n = 0; n < 4; n++) this.emitOne(x + (this.random() - 0.5) * 8, y + (this.random() - 0.5) * 4, 0, 22 + this.random() * 14, MEND_SPARK, 1.8, 0.45);
+  }
+
+  /** Acid rain landing at (x, y): a few drops splashing back up. */
+  acidSplash(x: number, y: number): void {
+    for (let n = 0; n < 2; n++) {
+      const a = Math.PI * (0.2 + this.random() * 0.6);
+      const v = 30 + this.random() * 40;
+      this.emitOne(x, y, Math.cos(a) * v, Math.sin(a) * v, ACID_SPARK, 1.8, 0.3);
+    }
+  }
+
+  /** One still pixel of a fast mover's trail (the pincer's halves), shrinking away. */
+  trailPixel(x: number, y: number, colors: readonly number[]): void {
+    this.emitOne(x, y, 0, 0, colors, 2.2, 0.22);
   }
 
   /** A Hive Mind beam begins to fire: a red ring from the core. */

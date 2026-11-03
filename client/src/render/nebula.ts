@@ -1,6 +1,6 @@
 import { FIELD_HEIGHT, FIELD_WIDTH } from '../game/playfield';
 
-// Sector 2's red nebula: a few soft blobs of colour behind the stars, quantised to chunky
+// The sector nebulae (sector 2's red, sector 3's acid green): a few soft blobs of colour behind the stars, quantised to chunky
 // blocks and a handful of flat levels so it reads as pixel art (and snaps cleanly to the
 // palette). Built once as RGBA bytes for a texture; nothing here touches WebGL, so it can be
 // tested on its own.
@@ -13,7 +13,10 @@ export const NEBULA_LEVELS: readonly number[] = [0x2a0812, 0x4a0f24, 0x6e1830];
 /** Where each level starts, as a blob density from 0 to about 1. */
 export const NEBULA_THRESHOLDS: readonly number[] = [0.16, 0.34, 0.55];
 
-interface Blob {
+/** Sector 3's acid-green levels, dim to bright; palette entries too. */
+export const NEBULA3_LEVELS: readonly number[] = [0x0f1a08, 0x18290c, 0x253f10];
+
+export interface Blob {
   x: number;
   y: number;
   radius: number;
@@ -21,16 +24,27 @@ interface Blob {
 }
 
 // Pixel positions from the top-left, like the concept page: a big one up-left, a smaller one low-right.
-const BLOBS: readonly Blob[] = [
+export const BLOBS: readonly Blob[] = [
   { x: 40, y: 90, radius: 120, strength: 0.95 },
   { x: 150, y: 215, radius: 105, strength: 0.7 },
   { x: 130, y: 40, radius: 60, strength: 0.4 },
 ];
 
+/**
+ * Sector 3's clouds sit elsewhere (a big one low on the right, a curl high on the left), so the
+ * green does not read as the red one recoloured, and the cloud runs thinner: the sky stays
+ * mostly dark and the hive's colours stay in front.
+ */
+export const BLOBS3: readonly Blob[] = [
+  { x: 150, y: 250, radius: 125, strength: 0.9 },
+  { x: 30, y: 60, radius: 90, strength: 0.65 },
+  { x: 60, y: 175, radius: 55, strength: 0.4 },
+];
+
 /** How dense the nebula is at a point, from 0 up: blobs that fall off smoothly, with a little ripple so they aren't round. */
-export function nebulaDensity(x: number, y: number): number {
+export function nebulaDensity(x: number, y: number, blobs: readonly Blob[] = BLOBS): number {
   let sum = 0;
-  for (const b of BLOBS) {
+  for (const b of blobs) {
     const dx = x - b.x;
     const dy = y - b.y;
     const angle = Math.atan2(dy, dx);
@@ -52,14 +66,20 @@ export function nebulaLevel(density: number): number {
  * The nebula as RGBA bytes, row 0 at the bottom (a texture's own order), `FIELD_WIDTH` by
  * `FIELD_HEIGHT`. Alpha is 255 where there is nebula and 0 where there is not.
  */
-export function buildNebula(width = FIELD_WIDTH, height = FIELD_HEIGHT, block = NEBULA_BLOCK): Uint8Array {
+export function buildNebula(
+  width = FIELD_WIDTH,
+  height = FIELD_HEIGHT,
+  block = NEBULA_BLOCK,
+  levels: readonly number[] = NEBULA_LEVELS,
+  blobs: readonly Blob[] = BLOBS,
+): Uint8Array {
   const data = new Uint8Array(width * height * 4);
   for (let by = 0; by < height; by += block) {
     for (let bx = 0; bx < width; bx += block) {
       // Sample at the block's centre, in pixels from the top-left.
-      const level = nebulaLevel(nebulaDensity(bx + block / 2, by + block / 2));
+      const level = nebulaLevel(nebulaDensity(bx + block / 2, by + block / 2, blobs));
       if (level === 0) continue;
-      const hex = NEBULA_LEVELS[level - 1];
+      const hex = levels[level - 1];
       for (let y = by; y < Math.min(by + block, height); y++) {
         const row = height - 1 - y;
         for (let x = bx; x < Math.min(bx + block, width); x++) {

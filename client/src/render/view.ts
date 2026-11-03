@@ -20,25 +20,30 @@ import { FIELD_HEIGHT, FIELD_WIDTH, fitPlayfield } from '../game/playfield';
 import type { Fit } from '../game/playfield';
 import { SHIP_BOX_OFFSET_Y, SHIP_TOP, SHIP_Y, wingmanXs } from '../game/player';
 import { POWER_UP_KINDS, enemyTimeScale, helperPosition } from '../game/powerups';
+import { WARP_SECONDS } from '../game/sector3';
 import { WAVES } from '../game/waves';
 import type { Alien, AlienKind, BossKind, BossState, PlayerState, PowerUpKind, RunEvent, RunState, Shot, ShipId } from '../game/types';
+import { AcidView } from './acidview';
 import { ArcView } from './arcs';
 import { BeamView } from './beams';
 import { BossBeamView, rayToFieldEdge } from './bossbeams';
 import { bayGlowName, bossPartNames, corePulse, hiveCorePulse, hiveGlowScale, launchWarning } from './bossparts';
 import { BunkerView } from './bunkerview';
-import { ARC_SPARK, BOSS_DEATH_SECONDS, Effects, POWER_UP_COLOR, SEGMENT_SHARDS, SHIELD_SPARK, WELL_SPARK } from './effects';
+import { ACID_HALF_WIDTH } from '../game/hazards';
+import { ARC_SPARK, BOSS_DEATH_SECONDS, Effects, PINCER_TRAIL, POWER_UP_COLOR, SEGMENT_SHARDS, SHIELD_SPARK, WELL_SPARK } from './effects';
 import { approachAngle, Tracker } from './interp';
+import { MendLinks } from './mendlinks';
 import type { Sample } from './interp';
 import { dropsTrail, exhaustScale, missileAngle } from './missile';
-import { LOOK_FROZEN, LOOK_NORMAL, LOOK_SLOW, Model, ModelKit, shipModelName } from './models';
+import { LOOK_FROZEN, LOOK_NORMAL, LOOK_SLOW, LOOK_WARP, Model, ModelKit, shipModelName } from './models';
 import type { Look, ModelName } from './models';
 import { PALETTE } from './palette';
 import { PalettePass } from './post';
-import { Starfield } from './stars';
+import { Starfield, sectorWeights } from './stars';
 import { StunMarkers } from './stun';
-import { createTiltCamera, placeTiltCamera } from './tilt';
+import { TILT_DEG, createTiltCamera, placeTiltCamera } from './tilt';
 import { WellView } from './wellview';
+import { WARP_GHOST_SECONDS, ghostScale, warpProgress, warpScale, warpTint } from './warp';
 
 // Draws a run. The sim steps at a fixed rate and the screen redraws at its own, so entities are
 // drawn at positions blended between the last two steps. The view keeps no game state: it
@@ -57,7 +62,7 @@ const MAX_BANK = 0.65;
 const FACING_RATE = 10;
 
 const LEG_NAMES = ['leg_0', 'leg_1', 'leg_2'] as const;
-const ALIEN_KINDS = ['drone', 'warden', 'diver', 'carrier', 'splitter', 'mini'] as const;
+const ALIEN_KINDS = ['drone', 'warden', 'diver', 'carrier', 'splitter', 'mini', 'warper', 'mender'] as const;
 
 /**
  * Pickups: how far they bob (art pixels), and how far and fast they swing about their vertical
@@ -83,14 +88,25 @@ const SLOW_STARS = 0x52ddeb;
 const FREEZE_STARS = 0xd3f1ff;
 /** Seconds a sector change takes to fade the sky, nebula and light from one sector's look to the other's. */
 const SECTOR_FADE_SECONDS = 1.6;
-/** Lights: sector 1's cool blue and violet, and sector 2's warm rose and brown. */
-const HEMI_SKY = [0x9ab8ff, 0xffb8a0] as const;
-const HEMI_GROUND = [0x2a1a48, 0x2e0f14] as const;
-const SUN = [0xffffff, 0xffe2d2] as const;
+/** Lights: sector 1's cool blue and violet, sector 2's warm rose and brown, and sector 3's lime and gold. */
+const HEMI_SKY = [0x9ab8ff, 0xffb8a0, 0xd4f08c] as const;
+const HEMI_GROUND = [0x2a1a48, 0x2e0f14, 0x1c2a0c] as const;
+const SUN = [0xffffff, 0xffe2d2, 0xfff0b8] as const;
 /** The Splitter's halves, once it breaks: seconds they fly apart for, how far per second, and how many can fly at once. */
 const SPLIT_SECONDS = 0.35;
 const SPLIT_SPEED = 80;
 const SPLIT_GHOSTS = 4;
+/** How high above the field a mine is drawn, so it passes in front of the aliens, and how far the tilted camera lifts a point per unit of height. */
+const MINE_Z = 4;
+const MINE_SCALE = 1.35;
+const LIFT_PER_Z = Math.tan((TILT_DEG * Math.PI) / 180);
+/** A Warper's afterimages (two per blink): how many can show at once. */
+const WARP_GHOSTS = 6;
+/** A mender's cross glows white this long after a pulse, and starts to blink this long before the next. */
+const MEND_GLOW_SECONDS = 0.3;
+const MEND_CHARGE_SECONDS = 0.7;
+/** A formation alien moving sideways faster than this (art pixels per step) is flying in, and trails pixels (the pincer). */
+const TRAIL_SPEED = 0.9;
 /** Seconds a ship flashes white after a hit, and a Lancer's muzzles flash after a volley. */
 const HIT_FLASH_SECONDS = 0.14;
 const MUZZLE_SECONDS = 0.09;
@@ -173,6 +189,13 @@ interface SplitGhost {
   y: number;
 }
 
+/** A Warper's afterimage where it blinked from, shrinking and flickering teal away. */
+interface WarpGhost {
+  model: Model;
+  /** Seconds since it appeared; at WARP_GHOST_SECONDS it is gone. */
+  age: number;
+}
+
 /** A hex shell: a bright double ring and a faint fill, for the Shield Burst (and, smaller, the boss's core shield). */
 function hexShell(radius: number, ringColor: number, fillColor: number, fillOpacity: number): Group {
   const group = new Group();
@@ -223,12 +246,21 @@ export class GameView {
   private shotPools: ViewPool[] = [];
   private ghosts: SplitGhost[] = [];
   private ghostCursor = 0;
+  private warpGhosts: WarpGhost[] = [];
+  private warpGhostCursor = 0;
+  private mineViews!: ViewPool;
+  private readonly mineTracks = new Tracker();
+  private acid!: AcidView;
+  private readonly links: MendLinks;
+  /** Menders whose cross is glowing from a pulse: alien id to seconds left. */
+  private readonly mendGlow = new Map<number, number>();
   private readonly bunkers: BunkerView;
   private readonly bossBeams: BossBeamView;
   private readonly contacts: BeamContact[] = [];
   private readonly hemi = new HemisphereLight(HEMI_SKY[0], HEMI_GROUND[0], 0.9);
   private readonly sun = new DirectionalLight(SUN[0], 2.6);
   private readonly lightColor = new Color();
+  private readonly lightWeights = [1, 0, 0];
   private sectorBlend = 0;
   private sectorSnap = true;
   private lastSectorApplied = -1;
@@ -278,6 +310,7 @@ export class GameView {
     this.beams = new BeamView(this.scene, this.effects);
     this.stun = new StunMarkers(this.scene);
     this.arcs = new ArcView(this.scene);
+    this.links = new MendLinks(this.scene);
     this.fitNow = this.layout();
   }
 
@@ -296,10 +329,12 @@ export class GameView {
       carrier: new ViewPool(this.scene, make('carrier')),
       splitter: new ViewPool(this.scene, make('splitter')),
       mini: new ViewPool(this.scene, make('mini')),
-      // TODO(4a renderer): their own models.
-      warper: new ViewPool(this.scene, make('drone')),
-      mender: new ViewPool(this.scene, make('drone')),
+      warper: new ViewPool(this.scene, make('warper')),
+      mender: new ViewPool(this.scene, make('mender')),
     };
+    this.mineViews = new ViewPool(this.scene, () => this.makeMine());
+    this.acid = new AcidView(this.scene, this.effects, make('acid_drop'), ACID_HALF_WIDTH);
+    this.warpGhosts = Array.from({ length: WARP_GHOSTS }, () => this.makeWarpGhost());
     this.playerShots = new ViewPool(this.scene, make('shot_player'));
     this.alienShots = new ViewPool(this.scene, make('shot_alien'));
     this.overchargeShots = new ViewPool(this.scene, () => this.makeBigShot('overcharge'));
@@ -332,6 +367,29 @@ export class GameView {
     model.holder.visible = false;
     this.scene.add(model.holder);
     return { model, side, age: SPLIT_SECONDS, x: 0, y: 0 };
+  }
+
+  /**
+   * A mine: its model a little larger than its hit box so it reads at this size, with a thin red
+   * ring about it that blinks with its light, so a mine stands out from the aliens it drifts among.
+   */
+  private makeMine(): Model {
+    const model = this.kit.create('mine');
+    model.holder.scale.setScalar(MINE_SCALE);
+    const halo = new Mesh(new RingGeometry(5.6, 6.6, 10), new MeshBasicMaterial({ color: 0xc0392b }));
+    halo.name = 'halo';
+    halo.position.z = -1.5;
+    model.holder.add(halo);
+    return model;
+  }
+
+  /** An afterimage of a Warper: its model washed teal, hidden until a blink starts it. */
+  private makeWarpGhost(): WarpGhost {
+    const model = this.kit.create('warper');
+    model.setLook(LOOK_WARP);
+    model.holder.visible = false;
+    this.scene.add(model.holder);
+    return { model, age: WARP_GHOST_SECONDS };
   }
 
   /** A pickup: its model, with a thin ring of its colour around it so it stands out against the dark field. */
@@ -401,6 +459,15 @@ export class GameView {
     this.beams.clear();
     this.stun.clear();
     this.arcs.clear();
+    this.links.clear();
+    this.mendGlow.clear();
+    this.mineTracks.clear();
+    this.mineViews?.clear();
+    this.acid?.clear();
+    for (const g of this.warpGhosts) {
+      g.age = WARP_GHOST_SECONDS;
+      g.model.holder.visible = false;
+    }
     this.wellView?.clear();
     for (const views of this.ships) for (const view of Object.values(views)) view.model.holder.visible = false;
     this.hideBoss();
@@ -430,6 +497,9 @@ export class GameView {
     this.pickupTracks.begin();
     for (const p of run.pickups) this.pickupTracks.push(p.id, p.x, p.y);
     this.pickupTracks.end();
+    this.mineTracks.begin();
+    for (const m of run.mines) this.mineTracks.push(m.id, m.x, m.y);
+    this.mineTracks.end();
     this.bossTrack.begin();
     if (run.boss) this.bossTrack.push(0, run.boss.x, run.boss.y);
     this.bossTrack.end();
@@ -460,9 +530,14 @@ export class GameView {
     this.drawShips(run, alpha, dt);
     this.drawBeams(run, alpha, dt);
     this.drawAliens(run, alpha, dt, enemyScale);
+    this.links.update(dt);
     this.drawBoss(run, alpha, dt);
     this.stun.end();
     this.drawGhosts(dt);
+    this.drawWarpGhosts(dt);
+    this.drawMines(run, alpha);
+    // On enemy time, so Time Stop freezes the rain and the warning flicker along with the sim's clocks.
+    this.acid.update(run.acid, run.bunkers, this.enemyTime, dt * enemyScale);
     this.bunkers.update(run.bunkers);
     this.drawPickups(run, alpha);
     this.drawShots(run, alpha);
@@ -485,12 +560,13 @@ export class GameView {
   }
 
   /**
-   * Fades the whole look between sector 1 and sector 2 as the wave's sector changes: the sky,
-   * the red nebula, the stars' colour and the light. Snaps on the first frame and after a reset.
+   * Fades the whole look between the sectors' as the wave's sector changes: the sky, the nebula,
+   * the stars' colour and the light. The blend is 0 for sector 1, 1 for sector 2 and 2 for sector
+   * 3, so a fade always runs through the look in between. Snaps on the first frame and after a reset.
    */
   private drawSector(run: RunState, dt: number): void {
     const wave = WAVES[Math.min(run.wave, WAVES.length - 1)];
-    const target = wave && wave.sector === 2 ? 1 : 0;
+    const target = wave && wave.sector >= 2 ? wave.sector - 1 : 0;
     const before = this.sectorBlend;
     if (this.sectorSnap) {
       this.sectorBlend = target;
@@ -503,9 +579,19 @@ export class GameView {
     this.lastSectorApplied = this.sectorBlend;
     const b = this.sectorBlend;
     this.stars.setSector(b);
-    this.hemi.color.setHex(HEMI_SKY[0]).lerp(this.lightColor.setHex(HEMI_SKY[1]), b);
-    this.hemi.groundColor.setHex(HEMI_GROUND[0]).lerp(this.lightColor.setHex(HEMI_GROUND[1]), b);
-    this.sun.color.setHex(SUN[0]).lerp(this.lightColor.setHex(SUN[1]), b);
+    this.blendLight(this.hemi.color, HEMI_SKY, b);
+    this.blendLight(this.hemi.groundColor, HEMI_GROUND, b);
+    this.blendLight(this.sun.color, SUN, b);
+  }
+
+  /** Sets a light's colour to the look for sector blend `b` (0 to 2) from the sectors' colours. */
+  private blendLight(out: Color, looks: readonly number[], b: number): void {
+    const w = sectorWeights(b, this.lightWeights);
+    out.setHex(looks[0]).multiplyScalar(w[0]);
+    for (let i = 1; i < looks.length; i++) {
+      this.lightColor.setHex(looks[i]).multiplyScalar(w[i]);
+      out.add(this.lightColor);
+    }
   }
 
   /** A subtle wash behind the field while the slow field or Time Stop runs, faded in and out. */
@@ -636,6 +722,25 @@ export class GameView {
         break;
       case 'sectorStart':
         if (e.sector === 2) this.effects.waveFlash(0xff5a3c, 0.16, 0.7);
+        else if (e.sector === 3) this.effects.waveFlash(0xc6f23c, 0.14, 0.7);
+        break;
+      case 'alienWarped':
+        // The Warper vanishes from where it was (an afterimage and a trail of teal pixels) and lands at its new slot.
+        this.effects.warpTrail(e.fromX, e.fromY, e.toX, e.toY);
+        this.effects.warpArrived(e.toX, e.toY);
+        this.startWarpGhosts(e.fromX, e.fromY, e.toX, e.toY);
+        break;
+      case 'mendPulse':
+        // A green ring from the Mender, a link to each alien it healed, and its cross lights up.
+        this.effects.mendRing(e.x, e.y);
+        this.mendGlow.set(e.alienId, MEND_GLOW_SECONDS);
+        for (const h of e.healed) {
+          this.links.add(e.alienId, e.x, e.y, h.x, h.y);
+          this.effects.mended(h.x, h.y);
+        }
+        break;
+      case 'mineBurst':
+        this.effects.mineBurst(e.x, e.y, e.radius, e.cause);
         break;
       case 'bossBeam':
         if (e.state === 'fire' && run.boss) this.effects.beamFlare(run.boss.x, run.boss.y);
@@ -811,9 +916,25 @@ export class GameView {
     const known = this.alienTracks.sample(a.id, alpha, this.sample);
     const { x, y, dx, dy } = known ? this.sample : { x: a.x, y: a.y, dx: 0, dy: 0 };
     model.holder.position.set(x, y, 0);
-    model.setFlash(a.flash > 0);
-    model.setLook(this.look);
+    let flash = a.flash > 0;
+    let look = this.look;
+    if (a.kind === 'warper') {
+      // Materialising after a blink: it grows into place, flashing white as it lands and then
+      // flickering teal. (The slow field and Time Stop keep their own looks.)
+      const progress = warpProgress(a.warp, WARP_SECONDS);
+      model.holder.scale.setScalar(warpScale(progress));
+      const tint = warpTint(progress, this.frame);
+      if (tint === 'white') flash = true;
+      else if (tint === 'teal' && look === LOOK_NORMAL) look = LOOK_WARP;
+    }
+    model.setFlash(flash);
+    model.setLook(look);
     if (stunned && a.mode === 'formation') this.stun.add(x, y + 9, 5, 2, this.time, a.id * 1.3);
+    // The pincer's halves rush in from the sides: each leaves a short trail of pixels behind it.
+    if (known && a.mode === 'formation' && Math.abs(dx) > TRAIL_SPEED && (this.frame + a.id) % 3 === 0) {
+      const side = dx > 0 ? -1 : 1;
+      this.effects.trailPixel(x + side * 7, y + (((a.id * 7 + this.frame) % 5) - 2) * 2, PINCER_TRAIL[dx > 0 ? 0 : 1]);
+    }
 
     const t = this.enemyTime;
     const phase = a.id * 1.7;
@@ -834,6 +955,25 @@ export class GameView {
     } else if (a.kind === 'warden') {
       model.body.rotation.y = Math.sin(t * 1.3 + phase) * 0.18;
       if (parts.core) parts.core.scale.setScalar(1 + 0.28 * Math.sin(t * 6 + phase));
+    } else if (a.kind === 'warper') {
+      model.body.rotation.y = Math.sin(t * 1.4 + phase) * 0.22;
+      // One that still has its blink flutters its prongs and keeps a wide, restless eye; one
+      // that has used it hangs calmer, so the player can tell which Warpers will still jump.
+      const spent = a.warped === true;
+      const flutter = spent ? 0.06 : 0.2;
+      if (parts.prong_L) parts.prong_L.rotation.z = Math.sin(t * 6 + phase) * flutter;
+      if (parts.prong_R) parts.prong_R.rotation.z = -Math.sin(t * 6 + phase + 0.7) * flutter;
+      if (parts.eye) parts.eye.scale.setScalar(spent ? 0.85 : 1 + 0.25 * Math.sin(t * 7 + phase));
+      if (parts.core) parts.core.scale.setScalar(1 + 0.12 * Math.sin(t * 4 + phase));
+    } else if (a.kind === 'mender') {
+      model.body.rotation.y = Math.sin(t * 1.2 + phase) * 0.18;
+      if (parts.pod_L) parts.pod_L.rotation.z = Math.sin(t * 2.4 + phase) * 0.12;
+      if (parts.pod_R) parts.pod_R.rotation.z = -Math.sin(t * 2.4 + phase + 0.5) * 0.12;
+      if (parts.leg_L) parts.leg_L.rotation.z = Math.sin(t * 3 + phase) * 0.18;
+      if (parts.leg_R) parts.leg_R.rotation.z = -Math.sin(t * 3 + phase + 1) * 0.18;
+      this.drawMenderCross(a, model, dt);
+      // Its links follow it as the formation marches.
+      this.links.follow(a.id, x, y);
     } else if (a.kind === 'splitter') {
       model.body.rotation.y = Math.sin(t * 1.5 + phase) * 0.22;
       // The two halves chomp a little, and the seam between them glows and throbs.
@@ -866,6 +1006,77 @@ export class GameView {
       this.facing.set(a.id, next);
       model.holder.rotation.z = next;
     }
+  }
+
+  /**
+   * A Mender's white cross breathes; as its pulse nears it blinks white, faster and faster, and
+   * for a moment after the pulse it burns white and swollen.
+   */
+  private drawMenderCross(a: Alien, model: Model, dt: number): void {
+    const cross = model.parts.cross;
+    if (!cross) return;
+    let glow = this.mendGlow.get(a.id) ?? 0;
+    if (glow > 0) {
+      glow -= dt;
+      if (glow > 0) this.mendGlow.set(a.id, glow);
+      else this.mendGlow.delete(a.id);
+    }
+    const left = a.mendTimer ?? MEND_CHARGE_SECONDS + 1;
+    const charging = left < MEND_CHARGE_SECONDS && a.mode === 'formation';
+    const blink = charging && Math.floor(this.time * (8 + 14 * (1 - left / MEND_CHARGE_SECONDS))) % 2 === 0;
+    model.setPartFlash('cross', glow > 0 || blink);
+    cross.scale.setScalar(glow > 0 ? 1.45 : 1 + 0.1 * Math.sin(this.enemyTime * 4 + a.id) + (charging ? 0.15 : 0));
+  }
+
+  /** A Warper blinked: afterimages at the spot it left and a third of the way along, shrinking and flickering teal. */
+  private startWarpGhosts(fromX: number, fromY: number, toX: number, toY: number): void {
+    for (let n = 0; n < 2; n++) {
+      const g = this.warpGhosts[this.warpGhostCursor];
+      this.warpGhostCursor = (this.warpGhostCursor + 1) % this.warpGhosts.length;
+      g.age = n * 0.08;
+      const u = n === 0 ? 0 : 0.33;
+      g.model.holder.position.set(fromX + (toX - fromX) * u, fromY + (toY - fromY) * u, 0.5);
+      g.model.holder.visible = true;
+    }
+  }
+
+  private drawWarpGhosts(dt: number): void {
+    for (const g of this.warpGhosts) {
+      if (g.age >= WARP_GHOST_SECONDS) {
+        g.model.holder.visible = false;
+        continue;
+      }
+      g.age += dt;
+      const scale = ghostScale(g.age);
+      g.model.holder.visible = scale > 0 && Math.floor(g.age * 40) % 2 === 0;
+      g.model.holder.scale.setScalar(scale);
+    }
+  }
+
+  /** The mines: slowly turning, with a red light that blinks faster as the mine nears the ship's row. */
+  private drawMines(run: RunState, alpha: number): void {
+    this.mineViews.begin();
+    // Enemy time: Time Stop stops the mines' turning and blinking, and the slow field slows them.
+    const t = this.enemyTime;
+    for (const m of run.mines) {
+      const model = this.mineViews.acquire(m.id);
+      const known = this.mineTracks.sample(m.id, alpha, this.sample);
+      // In front of the aliens, so a mine drifting through the formation can be seen (and shot). The
+      // tilted camera lifts anything above the field, so it is set down by the same amount.
+      model.holder.position.set(known ? this.sample.x : m.x, (known ? this.sample.y : m.y) - MINE_Z * LIFT_PER_Z, MINE_Z);
+      model.holder.rotation.z = t * 0.7 + m.id;
+      model.body.rotation.y = Math.sin(t * 1.3 + m.id) * 0.35;
+      // From the top of the field to the ship's row, 0 to 1.
+      const near = Math.min(1, Math.max(0, (FIELD_HEIGHT / 2 - m.y) / (FIELD_HEIGHT / 2 + SHIP_Y)));
+      const lit = Math.floor(t * (2.5 + 7 * near * near) + m.id) % 2 === 0;
+      // The light is red and flashes white as it blinks; the red ring blinks with it.
+      model.setPartFlash('light', lit);
+      if (model.parts.light) model.parts.light.scale.setScalar(lit ? 1.7 : 1.3);
+      const halo = model.holder.getObjectByName('halo');
+      if (halo) halo.visible = lit;
+      model.setLook(this.look);
+    }
+    this.mineViews.end();
   }
 
   /** A Splitter broke: its halves fly apart, tumbling and shrinking away as the minis come out. */

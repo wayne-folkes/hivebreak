@@ -1,6 +1,6 @@
 import { Color, Group, Mesh, MeshBasicMaterial, BoxGeometry } from 'three';
 import { describe, expect, it } from 'vitest';
-import { LOOK_FROZEN, LOOK_NORMAL, LOOK_SLOW, Model, coolColor, frozenColor, shipModelName } from './models';
+import { LOOK_FROZEN, LOOK_NORMAL, LOOK_SLOW, LOOK_WARP, Model, coolColor, frozenColor, shipModelName, warpColor } from './models';
 
 const spread = (c: Color): number => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b);
 
@@ -17,6 +17,13 @@ describe('looks', () => {
     const frozen = frozenColor(vivid, new Color());
     expect(spread(frozen)).toBeLessThan(spread(vivid) * 0.5);
     expect(frozen.b).toBeGreaterThanOrEqual(frozen.r);
+  });
+
+  it('washes a colour teal for a warp-in, lighter where the colour was lighter', () => {
+    const dark = warpColor(new Color(0x1b1530), new Color());
+    const light = warpColor(new Color(0xc1c3eb), new Color());
+    for (const c of [dark, light]) expect(c.g).toBeGreaterThan(c.r);
+    expect(light.g).toBeGreaterThan(dark.g);
   });
 });
 
@@ -76,6 +83,7 @@ describe('Model part states', () => {
     const before = materialOf(m, 'plate');
     m.setLook(LOOK_SLOW);
     m.setLook(LOOK_FROZEN);
+    m.setLook(LOOK_WARP);
     m.setLook(LOOK_NORMAL);
     expect(materialOf(m, 'plate')).toBe(before);
   });

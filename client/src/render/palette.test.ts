@@ -3,7 +3,7 @@ import { nearestPaletteIndex, PALETTE } from './palette';
 
 describe('palette', () => {
   it('has a small set of distinct colours', () => {
-    expect(PALETTE.length).toBe(44);
+    expect(PALETTE.length).toBe(57);
     expect(new Set(PALETTE).size).toBe(PALETTE.length);
   });
 
@@ -26,6 +26,13 @@ describe('palette', () => {
     for (const red of [0x12040a, 0x4a0f24, 0xc0392b, 0xd04a64, 0xff5a5a, 0x3fd6a0]) {
       expect(PALETTE.indexOf(red)).toBeGreaterThanOrEqual(28);
       expect(nearestPaletteIndex((red >> 16) & 255, (red >> 8) & 255, red & 255)).toBe(PALETTE.indexOf(red));
+    }
+  });
+
+  it('keeps sector 3\'s acid greens, golds and teal, appended after sector 2\'s palette', () => {
+    for (const c of [0x090f05, 0x18290c, 0xc6f23c, 0x4f6e18, 0xf5c542, 0x8a6a1a, 0x3fe8d0]) {
+      expect(PALETTE.indexOf(c)).toBeGreaterThanOrEqual(44);
+      expect(nearestPaletteIndex((c >> 16) & 255, (c >> 8) & 255, c & 255)).toBe(PALETTE.indexOf(c));
     }
   });
 

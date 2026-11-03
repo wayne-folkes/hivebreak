@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FIELD_HEIGHT, FIELD_WIDTH } from '../game/playfield';
-import { NEBULA_BLOCK, NEBULA_LEVELS, buildNebula, nebulaDensity, nebulaLevel } from './nebula';
+import { BLOBS3, NEBULA3_LEVELS, NEBULA_BLOCK, NEBULA_LEVELS, buildNebula, nebulaDensity, nebulaLevel } from './nebula';
 import { PALETTE } from './palette';
 
 describe('nebula', () => {
@@ -33,5 +33,19 @@ describe('nebula', () => {
     // The first block's pixels (top-left, so the top row of the texture) all match.
     const top = (FIELD_HEIGHT - 1) * FIELD_WIDTH * 4;
     for (let x = 1; x < NEBULA_BLOCK; x++) expect(a[top + x * 4 + 3]).toBe(a[top + 3]);
+  });
+
+  it('builds sector 3\'s green nebula from palette colours, in clouds of its own', () => {
+    const green = buildNebula(FIELD_WIDTH, FIELD_HEIGHT, NEBULA_BLOCK, NEBULA3_LEVELS, BLOBS3);
+    const red = buildNebula();
+    expect(green).not.toEqual(red);
+    let covered = 0;
+    for (let i = 0; i < green.length; i += 4) {
+      if (green[i + 3] === 0) continue;
+      covered++;
+      expect(PALETTE).toContain((green[i] << 16) | (green[i + 1] << 8) | green[i + 2]);
+    }
+    expect(covered).toBeGreaterThan(FIELD_WIDTH * FIELD_HEIGHT * 0.08);
+    expect(covered).toBeLessThan(FIELD_WIDTH * FIELD_HEIGHT * 0.7);
   });
 });

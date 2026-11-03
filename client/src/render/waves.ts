@@ -9,7 +9,7 @@ import type { Object3D } from 'three';
 
 /** Half the quad's side, in art pixels: the biggest radius a wave can reach. */
 export const WAVE_HALF_SIZE = 400;
-const MAX_WAVES = 4;
+const MAX_WAVES = 6;
 
 const VERTEX = /* glsl */ `
 varying vec2 vP;

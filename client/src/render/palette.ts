@@ -18,6 +18,10 @@ export const PALETTE: readonly number[] = [
   // Hive Mind reds, beam red, the warm stars, and the bunkers' green-teal (also the Carrier's hull).
   0x12040a, 0x2a0812, 0x4a0f24, 0x6e1830, 0x8e2a3c, 0xc0392b, 0x9e2a1e, 0xd04a64,
   0xff5a5a, 0xc41e8e, 0x6b2a3a, 0xa8503f, 0xd9826b, 0x3fd6a0, 0x1f7a66, 0x7af0c8,
+  // Sector 3 (appended too): the green-black sky, the three nebula levels, acid green in three
+  // shades, gold and its dark shade, the acid stars, and the Warper's teal with a dark shade.
+  0x090f05, 0x0f1a08, 0x18290c, 0x253f10, 0xc6f23c, 0x8db52a, 0x4f6e18, 0xf5c542,
+  0x8a6a1a, 0x3a4a1e, 0x76902c, 0x3fe8d0, 0x1d8a7c,
 ];
 
 /** Channel weights for colour distance: green counts most, blue least. */

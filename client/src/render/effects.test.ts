@@ -188,4 +188,36 @@ describe('Effects', () => {
     for (let i = 0; i < 200; i++) fx.update(0.02);
     expect(visibleCount(scene)).toBe(0);
   });
+
+  it('bursts a mine by how it went off: big for a shot, small dust on a bunker, a red blast at the ground', () => {
+    const count = (cause: 'shot' | 'bunker' | 'ground', radius: number): number => {
+      const scene = new Scene();
+      const fx = new Effects(scene);
+      fx.mineBurst(0, 0, radius, cause);
+      return visibleCount(scene);
+    };
+    const shot = count('shot', 26);
+    const dust = count('bunker', 8);
+    const ground = count('ground', 16);
+    expect(dust).toBeGreaterThan(0);
+    expect(shot).toBeGreaterThan(dust);
+    expect(ground).toBeGreaterThan(dust);
+  });
+
+  it('draws the sector 3 effects (warp trail, mend ring, acid splash, pincer pixels) from the pool', () => {
+    const scene = new Scene();
+    const fx = new Effects(scene);
+    const meshes = scene.children[0].children.length;
+    fx.warpTrail(0, 0, 60, 0);
+    fx.warpArrived(60, 0);
+    fx.mendRing(0, 0);
+    fx.mended(10, 10);
+    fx.acidSplash(0, -100);
+    fx.trailPixel(0, 0, [0xc6f23c]);
+    expect(visibleCount(scene)).toBeGreaterThan(10);
+    for (let i = 0; i < 100; i++) fx.warpTrail(0, 0, 100, 0);
+    expect(scene.children[0].children.length).toBe(meshes);
+    fx.update(2);
+    expect(visibleCount(scene)).toBe(0);
+  });
 });
