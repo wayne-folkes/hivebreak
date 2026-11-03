@@ -10,7 +10,8 @@ import type { Layout } from './layout';
 import { ALIEN_COLOUR, MINE_RED, MINE_STEEL, SHIP_COLOUR, WARPER_TEAL } from './sprites';
 import { SHIP_Y } from '../src/game/player';
 import { WARP_SECONDS } from '../src/game/sector3';
-import { chooseSpecial, createRun, stepRun } from '../src/game/run';
+import { chooseSpecial, createRun, pickUpgrade, stepRun } from '../src/game/run';
+import { HEART_PARTS } from '../src/game/heart';
 import type { RunEvent, RunState, ShipId, ShipInput } from '../src/game/types';
 import { formatScore } from '../src/ui/format';
 
@@ -600,3 +601,148 @@ describe('FieldView', () => {
     });
   });
 });
+
+describe('the Hive Heart', () => {
+  /** A run on the Hive Heart's wave, played until it has landed. `calm` keeps the beat's ring of shots off the screen. */
+  function heartRun(calm = true): RunState {
+    const run = startedRun(14);
+    step(run, 5);
+    expect(run.boss?.kind).toBe('hiveHeart');
+    if (calm) run.boss!.beatTimer = 99;
+    return run;
+  }
+  const heartPixel = (run: RunState) => toPixel(run.boss!.x + HEART_PARTS[4].dx, run.boss!.y + HEART_PARTS[4].dy);
+
+  it('draws the heart and the boss bar with its phase, from the intro to its death, without throwing', () => {
+    const view = new FieldView();
+    const run = startedRun(14);
+    const events: RunEvent[] = [];
+    for (let i = 0; i < 14; i++) {
+      events.push(...step(run, 1, { move: Math.sin(i), drag: 0, fire: true, special: false }));
+      view.events(events.splice(0), run);
+      expect(() => render(view, run, WIDE)).not.toThrow();
+    }
+    expect(rowText(render(view, run, MIN), MIN.fieldRow)).toContain('HIVE HEART · PHASE');
+  });
+
+  it('draws a pink-red heart at its part box, a dull one while the veins shield it', () => {
+    const run = heartRun();
+    const c = heartPixel(run);
+    const frame = render(new FieldView(), run, MIN);
+    // The heart's middle row: reds, not the sky.
+    const px = (x: number, y: number) => frame.pixelAt(MIN.fieldCol + Math.floor(x), MIN.fieldRow * 2 + Math.floor(y));
+    const mid = px(c.px + 1.5, c.py);
+    expect((mid >> 16) & 0xff).toBeGreaterThan(0x90);
+    expect(mid & 0xff).toBeLessThan((mid >> 16) & 0xff);
+    // Its veins reach out either side to nodes with a glow.
+    expect(hasColour(frame, MIN, 0xff7a3a, c.px - 20, c.py - 8, c.px - 12, c.py + 8)).toBe(true);
+    expect(hasColour(frame, MIN, 0xff7a3a, c.px + 12, c.py - 8, c.px + 20, c.py + 8)).toBe(true);
+  });
+
+  it('flashes a vein and the heart white when hit, and draws a cut vein as a dark wreck', () => {
+    const run = heartRun();
+    const c = heartPixel(run);
+    const view = new FieldView();
+    run.boss!.parts[1].flash = 1;
+    const flashed = render(view, run, MIN);
+    expect(hasColour(flashed, MIN, 0xffffff, c.px + 5, c.py - 8, c.px + 20, c.py + 8)).toBe(true);
+    const intact = run.boss!.parts[0];
+    intact.hp = 0;
+    const cut = render(new FieldView(), run, MIN);
+    // The cut vein's node (a bright bulb) is gone from the upper left.
+    const upperLeft = [c.px - 20, c.py - 10, c.px - 12, c.py - 1] as const;
+    expect(hasColour(render(new FieldView(), heartRun(), MIN), MIN, 0xff7a3a, ...upperLeft)).toBe(true);
+    expect(hasColour(cut, MIN, 0xff7a3a, ...upperLeft)).toBe(false);
+    run.boss!.parts[4].flash = 1;
+    expect(hasColour(render(view, run, MIN), MIN, 0xffffff, c.px - 3, c.py - 3, c.px + 3, c.py + 3)).toBe(true);
+  });
+
+  it('swells a pixel and sends a ring out on a heartBeat, and the swell fades', () => {
+    const run = heartRun();
+    const view = new FieldView();
+    const c = heartPixel(run);
+    const width = (frame: Frame): number => {
+      let n = 0;
+      const y = Math.round(c.py - 1);
+      for (let x = c.px - 10; x <= c.px + 10; x++) {
+        const v = frame.pixelAt(MIN.fieldCol + Math.floor(x), MIN.fieldRow * 2 + y);
+        if (((v >> 16) & 0xff) > 0x90 && (v & 0xff) < 0xa0) n++;
+      }
+      return n;
+    };
+    const before = width(render(view, run, MIN, HUD, 0));
+    const effects = view.effectCount;
+    view.events([{ type: 'heartBeat', x: run.boss!.x, y: run.boss!.y, phase: 1, gapAngle: -1.5 }], run);
+    expect(view.effectCount).toBeGreaterThan(effects);
+    expect(width(render(view, run, MIN, HUD, 0))).toBeGreaterThan(before);
+    for (let i = 0; i < 10; i++) render(view, run, MIN, HUD, 0.1);
+    expect(width(render(view, run, MIN, HUD, 0))).toBe(before);
+  });
+
+  it('is angrier in phase 3: a hotter red than phase 2', () => {
+    const calm2 = heartRun();
+    for (const p of calm2.boss!.parts) if (p.kind === 'vein') p.hp = 0;
+    const angry = heartRun();
+    for (const p of angry.boss!.parts) if (p.kind === 'vein') p.hp = 0;
+    angry.boss!.phase = 3;
+    const a = heartPixel(calm2);
+    const sample = (run: RunState) => {
+      const f = render(new FieldView(), run, MIN);
+      const c = heartPixel(run);
+      return f.pixelAt(MIN.fieldCol + Math.floor(c.px + 1), MIN.fieldRow * 2 + Math.floor(c.py));
+    };
+    expect(a).toBeDefined();
+    expect(sample(angry)).not.toBe(sample(calm2));
+  });
+
+  it('bursts big when it is killed, and its veins spray blood', () => {
+    const run = heartRun();
+    const view = new FieldView();
+    view.events([{ type: 'bossKilled', kind: 'hiveHeart', x: run.boss!.x, y: run.boss!.y, points: 5000 }], run);
+    expect(view.effectCount).toBeGreaterThan(100);
+    const veinView = new FieldView();
+    veinView.events([{ type: 'bossPartDestroyed', kind: 'vein', x: run.boss!.x - 30, y: run.boss!.y, points: 100 } as unknown as RunEvent], run);
+    expect(veinView.effectCount).toBeGreaterThan(10);
+    // A dead heart is a scorched husk, not a flash.
+    run.boss!.parts[4].hp = 0;
+    run.boss!.parts[4].flash = 1;
+    expect(() => render(view, run, MIN)).not.toThrow();
+  });
+});
+
+describe('Boss Rush in the view', () => {
+  function rushRun(): RunState {
+    const run = createRun(11, 1, 0, { mode: 'bossRush', ships: ['breaker'] });
+    chooseSpecial(run, 'pulseBomb');
+    while (run.phase === 'upgradePick') pickUpgrade(run, 0);
+    return run;
+  }
+
+  it('shows BOSS n/3 and the clear timer in the top line instead of the wave', () => {
+    const run = rushRun();
+    run.rush!.time = 75.4;
+    const top = rowText(render(new FieldView(), run, MIN), MIN.topRow);
+    expect(top).toContain('BOSS 1/3');
+    expect(top).toContain('TIME 1:');
+    expect(top).not.toContain('WAVE');
+    run.rush!.stage = 2;
+    run.rush!.time = 125.9;
+    const later = rowText(render(new FieldView(), run, MIN), MIN.topRow);
+    expect(later).toContain('BOSS 3/3');
+    expect(later).toContain('TIME 2:05');
+  });
+
+  it('opens a boss with a BOSS n/3 banner naming it, not a wave or sector banner', () => {
+    const run = rushRun();
+    const view = new FieldView();
+    view.events([{ type: 'sectorStart', sector: 2 }, { type: 'waveStart', wave: run.wave }], run);
+    const text = allText(render(view, run, MIN));
+    expect(text).toContain('B O S S   1 / 3');
+    expect(text).toContain('BROOD MOTHER');
+  });
+
+  it('a normal run still shows the wave', () => {
+    expect(rowText(render(new FieldView(), startedRun(), MIN), MIN.topRow)).toContain('WAVE 1/');
+  });
+});
+

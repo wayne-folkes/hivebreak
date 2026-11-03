@@ -6,17 +6,27 @@ import type { RunRecord } from '../src/game/records';
 import { completesSynergy } from '../src/game/synergies';
 import type { Rarity, RunState, ShipId, SpecialId } from '../src/game/types';
 import { stackCount, upgradeDef } from '../src/game/upgrades';
+import type { RushRecord } from '../src/game/rushrecords';
+import { RUSH_START_PICKS } from '../src/game/run';
 import { WAVE_COUNT } from '../src/game/waves';
 import {
+  BOSS_RUSH_LOCK_HINT,
+  RUSH_HEADING,
   bossDownHeading,
   comboLabel,
   endTitle,
+  formatClock,
   formatScore,
   pickReady,
   pickTags,
   rankBadge,
   recordRowText,
+  rushEndTitle,
+  rushPickAsk,
+  rushRecordRowText,
+  rushTimeLabel,
   stackLabel,
+  timeBonusLabel,
   waveClearHeading,
   waveLabel,
 } from '../src/ui/format';
@@ -48,6 +58,8 @@ export interface RunResult {
   bestCombo: number;
   /** Place in the top 10: 0 is the best, -1 means it missed the list. */
   rank: number;
+  /** Set for a Boss Rush: seconds it took (or lasted), the bosses beaten and how many there are. Its rank is on the Boss Rush table. */
+  rush?: { time: number; bosses: number; total: number };
 }
 
 /**
@@ -281,20 +293,29 @@ export function logoRows(): string[] {
   return rows;
 }
 
-const TITLE_LABELS = ['Start', 'How to play', 'Records', 'Unlocks', 'Backup', 'Quit'] as const;
+const TITLE_LABELS = ['Start', 'Boss Rush', 'How to play', 'Records', 'Unlocks', 'Backup', 'Quit'] as const;
+const RUSH_INDEX = 1;
 
+/**
+ * The title card. Boss Rush is dimmed, with what unlocks it under it, until `rushOpen()` says it
+ * is open (a win); the highlight skips it while it is locked, as the web title's focus does.
+ */
 export function titleMenu(
-  actions: { start(): void; howTo(): void; records(): void; unlocks(): void; backup(): void; quit(): void },
+  actions: { start(): void; rush(): void; howTo(): void; records(): void; unlocks(): void; backup(): void; quit(): void },
   best: () => number,
+  rushOpen: () => boolean = () => true,
 ): Menu {
   let sel = 0;
-  const run = [actions.start, actions.howTo, actions.records, actions.unlocks, actions.backup, actions.quit];
+  const run = [actions.start, actions.rush, actions.howTo, actions.records, actions.unlocks, actions.backup, actions.quit];
+  const enabled = (): boolean[] => TITLE_LABELS.map((_, i) => i !== RUSH_INDEX || rushOpen());
   return {
     draw(frame, layout) {
       const logo = logoRows();
+      const open = rushOpen();
       const card = openCard(frame, layout, {
         width: 58,
-        rows: logo.length + 1 + 1 + 1 + 1 + TITLE_LABELS.length,
+        // The logo, a gap, the tagline, the best score, a gap, the options, and the lock's hint row.
+        rows: logo.length + 1 + 1 + 1 + 1 + TITLE_LABELS.length + (open ? 0 : 1),
         title: '',
         hints: ['↑↓ choose · Enter select · Q quit'],
       });
@@ -304,7 +325,23 @@ export function titleMenu(
       frame.textCentered(card.col, row, card.width, 'Break the hive, one wave at a time.', C.dim);
       const score = best();
       if (score > 0) frame.textCentered(card.col, row + 1, card.width, `BEST ${formatScore(score)}`, C.amber, null, true);
-      drawOptions(frame, card, row + 3, TITLE_LABELS, sel, 28);
+      const barWidth = Math.min(28, card.iw);
+      const barCol = card.col + Math.floor((card.width - barWidth) / 2);
+      let at = row + 3;
+      TITLE_LABELS.forEach((label, i) => {
+        if (at >= card.top + card.rows) return;
+        const locked = i === RUSH_INDEX && !open;
+        const on = i === sel;
+        if (on) frame.fillCells(barCol, at, barWidth, 1, C.select);
+        frame.text(barCol + 1, at, on ? '▸' : ' ', C.accent, null, true);
+        frame.text(barCol + 3, at, clip(label, barWidth - 4), locked ? C.dim : on ? 0xffffff : C.text, null, on && !locked);
+        at++;
+        // A locked Boss Rush says what unlocks it on the row under it.
+        if (locked && at < card.top + card.rows) {
+          frame.textCentered(card.col, at, card.width, clip(BOSS_RUSH_LOCK_HINT, card.iw), C.amber);
+          at++;
+        }
+      });
     },
     key(e) {
       if (e.kind === 'release') return;
@@ -313,9 +350,12 @@ export function titleMenu(
         return;
       }
       const nav = navFor(e);
-      if (nav === 'up' || nav === 'left') sel = stepIndex(sel, -1, run.length);
-      else if (nav === 'down' || nav === 'right') sel = stepIndex(sel, 1, run.length);
-      else if (nav === 'confirm' && isPress(e)) run[sel]();
+      const ok = enabled();
+      // The locked Boss Rush can't hold the highlight (the dev flags or a restored save may have moved it).
+      if (!ok[sel]) sel = stepEnabled(sel, 1, ok);
+      if (nav === 'up' || nav === 'left') sel = stepEnabled(sel, -1, ok);
+      else if (nav === 'down' || nav === 'right') sel = stepEnabled(sel, 1, ok);
+      else if (nav === 'confirm' && isPress(e) && ok[sel]) run[sel]();
     },
   };
 }
@@ -451,10 +491,26 @@ function pickFrame(frame: Frame, col: number, row: number, width: number, height
   frame.box(col, row, width, height, selected ? C.accent : info.rarity === 'rare' ? C.amber : C.edge, bg);
 }
 
-export function upgradeMenu(run: RunState, take: (index: number) => void, openedAtMs: number): Menu {
+/**
+ * The upgrade pick. In a Boss Rush the three starting picks read "BOSS RUSH · PICK 1 OF 3" and the
+ * pick after a boss names the boss as usual, with `rushBonus` (the time bonus of the boss just
+ * beaten, null when it came in over par) on the line under the heading.
+ */
+export function upgradeMenu(run: RunState, take: (index: number) => void, openedAtMs: number, rushBonus: number | null = null): Menu {
   let sel = 0;
   const count = () => run.offer.length;
-  const heading = () => (run.boss ? bossDownHeading(run.boss.kind) : waveClearHeading(run.wave + 1));
+  const startingPick = () => run.rush !== null && run.rush.picksLeft > 0;
+  const heading = () =>
+    run.rush && startingPick()
+      ? `${RUSH_HEADING} · ${rushPickAsk(run.rush.picksLeft, RUSH_START_PICKS)}`
+      : run.boss
+        ? bossDownHeading(run.boss.kind)
+        : waveClearHeading(run.wave + 1);
+  /** The time bonus line, drawn in the blank row under the heading. */
+  const drawBonus = (frame: Frame, card: Card): void => {
+    if (rushBonus === null || startingPick()) return;
+    frame.textCentered(card.col, card.row + 2, card.width, clip(timeBonusLabel(rushBonus), card.iw), C.amber, null, true);
+  };
   return {
     draw(frame, layout) {
       const infos = run.offer.map((id) => pickInfo(run, id));
@@ -478,6 +534,7 @@ export function upgradeMenu(run: RunState, take: (index: number) => void, opened
         // border, name, rarity, blank, description, blank, the synergy rows (if any), stacks, border.
         const cardH = 2 + 3 + d + 1 + sy + 1;
         const card = openCard(frame, layout, { width: 78, rows: cardH, title: heading(), hints });
+        drawBonus(frame, card);
         const total = infos.length * cardW + (infos.length - 1);
         const left = card.ix + Math.floor((card.iw - total) / 2);
         infos.forEach((info, i) => {
@@ -497,6 +554,7 @@ export function upgradeMenu(run: RunState, take: (index: number) => void, opened
         const descs = infos.map((i) => wrap(i.description, innerW));
         const heights = descs.map((x) => 2 + 2 + x.length);
         const card = openCard(frame, layout, { width: 60, rows: heights.reduce((a, b) => a + b, 0), title: heading(), hints });
+        drawBonus(frame, card);
         let row = card.top;
         infos.forEach((info, i) => {
           const on = i === selected;
@@ -618,18 +676,29 @@ export function unlockedMenu(met: readonly MilestoneDef[], cont: () => void, ope
 export function gameOverMenu(result: RunResult, actions: { playAgain(): void; title(): void }, openedAtMs: number): Menu {
   let sel = 0;
   const labels = ['Play again', 'Title'];
-  const badge = rankBadge(result.rank);
+  const rush = result.rush;
+  const rank = rankBadge(result.rank);
+  // A Boss Rush's rank is on its own table, so the badge says which.
+  const badge = rank !== null && rush ? `${rank} · Boss Rush` : rank;
   return {
     draw(frame, layout, nowMs) {
-      const stats: [string, string, Rgb][] = [
-        ['Score', formatScore(result.score), 0xffffff],
-        ['Wave', waveLabel(result.wave, WAVE_COUNT), C.text],
-        ['Best combo', comboLabel(result.bestCombo), C.text],
-      ];
+      // A rush shows the clear time and the bosses beaten in place of the wave reached.
+      const stats: [string, string, Rgb][] = rush
+        ? [
+            ['Score', formatScore(result.score), 0xffffff],
+            [rushTimeLabel(result.won), formatClock(rush.time), C.text],
+            ['Bosses beaten', `${rush.bosses} / ${rush.total}`, C.text],
+            ['Best combo', comboLabel(result.bestCombo), C.text],
+          ]
+        : [
+            ['Score', formatScore(result.score), 0xffffff],
+            ['Wave', waveLabel(result.wave, WAVE_COUNT), C.text],
+            ['Best combo', comboLabel(result.bestCombo), C.text],
+          ];
       const card = openCard(frame, layout, {
         width: 44,
         rows: stats.length + (badge ? 2 : 1) + labels.length,
-        title: endTitle(result.won, result.reason),
+        title: rush ? rushEndTitle(result.won, result.reason) : endTitle(result.won, result.reason),
         titleColor: result.won ? C.amber : C.bad,
         hints: ['↑↓ choose · Enter select'],
       });
@@ -640,7 +709,7 @@ export function gameOverMenu(result: RunResult, actions: { playAgain(): void; ti
         row++;
       }
       if (badge) {
-        frame.textCentered(card.col, row, card.width, badge, C.amber, null, true);
+        frame.textCentered(card.col, row, card.width, clip(badge, card.iw), C.amber, null, true);
         row++;
       }
       drawOptions(frame, card, row + 1, labels, sel, 26, pickReady(openedAtMs, nowMs));
@@ -658,30 +727,65 @@ export function gameOverMenu(result: RunResult, actions: { playAgain(): void; ti
 
 // Records ---------------------------------------------------------------------------------------
 
-export function recordsMenu(records: () => readonly RunRecord[], actions: { back(): void; reset(): void }): Menu {
+/** What the records card reads: the normal list, the Boss Rush list, and whether Boss Rush is open (for its empty message). */
+export interface RecordSources {
+  normal(): readonly RunRecord[];
+  rush(): readonly RushRecord[];
+  rushOpen(): boolean;
+}
+
+export type RecordsTab = 'normal' | 'rush';
+const RECORD_TABS: readonly RecordsTab[] = ['normal', 'rush'];
+const TAB_NAMES: Record<RecordsTab, string> = { normal: 'Normal', rush: 'Boss Rush' };
+
+/**
+ * The records card, in two tabs (Normal and Boss Rush; Left and Right switch). R then Y erases the
+ * list on show; `reset` is told which tab it was.
+ */
+export function recordsMenu(sources: RecordSources, actions: { back(): void; reset(tab: RecordsTab): void }): Menu {
   // R asks; Y erases. A different key from the one that asks, so holding R can't answer its own question.
   // Anything else (Esc included) cancels the question.
   let confirming = false;
+  let tab: RecordsTab = 'normal';
   return {
     draw(frame, layout) {
-      const list = records().slice(0, 10);
-      // The header and rule and one row per record (or the empty message), then a row for the erase question.
-      const body = list.length > 0 ? 2 + list.length : 3;
+      const normal = sources.normal().slice(0, 10);
+      const rush = sources.rush().slice(0, 10);
+      const list = tab === 'normal' ? normal : rush;
+      // The tabs and a gap, then the header and rule and one row per record (or the empty message),
+      // then a row for the erase question. Sized for the longer list so the card doesn't jump between tabs.
+      const longest = Math.max(normal.length, rush.length);
+      const body = 2 + (longest > 0 ? 2 + longest : 3);
       const card = openCard(frame, layout, {
         width: 52,
         rows: body + 2,
         title: 'RECORDS',
-        hints: [confirming ? 'Y erase · any other key keeps them' : 'R reset records · Esc back'],
+        hints: [confirming ? 'Y erase · any other key keeps them' : '←→ switch list · R reset · Esc back'],
       });
+      // The tab bar: the open tab on a highlighted bar.
+      let c = card.ix;
+      for (const t of RECORD_TABS) {
+        const label = ` ${TAB_NAMES[t]} `;
+        const on = t === tab;
+        frame.text(c, card.top, label, on ? 0xffffff : C.dim, on ? C.select : null, on);
+        c += [...label].length + 1;
+      }
+      const top = card.top + 2;
       if (list.length === 0) {
-        frame.textCentered(card.col, card.top + 2, card.width, 'No runs yet. Finish one and it lands here.', C.dim);
-      } else {
+        const message =
+          tab === 'normal'
+            ? 'No runs yet. Finish one and it lands here.'
+            : sources.rushOpen()
+              ? 'No Boss Rush runs yet. Finish one and it lands here.'
+              : 'Boss Rush is locked. Win a run to open it.';
+        wrap(message, card.iw).forEach((line, i) => frame.textCentered(card.col, top + 2 + i, card.width, line, C.dim));
+      } else if (tab === 'normal') {
         const cols = [0, 4, 13, 21, 27, 33];
-        ['#', 'SCORE', 'WAVE', 'COMBO', '', 'DATE'].forEach((h, i) => frame.text(card.ix + cols[i], card.top, h, C.dim));
-        frame.text(card.ix, card.top + 1, '─'.repeat(card.iw), C.edge);
-        list.forEach((record, i) => {
+        ['#', 'SCORE', 'WAVE', 'COMBO', '', 'DATE'].forEach((h, i) => frame.text(card.ix + cols[i], top, h, C.dim));
+        frame.text(card.ix, top + 1, '─'.repeat(card.iw), C.edge);
+        normal.forEach((record, i) => {
           const t = recordRowText(i, record);
-          const row = card.top + 2 + i;
+          const row = top + 2 + i;
           const best = i === 0;
           frame.text(card.ix + cols[0], row, t.rank, best ? C.amber : C.dim, null, best);
           frame.text(card.ix + cols[1], row, t.score, best ? C.amber : 0xffffff, null, best);
@@ -690,17 +794,39 @@ export function recordsMenu(records: () => readonly RunRecord[], actions: { back
           frame.text(card.ix + cols[4], row, t.result, record.won ? C.good : C.dim);
           frame.text(card.ix + cols[5], row, t.date, C.dim);
         });
+      } else {
+        // Rank, score, clear time, bosses beaten (3/3 in green) and the date.
+        const cols = [0, 4, 13, 21, 29];
+        ['#', 'SCORE', 'TIME', 'BOSSES', 'DATE'].forEach((h, i) => frame.text(card.ix + cols[i], top, h, C.dim));
+        frame.text(card.ix, top + 1, '─'.repeat(card.iw), C.edge);
+        rush.forEach((record, i) => {
+          const t = rushRecordRowText(i, record);
+          const row = top + 2 + i;
+          const best = i === 0;
+          frame.text(card.ix + cols[0], row, t.rank, best ? C.amber : C.dim, null, best);
+          frame.text(card.ix + cols[1], row, t.score, best ? C.amber : 0xffffff, null, best);
+          frame.text(card.ix + cols[2], row, t.time, C.text);
+          frame.text(card.ix + cols[3], row, t.bosses, record.won ? C.good : C.text);
+          frame.text(card.ix + cols[4], row, t.date, C.dim);
+        });
       }
       if (confirming) {
-        frame.textCentered(card.col, card.top + body + 1, card.width, clip('Erase every saved record? This cannot be undone.', card.iw), C.amber, null, true);
+        const what = tab === 'normal' ? 'Erase every saved record?' : 'Erase every Boss Rush record?';
+        frame.textCentered(card.col, card.top + body + 1, card.width, clip(`${what} This cannot be undone.`, card.iw), C.amber, null, true);
       }
     },
     key(e) {
       if (e.kind === 'release' || e.ctrl) return;
+      // Left and right switch tabs (arrows repeat harmlessly: they stop at the ends); not while the erase question is open.
+      const nav = navFor(e);
+      if (!confirming && (nav === 'left' || nav === 'right')) {
+        tab = RECORD_TABS[Math.min(RECORD_TABS.length - 1, Math.max(0, RECORD_TABS.indexOf(tab) + (nav === 'right' ? 1 : -1)))];
+        return;
+      }
       if (!isPress(e)) return;
       if (confirming && e.key === 'y') {
         confirming = false;
-        actions.reset();
+        actions.reset(tab);
         return;
       }
       if (e.key === 'r' && !confirming) {
@@ -711,7 +837,7 @@ export function recordsMenu(records: () => readonly RunRecord[], actions: { back
         confirming = false;
         return;
       }
-      if (navFor(e) === 'back') actions.back();
+      if (nav === 'back') actions.back();
     },
   };
 }
@@ -814,7 +940,7 @@ export function howToMenu(keyMode: KeyMode, back: () => void): Menu {
     lines(width) {
       const lines: StyledLine[] = [
         ...paragraph(
-          'Clear all fourteen waves of the hive, across three sectors; the first two end in a boss. After each wave pick one of three upgrades. Every hit in a row raises your combo; a miss resets it, so aim rather than spray. Lose your last life, or let the formation reach your row, and the run is over.',
+          'Clear all fifteen waves of the hive, across three sectors; each ends in a boss. After each wave pick one of three upgrades. Every hit in a row raises your combo; a miss resets it, so aim rather than spray. Lose your last life, or let the formation reach your row, and the run is over.',
           width,
           C.text,
         ),
@@ -855,7 +981,21 @@ export function howToMenu(keyMode: KeyMode, back: () => void): Menu {
         ),
         blank,
         { t: 'THE HIVE MIND', fg: C.accent, bold: true },
-        ...paragraph('The last boss hides its core inside a turning ring of shields. Aim through the gaps, and take cover from its beams behind a bunker.', width, C.text),
+        ...paragraph('The second boss hides its core inside a turning ring of shields. Aim through the gaps, and take cover from its beams behind a bunker.', width, C.text),
+        blank,
+        { t: 'THE HIVE HEART', fg: C.accent, bold: true },
+        ...paragraph(
+          'The last boss is a huge heart fed by four veins. Cut the veins first: while one stands, shots at the heart are stopped. Every beat it sends out a ring of shots with a gap in it, so slip through the gap. Once exposed it launches aliens and beats faster; when it is nearly dead it fires double rings and sinks towards you.',
+          width,
+          C.text,
+        ),
+        blank,
+        { t: 'BOSS RUSH', fg: C.accent, bold: true },
+        ...paragraph(
+          'Win a run to open Boss Rush on the title screen: pick a ship and a Special, take three upgrades, then fight the bosses back to back with a pick between them. A clock runs the whole way, and every boss beaten under its par time scores a time bonus. It has its own records, and it does not count towards unlocks.',
+          width,
+          C.text,
+        ),
       );
       return lines;
     },

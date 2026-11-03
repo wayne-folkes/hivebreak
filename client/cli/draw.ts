@@ -55,9 +55,11 @@ import {
   bossBarLabel,
   bossPhaseLabel,
   comboLabel,
+  formatClock,
   formatScore,
   meterCells,
   powerUpChips,
+  rushBossLabel,
   sectorBanner,
   SPECIAL_SHORT,
   summarizeUpgrades,
@@ -119,6 +121,9 @@ const SHIP_BURST = [0xffffff, 0x9ffbff, 0x4ff0ff, 0xffd36a, 0xff6a3d];
 const DEATH_BURST = [0xffffff, 0xfff27a, 0xffd36a, 0xff8a45, 0xff56da, 0xac55f7];
 const WELL_SPARK = [0xffffff, 0xff56da, 0xac55f7, 0x9b7bff];
 const ARC_COLOURS = [0xffffff, 0x9dfafd, 0x52ddeb];
+/** Blood: the Hive Heart's veins and its death. */
+const BLOOD = [0xffd0d8, 0xff5a7a, 0xd01c3c, 0x8a1230, 0x4a0818];
+const HEART_DEATH = [0xffffff, 0xffd0d8, 0xff5a7a, 0xff8a45, 0xd01c3c, 0x8a1230];
 
 /** A kill's sparks: white, then the alien's own hues. */
 function killColours(kind: keyof typeof ALIEN_SPRITES): Rgb[] {
@@ -178,6 +183,8 @@ interface Banner {
 
 type BannerSlot = 'wave' | 'phase' | 'synergy';
 const BANNER_ROWS: Record<BannerSlot, number> = { wave: 15, phase: 21, synergy: 27 };
+/** How long the Hive Heart's swell after a beat lasts. */
+const HEART_PULSE_SECONDS = 0.3;
 const PHASE_SECONDS = 1.8;
 const SYNERGY_SECONDS = 2.2;
 
@@ -203,6 +210,8 @@ export class FieldView {
   private shipFlash = new Map<number, number>();
   private edge = { colour: 0xff2a2a, alpha: 0, age: 0, life: 0 };
   private wash = { colour: 0xffffff, alpha: 0, age: 0, life: 0 };
+  /** Seconds left of the Hive Heart's pulse after a beat (it swells a pixel and eases back). */
+  private heartPulse = 0;
 
   /** Forgets effects and banners, for a new run. */
   reset(): void {
@@ -211,6 +220,7 @@ export class FieldView {
     this.shipFlash.clear();
     this.edge.alpha = 0;
     this.wash.alpha = 0;
+    this.heartPulse = 0;
   }
 
   /** The effects, for tests. */
@@ -232,7 +242,11 @@ export class FieldView {
         case 'waveStart': {
           const sector = sectorStart && sectorStart.type === 'sectorStart' ? sectorBanner(sectorStart.sector) : null;
           const def = WAVES[Math.min(Math.max(0, e.wave), WAVES.length - 1)];
-          if (sector) {
+          if (run.rush) {
+            // A Boss Rush has no sectors or wave numbers: just which boss of how many.
+            const name = def?.boss ? BOSS_NAMES[def.boss].toUpperCase() : null;
+            this.banner('wave', `BOSS ${rushBossLabel(run.rush.stage, run.rush.stages.length)}`, name, 0xa8203c, WAVE_INTRO_SECONDS);
+          } else if (sector) {
             const acid = sectorStart?.type === 'sectorStart' && sectorStart.sector === 3;
             this.banner('wave', sector.title, sector.sub, acid ? 0x4f6b12 : 0xa8203c, WAVE_INTRO_SECONDS);
             this.flashWash(acid ? ACID : 0xff5a3c, 0.16, 0.7);
@@ -292,12 +306,37 @@ export class FieldView {
         }
         case 'bossPartDestroyed': {
           const p = toPixel(e.x, e.y);
+          if (run.boss?.kind === 'hiveHeart') {
+            // A vein bursts: blood sprays, then it drips.
+            fx.burst({ x: p.px, y: p.py, count: 26, speed: 32, life: 0.7, colours: BLOOD, spreadX: 4, spreadY: 1 });
+            fx.burst({ x: p.px, y: p.py, count: 10, speed: 12, life: 0.8, colours: BLOOD.slice(1), gravity: 26, spreadX: 4, spreadY: 1 });
+            fx.ring(p.px, p.py, 6, 36, 0.35, 0xff3b5c);
+            break;
+          }
           fx.burst({ x: p.px, y: p.py, count: 26, speed: 34, life: 0.7, colours: FIRE, spreadX: 3, spreadY: 1.5 });
           fx.ring(p.px, p.py, 6, 40, 0.35, 0xff8a45);
           break;
         }
+        case 'heartBeat': {
+          // The heart swells and a faint ring goes out with the shots' ring.
+          const p = toPixel(e.x, e.y);
+          this.heartPulse = HEART_PULSE_SECONDS;
+          fx.ring(p.px, p.py, 16, e.phase >= 3 ? 52 : 44, 0.45, e.phase >= 3 ? 0x8a2a1c : 0x7a1f3c);
+          break;
+        }
         case 'bossKilled': {
           const p = toPixel(e.x, e.y);
+          if (run.boss?.kind === 'hiveHeart') {
+            // The heart bursts: a spray of blood and gore, a double shock ring, a red flash.
+            fx.burst({ x: p.px, y: p.py, count: 150, speed: 58, life: 1.4, colours: HEART_DEATH, spreadX: 10, spreadY: 4, drag: 1.0 });
+            fx.burst({ x: p.px, y: p.py, count: 40, speed: 22, life: 1.2, colours: BLOOD, spreadX: 12, spreadY: 4, gravity: 22 });
+            fx.ring(p.px, p.py, 8, 140, 0.6, 0xffffff);
+            fx.ring(p.px, p.py, 4, 110, 0.7, 0xff3b5c, 0.1);
+            fx.ring(p.px, p.py, 2, 80, 0.75, 0xff8a45, 0.22);
+            fx.ring(p.px, p.py, 2, 50, 0.8, 0x8a1230, 0.34);
+            this.flashWash(0xff3b5c, 0.5, 0.55);
+            break;
+          }
           fx.burst({ x: p.px, y: p.py, count: 110, speed: 52, life: 1.2, colours: DEATH_BURST, spreadX: 14, spreadY: 4, drag: 1.1 });
           fx.ring(p.px, p.py, 8, 130, 0.55, 0xffffff);
           fx.ring(p.px, p.py, 4, 100, 0.65, 0xff56da, 0.12);
@@ -492,6 +531,7 @@ export class FieldView {
     }
     this.edge.age += dt;
     this.wash.age += dt;
+    this.heartPulse = Math.max(0, this.heartPulse - dt);
   }
 
   private mood(run: RunState): Mood {
@@ -887,6 +927,7 @@ export class FieldView {
     const boss = run.boss;
     if (!boss) return;
     if (boss.kind === 'hiveMind') this.drawHive(cv, run, boss, m);
+    else if (boss.kind === 'hiveHeart') this.drawHeart(cv, run, boss, m);
     else this.drawBrood(cv, run, boss, m);
   }
 
@@ -990,6 +1031,172 @@ export class FieldView {
     }
   }
 
+  /**
+   * The Hive Heart: four veins from the heart out to nodes (drawn first, so the heart sits on top),
+   * then the heart. Parts follow HEART_PARTS: the veins first (upper left, upper right, lower left,
+   * lower right), the heart last. Blood flows along a standing vein towards the heart; a cut vein is
+   * a dark, broken wreck. While any vein stands the heart is dull (shielded); once they are cut it
+   * is bright, and below a third of its health (phase 3) it burns angrier.
+   */
+  private drawHeart(cv: Canvas, run: RunState, boss: BossState, m: Mood): void {
+    const core = boss.parts[boss.parts.length - 1];
+    if (!core) return;
+    const veins = boss.parts.filter((p) => p.kind === 'vein');
+    const shielded = veins.some((v) => v.hp > 0);
+    const angry = boss.phase >= 3;
+    const tint = m.tint;
+    const swell = this.heartPulse > 0 ? Math.sin((this.heartPulse / HEART_PULSE_SECONDS) * Math.PI * 0.5) : 0;
+    const centre = toPixel(boss.x + core.dx, boss.y + core.dy);
+
+    // The tissue the heart hangs in: a dark red haze that thickens on a beat.
+    const hazeX = 21;
+    const hazeY = 11;
+    for (let y = Math.floor(centre.py - hazeY); y <= Math.ceil(centre.py + hazeY); y++) {
+      for (let x = Math.floor(centre.px - hazeX); x <= Math.ceil(centre.px + hazeX); x++) {
+        const d = Math.hypot((x + 0.5 - centre.px) / hazeX, (y + 0.5 - centre.py) / hazeY);
+        if (d >= 1) continue;
+        cv.blend(x, y, angry ? 0x6a1010 : 0x5a0c2c, (1 - d) * (0.3 + 0.2 * swell));
+      }
+    }
+
+    for (const vein of veins) this.drawVein(cv, run, boss, vein, shielded, angry, tint);
+
+    // The heart: a pixel heart over its part box, a size bigger at a beat.
+    const mask = swell > 0.25 ? HEART_MASK_BIG : HEART_MASK;
+    const w = mask[0].length;
+    const h = mask.length;
+    const rx = w / 2;
+    const ry = h / 2;
+    const flash = core.flash > 0;
+    const dead = core.hp <= 0;
+    const solid = (i: number, j: number): boolean => mask[j]?.[i] === 'X';
+    const throb = 0.5 + 0.5 * Math.sin(run.time * (angry ? 14 : shielded ? 5 : 9));
+    const left = Math.round(centre.px - w / 2);
+    const top = Math.round(centre.py - h / 2);
+    for (let j = 0; j < h; j++) {
+      for (let i = 0; i < w; i++) {
+        if (!solid(i, j)) continue;
+        const x = left + i;
+        const y = top + j;
+        if (dead) {
+          // Burst: a scorched husk with a few embers.
+          const k = (x * 7 + y * 13) % 5;
+          if (k !== 2) cv.set(x, y, k === 0 ? 0x7a3048 : k === 1 && Math.floor(run.time * 6 + x) % 3 === 0 ? 0xff6a3d : 0x3a1424);
+          continue;
+        }
+        if (flash) {
+          cv.set(x, y, 0xffffff);
+          continue;
+        }
+        const u = (i + 0.5 - rx) / rx;
+        const v = (j + 0.5 - ry) / ry;
+        // The rim: a pixel with an empty neighbour is the outline.
+        const rim = !solid(i - 1, j) || !solid(i + 1, j) || !solid(i, j - 1) || !solid(i, j + 1);
+        let c: Rgb;
+        if (rim) c = shielded ? 0x7a1838 : angry ? 0x8a0c1c : 0x9a1438;
+        else {
+          // Lit from the upper left, darker towards the tip.
+          const light = Math.min(1, Math.max(0, 0.55 - u * 0.25 - v * 0.35));
+          const base = shielded ? mix(0xa21e48, 0xe03a70, light) : angry ? mix(0xc8101e, 0xff4a40, light) : mix(0xe01c48, 0xff5a84, light);
+          c = mix(base, shielded ? 0xd84a76 : angry ? 0xffd0c0 : 0xffa0b4, throb * 0.18 + swell * 0.3);
+          if (i >= 1 && i <= 2 && j >= 2 && j <= 3 && !rim) c = lighten(c, 0.45);
+        }
+        cv.set(x, y, tint(c));
+      }
+    }
+    // Angry: an ember glow over the outline.
+    if (angry && !dead) {
+      for (let a = 0; a < 14; a++) {
+        const t = (a / 14 + run.time * 0.6) % 1;
+        const ang = t * Math.PI * 2;
+        if (Math.sin(run.time * 9 + a * 2.1) < 0.2) continue;
+        cv.blend(centre.px + Math.cos(ang) * (rx + 1.4), centre.py + Math.sin(ang) * (ry + 1.2), 0xff8a45, 0.7);
+      }
+    }
+    // Shielded: a faint membrane over the heart, so it reads as protected until the veins go.
+    if (shielded && !flash && !dead) {
+      const blink = 0.18 + 0.1 * Math.sin(run.time * 3);
+      for (let i = 0; i < 40; i++) {
+        const ang = (i / 40) * Math.PI * 2;
+        cv.blend(centre.px + Math.cos(ang) * (rx + 2.2), centre.py + Math.sin(ang) * (ry + 2.2), 0xc7a6ff, blink);
+      }
+    }
+  }
+
+  /** One vein: a curved tube from the heart to a glowing node, inside its part box. */
+  private drawVein(cv: Canvas, run: RunState, boss: BossState, vein: BossPart, shielded: boolean, angry: boolean, tint: (c: Rgb) => Rgb): void {
+    const box = partBox(boss, vein);
+    const tl = toPixel(box.x - box.halfWidth, box.y + box.halfHeight);
+    const br = toPixel(box.x + box.halfWidth, box.y - box.halfHeight);
+    const toLeft = vein.dx < 0;
+    const upper = vein.dy > 0;
+    // From the heart end (inner, at the box's heart-side edge) to the node (outer end).
+    const innerX = toLeft ? br.px : tl.px;
+    const outerX = toLeft ? tl.px + 1.6 : br.px - 1.6;
+    const nearY = upper ? br.py - 1.0 : tl.py + 1.0;
+    const farY = upper ? tl.py + 1.0 : br.py - 1.0;
+    const p0 = { x: innerX, y: nearY };
+    const p2 = { x: outerX, y: farY };
+    // The control point leaves the heart level, then the tube bends away: a curve, not a ramp.
+    const p1 = { x: (p0.x + p2.x) / 2 + (toLeft ? 2 : -2), y: nearY };
+    const dead = vein.hp <= 0;
+    const flash = vein.flash > 0;
+    const hurt = 1 - Math.max(0, vein.hp) / Math.max(1, vein.maxHp);
+    const radius = 1.15;
+    const N = 48;
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      const a = (1 - t) * (1 - t);
+      const b = 2 * (1 - t) * t;
+      const c = t * t;
+      const x = a * p0.x + b * p1.x + c * p2.x;
+      const y = a * p0.y + b * p1.y + c * p2.y;
+      if (dead && i % 8 >= 5) continue; // a broken tube: gaps along it
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const px = Math.floor(x) + dx;
+          const py = Math.floor(y) + dy;
+          const d = Math.hypot(px + 0.5 - x, py + 0.5 - y);
+          if (d > radius) continue;
+          let col: Rgb;
+          if (dead) {
+            const k = (px * 7 + py * 13) % 5;
+            col = k === 0 ? 0x7a3048 : k === 1 && Math.floor(run.time * 4 + px) % 3 === 0 ? 0xff6a3d : 0x3a1424;
+          } else if (flash) col = 0xffffff;
+          else {
+            // Blood runs towards the heart: a bright band travelling inwards along the tube.
+            const flow = ((1 - t) * 1.6 - run.time * (angry ? 1.4 : 0.9)) % 1;
+            const band = flow < 0 ? flow + 1 : flow;
+            const rim = d > radius * 0.62;
+            let base = rim ? 0x7a1030 : 0xc8183a;
+            if (band < 0.18 && !rim) base = lighten(base, 0.45);
+            col = mix(base, 0x2a0818, hurt * 0.45);
+            if (angry && !rim) col = mix(col, 0xff6a2a, 0.25);
+            if (!shielded) col = darken(col, 0.1);
+          }
+          cv.set(px, py, tint(col));
+        }
+      }
+    }
+    // The node at the far end: a bulb with a bright core, or a scorched stump when cut.
+    for (let dy = -3; dy <= 3; dy++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        const px = Math.floor(p2.x) + dx;
+        const py = Math.floor(p2.y) + dy;
+        const d = Math.hypot(px + 0.5 - p2.x, py + 0.5 - p2.y);
+        if (d > 1.9) continue;
+        let col: Rgb;
+        if (dead) col = d < 1 && Math.floor(run.time * 5 + px) % 3 === 0 ? 0xff6a3d : (px * 3 + py) % 3 === 0 ? 0x7a3048 : 0x3a1424;
+        else if (flash) col = 0xffffff;
+        else {
+          const beat = 0.5 + 0.5 * Math.sin(run.time * (angry ? 12 : 6) + vein.dx);
+          col = d < 0.9 ? mix(0xffd36a, 0xffffff, beat * 0.5) : d < 1.5 ? 0xff7a3a : 0x9a1a34;
+        }
+        cv.set(px, py, tint(col));
+      }
+    }
+  }
+
   private drawBossBeams(cv: Canvas, run: RunState, m: Mood): void {
     const boss = run.boss;
     if (!boss || boss.kind !== 'hiveMind' || !boss.beams || boss.beams.length === 0) return;
@@ -1050,13 +1257,24 @@ export class FieldView {
       [formatScore(run.score), INK, true],
       ['  ', MUTED],
       [comboLabel(run.combo), comboColour, true],
-      ['  WAVE ', MUTED],
-      [waveLabel(Math.min(WAVE_COUNT, run.wave + 1), WAVE_COUNT), INK, true],
+      ...this.progressSegs(run),
     ];
     const right: Seg[] = [['BEST ', MUTED], [formatScore(hud.best), GOLD, true], [' ', MUTED]];
     const rw = segsWidth(right);
     writeSegs(frame, col, layout.topRow, width - rw, left, BAR_BG);
     writeSegs(frame, col + width - rw, layout.topRow, rw, right, BAR_BG);
+  }
+
+  /** Where the run is: "WAVE 3/15", or in a Boss Rush "BOSS 2/3" and the clear timer (m:ss) instead. */
+  private progressSegs(run: RunState): Seg[] {
+    const rush = run.rush;
+    if (!rush) return [['  WAVE ', MUTED], [waveLabel(Math.min(WAVE_COUNT, run.wave + 1), WAVE_COUNT), INK, true]];
+    return [
+      ['  BOSS ', MUTED],
+      [rushBossLabel(rush.stage, rush.stages.length), INK, true],
+      ['  TIME ', MUTED],
+      [formatClock(rush.time), GOLD, true],
+    ];
   }
 
   private drawBottomLine(frame: Frame, layout: Layout, run: RunState, hud: HudInfo): void {
@@ -1267,6 +1485,30 @@ function forBox(box: Box, fn: (x: number, y: number, u: number, v: number) => vo
     }
   }
 }
+
+/** The Hive Heart's pixel heart, 11 x 8 (the part box is about 9 x 6 pixels), and a size bigger for the beat's swell. */
+const HEART_MASK = [
+  '.XXX...XXX.',
+  'XXXXX.XXXXX',
+  'XXXXXXXXXXX',
+  'XXXXXXXXXXX',
+  '.XXXXXXXXX.',
+  '..XXXXXXX..',
+  '...XXXXX...',
+  '....XXX....',
+] as const;
+const HEART_MASK_BIG = [
+  '.XXXX...XXXX.',
+  'XXXXXX.XXXXXX',
+  'XXXXXXXXXXXXX',
+  'XXXXXXXXXXXXX',
+  'XXXXXXXXXXXXX',
+  '.XXXXXXXXXXX.',
+  '..XXXXXXXXX..',
+  '...XXXXXXX...',
+  '....XXXXX....',
+  '.....XXX.....',
+] as const;
 
 /** Parts draw back to front: hull pieces, then plates and bays, the core last. */
 function partRank(p: BossPart): number {

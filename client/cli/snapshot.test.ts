@@ -5,7 +5,7 @@ import { Frame } from './frame';
 import { computeLayout } from './layout';
 import { frameText, framePng } from './snapshot';
 import { activatePowerUp, applyRunEffect } from '../src/game/powerups';
-import { chooseSpecial, createRun, stepRun } from '../src/game/run';
+import { chooseSpecial, createRun, pickUpgrade, stepRun } from '../src/game/run';
 import type { PowerUpKind, RunEvent, RunState, ShipId, SpecialId, UpgradeId } from '../src/game/types';
 
 // A dev tool as much as a test: it plays a few scenes with the real simulation, draws them with
@@ -21,6 +21,8 @@ interface Scene {
   seconds: number;
   ship?: ShipId;
   special?: SpecialId;
+  /** A Boss Rush: `wave` is then ignored (it starts on the first boss, after the three starting picks). */
+  rush?: boolean;
   /** Edits the run once the wave has started. */
   setup?: (run: RunState) => void;
   /** Called every step with the run, to tweak it (keeps a scene looking busy). */
@@ -31,11 +33,13 @@ interface Scene {
 }
 
 function play(scene: Scene): { frame: Frame; view: FieldView; run: RunState } {
-  const run = createRun(7, 1, scene.wave, { ships: [scene.ship ?? 'breaker'] });
+  const run = createRun(7, 1, scene.wave, { mode: scene.rush ? 'bossRush' : 'normal', ships: [scene.ship ?? 'breaker'] });
   const view = new FieldView();
   const layout = computeLayout(120, 50)!;
   const frame = new Frame(layout.cols, layout.rows);
   let events: RunEvent[] = chooseSpecial(run, scene.special ?? 'pulseBomb');
+  // A rush opens on its three starting picks.
+  while (run.phase === 'upgradePick') events.push(...pickUpgrade(run, 0));
   view.events(events, run);
   let setUp = false;
   let injected = false;
@@ -179,6 +183,89 @@ const SCENES: Scene[] = [
       core.hp = Math.floor(core.maxHp * 0.3);
     },
   },
+  { name: 'heart-intro', wave: 14, seconds: 1.5 },
+  { name: 'heart-phase1', wave: 14, seconds: 6.3 },
+  // No ring of shots in front of it, to see the model: the beat timer is held off.
+  { name: 'heart-calm', wave: 14, seconds: 5, tick: (run) => void (run.boss!.beatTimer = 5) },
+  {
+    name: 'heart-calm-beat',
+    wave: 14,
+    seconds: 5,
+    tick: (run) => void (run.boss!.beatTimer = 5),
+    inject: (run) => [{ type: 'heartBeat', x: run.boss!.x, y: run.boss!.y, phase: 1, gapAngle: -1.5 }],
+    at: 4.95,
+  },
+  {
+    name: 'heart-calm-open',
+    wave: 14,
+    seconds: 5,
+    setup: (run) => {
+      for (const p of run.boss!.parts) if (p.kind === 'vein') p.hp = 0;
+    },
+    tick: (run) => void (run.boss!.beatTimer = 5),
+  },
+  {
+    name: 'heart-calm-angry',
+    wave: 14,
+    seconds: 5,
+    setup: (run) => {
+      for (const p of run.boss!.parts) if (p.kind === 'vein') p.hp = 0;
+      run.boss!.parts[4].hp = Math.floor(run.boss!.parts[4].maxHp * 0.25);
+    },
+    tick: (run) => void (run.boss!.beatTimer = 5),
+  },
+  {
+    name: 'heart-vein-hit',
+    wave: 14,
+    seconds: 6,
+    setup: (run) => {
+      const parts = run.boss!.parts;
+      parts[0].hp = 0;
+      parts[1].hp = 12;
+      parts[1].flash = 5;
+      parts[2].hp = 20;
+    },
+  },
+  {
+    name: 'heart-phase2',
+    wave: 14,
+    seconds: 12,
+    setup: (run) => {
+      for (const p of run.boss!.parts) if (p.kind === 'vein') p.hp = 0;
+      run.boss!.parts[4].hp = Math.floor(run.boss!.parts[4].maxHp * 0.7);
+    },
+  },
+  {
+    name: 'heart-phase3',
+    wave: 14,
+    seconds: 14,
+    setup: (run) => {
+      for (const p of run.boss!.parts) if (p.kind === 'vein') p.hp = 0;
+      run.boss!.parts[4].hp = Math.floor(run.boss!.parts[4].maxHp * 0.25);
+    },
+  },
+  {
+    name: 'heart-death',
+    wave: 14,
+    seconds: 9,
+    setup: (run) => {
+      for (const p of run.boss!.parts) if (p.kind === 'vein') p.hp = 0;
+      run.boss!.parts[4].hp = 1;
+    },
+  },
+  {
+    name: 'heart-burst',
+    wave: 14,
+    seconds: 2,
+    // The kill's burst, as the view gets it from the sim's bossKilled event.
+    setup: (run) => {
+      run.boss!.parts[4].hp = 0;
+    },
+    tick: (run) => void (run.boss!.beatTimer = 5),
+    inject: (run) => [{ type: 'bossKilled', kind: 'hiveHeart', x: run.boss!.x, y: run.boss!.y, points: 5000 }],
+    at: 1.6,
+  },
+  { name: 'rush-boss1', wave: 0, seconds: 8, rush: true },
   {
     name: 'loaded',
     wave: 3,

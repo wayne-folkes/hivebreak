@@ -4,6 +4,7 @@ import { loadLastShip, saveLastShip } from '../src/app/lastship';
 import { RunLog } from '../src/app/runlog';
 import {
   MILESTONES,
+  bossRushUnlocked,
   emptyProgress,
   exportCode,
   importCode,
@@ -14,10 +15,11 @@ import {
 } from '../src/game/progress';
 import type { MilestoneDef, Progress } from '../src/game/progress';
 import { RECORDS_KEY, addRecord, bestScore, loadRecords } from '../src/game/records';
-import { WAVE_COUNT, chooseSpecial, createRun, pickUpgrade, stepRun } from '../src/game/run';
+import { WAVE_COUNT, chooseSpecial, createRun, pickUpgrade, rushBossesBeaten, stepRun } from '../src/game/run';
+import { RUSH_RECORDS_KEY, addRushRecord, bestRushScore, loadRushRecords } from '../src/game/rushrecords';
 import { SPECIAL_IDS } from '../src/game/special';
 import { NO_INPUT } from '../src/game/types';
-import type { RunEvent, RunState, ShipId, ShipInput, SpecialId } from '../src/game/types';
+import type { RunEvent, RunMode, RunState, ShipId, ShipInput, SpecialId } from '../src/game/types';
 import { FieldView } from './draw';
 import { fileStorage, savePath } from './filestore';
 import { Frame, encode } from './frame';
@@ -47,6 +49,10 @@ import { clipboardSequence, colorModeFrom, openTerminal } from './term';
 // the run, upgrade picks, pause, the UNLOCKED moment and game over. Progress, records and the
 // last ship are saved to a JSON file under the same keys the web game uses, so a backup code moves
 // unlocks either way. There is no sound.
+//
+// Boss Rush (unlocked by the first win) goes through the same cards, with the rush's three starting
+// picks as upgrade cards before the bosses; it has its own records and does not count towards the
+// unlocks (no RunLog is started for it).
 
 /** The fixed simulation step, seconds (as in the web game). */
 const STEP = 1 / 120;
@@ -71,6 +77,7 @@ Usage: hivebreak [options]
   --wave N               Start runs at wave N (testing)
   --charged              Start runs with a full Special meter (testing)
   --unlock-all           Everything unlocked; progress is not saved (testing)
+  --rush                 Open straight onto a Boss Rush's ship card (testing; implies --unlock-all)
   -h, --help             Show this help
 
 Saves go to ~/.hivebreak/save.json (or $HIVEBREAK_HOME/save.json).
@@ -92,7 +99,8 @@ function option(name: string): string | undefined {
 const OPT_WAVE = Number(option('--wave'));
 const FIRST_WAVE = Number.isInteger(OPT_WAVE) && OPT_WAVE >= 1 && OPT_WAVE <= WAVE_COUNT ? OPT_WAVE - 1 : 0;
 const CHARGED = args.includes('--charged');
-const UNLOCK_ALL = args.includes('--unlock-all');
+const RUSH = args.includes('--rush');
+const UNLOCK_ALL = args.includes('--unlock-all') || RUSH;
 const FORCED_KEYS = option('--keys');
 const forcedMode: KeyMode | null = FORCED_KEYS === 'repeat' || FORCED_KEYS === 'release' ? FORCED_KEYS : null;
 
@@ -167,6 +175,8 @@ function leave(): void {
 type Mode = 'title' | 'special' | 'playing' | 'pick' | 'over';
 let mode: Mode = 'title';
 let runShip: ShipId = 'breaker';
+/** What kind of real run is being set up or played; the title demo is always a normal run. */
+let runMode: RunMode = 'normal';
 let run: RunState = createRun(1);
 let paused = false;
 let accumulator = 0;
@@ -177,6 +187,8 @@ let autofire = false;
 /** Events from outside the loop (a picked upgrade), played with the next frame's. */
 let pending: RunEvent[] = [];
 let lostReason: 'lives' | 'invaded' | undefined;
+/** Boss Rush: the time bonus of the boss just beaten, for the pick card; null when it came in over par. */
+let rushBonus: number | null = null;
 let savedRank: number | null = null;
 let lastResult: RunResult | null = null;
 let lastMet: readonly MilestoneDef[] = [];
@@ -203,11 +215,12 @@ function settleRun(): readonly MilestoneDef[] {
 function newRun(seed: number): void {
   run = demo()
     ? createRun(seed, 1, 0)
-    : createRun(seed, 1, FIRST_WAVE, { ships: [runShip], upgrades: unlockedUpgrades(progress) });
+    : createRun(seed, 1, FIRST_WAVE, { mode: runMode, ships: [runShip], upgrades: unlockedUpgrades(progress) });
   if (demo()) chooseSpecial(run, SPECIAL_IDS[seed % SPECIAL_IDS.length]);
   accumulator = 0;
   specialCarry = false;
   lostReason = undefined;
+  rushBonus = null;
   savedRank = null;
   view.reset();
 }
@@ -222,11 +235,14 @@ function showTitle(): void {
   enter(titleScreen);
 }
 
-function startRun(): void {
+function startRun(kind: RunMode = 'normal'): void {
+  // Boss Rush is dimmed on the title while locked, but a stale call shouldn't get past it.
+  if (kind === 'bossRush' && !bossRushUnlocked(progress)) return;
   settleRun();
   stack.length = 0;
   const ships = unlockedShips(progress);
   runShip = loadLastShip(storage, progress) ?? ships[0];
+  runMode = kind;
   mode = 'special';
   paused = false;
   newRun(Date.now());
@@ -257,7 +273,9 @@ function takeSpecial(special: SpecialId): void {
   if (mode !== 'special' || top()?.kind !== 'special') return;
   pending.push(...chooseSpecial(run, special));
   if (CHARGED) for (const p of run.players) p.specialCharge = 1;
-  runLog.start(runShip, special);
+  // A Boss Rush is not recorded for the unlocks: it plays only the bosses, so its totals and
+  // milestones (waves cleared, kills, sector reached) would not mean what a normal run's do.
+  if (run.mode === 'normal') runLog.start(runShip, special);
   mode = 'playing';
   stack.length = 0;
   keys.releaseAll();
@@ -280,7 +298,9 @@ function resumeRun(): void {
 
 function openPick(): void {
   mode = 'pick';
-  enter({ kind: 'pick', menu: upgradeMenu(run, takeUpgrade, performance.now()) });
+  // The time bonus shows on the pick after a boss, not on a rush's starting picks.
+  const afterBoss = run.rush !== null && run.rush.picksLeft === 0;
+  enter({ kind: 'pick', menu: upgradeMenu(run, takeUpgrade, performance.now(), afterBoss ? rushBonus : null) });
 }
 
 function takeUpgrade(index: number): void {
@@ -291,9 +311,23 @@ function takeUpgrade(index: number): void {
   leave();
 }
 
-/** Saves the finished run to the records, once. Returns its place in the top 10 (-1 if it missed). */
+/**
+ * Saves the finished run to the records, once: a Boss Rush to its own table (time, bosses beaten),
+ * a normal run to the normal one. Returns its place in the top 10 (-1 if it missed).
+ */
 function saveRun(): number {
   if (savedRank !== null) return savedRank;
+  if (run.rush) {
+    const { rank } = addRushRecord(storage, {
+      score: run.score,
+      time: run.rush.time,
+      bosses: rushBossesBeaten(run),
+      won: run.phase === 'won',
+      date: new Date().toISOString(),
+    });
+    savedRank = rank;
+    return rank;
+  }
   const { rank } = addRecord(storage, {
     score: run.score,
     wave: run.wave + 1,
@@ -315,6 +349,7 @@ function finishRun(): void {
     wave: run.wave + 1,
     bestCombo: run.bestCombo,
     rank,
+    ...(run.rush ? { rush: { time: run.rush.time, bosses: rushBossesBeaten(run), total: run.rush.stages.length } } : {}),
   };
   mode = 'over';
   specialCarry = false;
@@ -328,7 +363,7 @@ function finishRun(): void {
 function showResult(): void {
   if (!lastResult) return;
   stack.length = 0;
-  enter({ kind: 'over', menu: gameOverMenu(lastResult, { playAgain: startRun, title: showTitle }, performance.now()) });
+  enter({ kind: 'over', menu: gameOverMenu(lastResult, { playAgain: () => startRun(run.mode), title: showTitle }, performance.now()) });
 }
 
 const howToScreen = (): Screen => ({ kind: 'howto', menu: howToMenu(keys.mode, leave) });
@@ -337,12 +372,16 @@ const titleScreen: Screen = {
   kind: 'title',
   menu: titleMenu(
     {
-      start: startRun,
+      start: () => startRun('normal'),
+      rush: () => startRun('bossRush'),
       howTo: () => enter(howToScreen()),
       records: () =>
         enter({
           kind: 'records',
-          menu: recordsMenu(() => loadRecords(storage), { back: leave, reset: () => storage.setItem(RECORDS_KEY, '[]') }),
+          menu: recordsMenu(
+            { normal: () => loadRecords(storage), rush: () => loadRushRecords(storage), rushOpen: () => bossRushUnlocked(progress) },
+            { back: leave, reset: (tab) => storage.setItem(tab === 'rush' ? RUSH_RECORDS_KEY : RECORDS_KEY, '[]') },
+          ),
         }),
       unlocks: () => enter({ kind: 'unlocks', menu: unlocksMenu(() => progress, leave) }),
       backup: () =>
@@ -363,6 +402,7 @@ const titleScreen: Screen = {
       quit,
     },
     () => bestScore(storage),
+    () => bossRushUnlocked(progress),
   ),
 };
 
@@ -438,9 +478,13 @@ term.onResize(() => {
   term.write('\x1b[0m\x1b[2J');
 });
 
-/** Takes `lost` to remember why the run was lost. */
+/** Takes `lost` to remember why the run was lost, and a Boss Rush's time bonus for the pick after the boss. */
 function reactTo(events: readonly RunEvent[]): void {
-  for (const e of events) if (e.type === 'lost') lostReason = e.reason;
+  for (const e of events) {
+    if (e.type === 'lost') lostReason = e.reason;
+    else if (e.type === 'waveStart') rushBonus = null;
+    else if (e.type === 'rushBonus') rushBonus = e.points;
+  }
 }
 
 let last = performance.now();
@@ -501,7 +545,7 @@ function render(dt: number, now: number): void {
     if (live()) pauseRun();
     drawTooSmall(frame, MIN_COLS, MIN_ROWS);
   } else {
-    view.draw(frame, layout, run, { best: bestScore(storage), demo: demo(), autofire, keyMode: keys.mode }, dt);
+    view.draw(frame, layout, run, { best: run.mode === 'bossRush' ? bestRushScore(storage) : bestScore(storage), demo: demo(), autofire, keyMode: keys.mode }, dt);
     top()?.menu.draw(frame, layout, now);
   }
   const out = encode(shown, frame, colorMode);
@@ -530,4 +574,6 @@ function quit(): never {
 }
 
 showTitle();
+// `--rush`: straight to a Boss Rush's ship card.
+if (RUSH) startRun('bossRush');
 setInterval(tick, FRAME_MS);

@@ -24,6 +24,7 @@ import {
 } from './menus';
 import { MILESTONES, emptyProgress, type Progress } from '../src/game/progress';
 import type { RunRecord } from '../src/game/records';
+import type { RushRecord } from '../src/game/rushrecords';
 import { createRun } from '../src/game/run';
 import type { UpgradeId } from '../src/game/types';
 
@@ -61,7 +62,24 @@ const records: RunRecord[] = Array.from({ length: 10 }, (_, i) => ({
   date: '2026-10-29T12:00:00.000Z',
 }));
 
+const rushRecords: RushRecord[] = [
+  { score: 21500, time: 312, bosses: 3, won: true, date: '2026-10-30T12:00:00.000Z' },
+  { score: 9100, time: 140.4, bosses: 2, won: false, date: '2026-10-31T12:00:00.000Z' },
+];
+const sources = (normal: RunRecord[] = records, rush: RushRecord[] = rushRecords, rushOpen = true) => ({
+  normal: () => normal,
+  rush: () => rush,
+  rushOpen: () => rushOpen,
+});
+
 const result: RunResult = { won: false, reason: 'lives', score: 4250, wave: 7, bestCombo: 6, rank: 0 };
+
+/** A Boss Rush run on its first starting pick. */
+function rushRunWithOffer(offer: UpgradeId[] = ['twinShot', 'overcharge', 'wingman']) {
+  const run = createRun(1, 1, 0, { mode: 'bossRush' });
+  run.offer = offer;
+  return run;
+}
 
 function runWithOffer(offer: UpgradeId[]) {
   const run = createRun(1);
@@ -77,17 +95,20 @@ describe('every menu draws without throwing', () => {
   ];
   const noop = () => {};
   const menus: [string, () => Menu][] = [
-    ['title', () => titleMenu({ start: noop, howTo: noop, records: noop, unlocks: noop, backup: noop, quit: noop }, () => 4200)],
+    ['title', () => titleMenu({ start: noop, rush: noop, howTo: noop, records: noop, unlocks: noop, backup: noop, quit: noop }, () => 4200)],
     ['ship', () => shipMenu(emptyProgress(), null, noop, noop)],
     ['ship (all unlocked)', () => shipMenu(fullProgress(), 'lancer', noop, noop)],
     ['special', () => specialMenu(emptyProgress(), noop, noop)],
+    ['title (rush locked)', () => titleMenu({ start: noop, rush: noop, howTo: noop, records: noop, unlocks: noop, backup: noop, quit: noop }, () => 0, () => false)],
     ['upgrade', () => upgradeMenu(runWithOffer(['twinShot', 'overcharge', 'wingman']), noop, 0)],
+    ['upgrade (rush start)', () => upgradeMenu(rushRunWithOffer(), noop, 0)],
     ['pause', () => pauseMenu({ resume: noop, howTo: noop, quit: noop })],
     ['unlocked', () => unlockedMenu(MILESTONES.slice(0, 3), noop, 0)],
     ['unlocked (every milestone)', () => unlockedMenu(MILESTONES, noop, 0)],
     ['game over', () => gameOverMenu(result, { playAgain: noop, title: noop }, 0)],
-    ['records', () => recordsMenu(() => records, { back: noop, reset: noop })],
-    ['records (empty)', () => recordsMenu(() => [], { back: noop, reset: noop })],
+    ['game over (rush)', () => gameOverMenu({ ...result, rush: { time: 200, bosses: 2, total: 3 } }, { playAgain: noop, title: noop }, 0)],
+    ['records', () => recordsMenu(sources(), { back: noop, reset: noop })],
+    ['records (empty)', () => recordsMenu(sources([], [], false), { back: noop, reset: noop })],
     ['unlocks', () => unlocksMenu(emptyProgress, noop)],
     ['how to (release)', () => howToMenu('release', noop)],
     ['how to (repeat)', () => howToMenu('repeat', noop)],
@@ -126,8 +147,8 @@ describe('wrap', () => {
 
 describe('title', () => {
   const make = () => {
-    const a = { start: vi.fn(), howTo: vi.fn(), records: vi.fn(), unlocks: vi.fn(), backup: vi.fn(), quit: vi.fn() };
-    return { a, menu: titleMenu(a, () => 4250) };
+    const a = { start: vi.fn(), rush: vi.fn(), howTo: vi.fn(), records: vi.fn(), unlocks: vi.fn(), backup: vi.fn(), quit: vi.fn() };
+    return { a, menu: titleMenu(a, () => 4250), locked: titleMenu(a, () => 4250, () => false) };
   };
 
   it('draws the logo, the best score and the options', () => {
@@ -135,7 +156,7 @@ describe('title', () => {
     const text = render(menu);
     for (const row of logoRows()) expect(text).toContain(row);
     expect(text).toContain('BEST 004250');
-    for (const label of ['Start', 'How to play', 'Records', 'Unlocks', 'Backup', 'Quit']) expect(text).toContain(label);
+    for (const label of ['Start', 'Boss Rush', 'How to play', 'Records', 'Unlocks', 'Backup', 'Quit']) expect(text).toContain(label);
   });
 
   it('the logo fits in the field width', () => {
@@ -147,13 +168,34 @@ describe('title', () => {
     menu.key(key('enter'), 0);
     expect(a.start).toHaveBeenCalledTimes(1);
     menu.key(key('down'), 0);
+    menu.key(key('down'), 0);
     menu.key(key('enter'), 0);
     expect(a.howTo).toHaveBeenCalledTimes(1);
   });
 
+  it('Boss Rush opens a rush when unlocked', () => {
+    const { a, menu } = make();
+    expect(render(menu)).not.toContain('Win a run to unlock');
+    menu.key(key('down'), 0);
+    menu.key(key('enter'), 0);
+    expect(a.rush).toHaveBeenCalledTimes(1);
+  });
+
+  it('a locked Boss Rush is dimmed with what unlocks it, and the highlight skips it', () => {
+    const { a, locked } = make();
+    expect(render(locked)).toContain('Win a run to unlock');
+    locked.key(key('down'), 0); // Start -> How to play, past Boss Rush
+    locked.key(key('enter'), 0);
+    expect(a.howTo).toHaveBeenCalledTimes(1);
+    expect(a.rush).not.toHaveBeenCalled();
+    locked.key(key('up'), 0); // back to Start
+    locked.key(key('enter'), 0);
+    expect(a.start).toHaveBeenCalledTimes(1);
+  });
+
   it('walks through every option and wraps round', () => {
     const { a, menu } = make();
-    for (let i = 0; i < 3; i++) menu.key(key('down'), 0);
+    for (let i = 0; i < 4; i++) menu.key(key('down'), 0);
     menu.key(key('enter'), 0);
     expect(a.unlocks).toHaveBeenCalledTimes(1);
     menu.key(key('down'), 0);
@@ -322,6 +364,25 @@ describe('upgrade pick', () => {
     expect(render(upgradeMenu(run, () => {}, 0))).toContain('BROOD MOTHER DOWN');
   });
 
+  it('a Boss Rush\'s starting picks read BOSS RUSH · PICK n OF 3', () => {
+    const run = rushRunWithOffer();
+    expect(run.rush?.picksLeft).toBe(3);
+    expect(render(upgradeMenu(run, () => {}, 0))).toContain('BOSS RUSH · PICK 1 OF 3');
+    run.rush!.picksLeft = 1;
+    expect(render(upgradeMenu(run, () => {}, 0))).toContain('BOSS RUSH · PICK 3 OF 3');
+    expect(render(upgradeMenu(run, () => {}, 0), 62, 42)).not.toContain('TIME BONUS');
+  });
+
+  it('the pick after a rush boss names the boss and shows the time bonus when there is one', () => {
+    const run = rushRunWithOffer();
+    run.rush!.picksLeft = 0;
+    run.boss = { kind: 'hiveMind' } as never;
+    const text = render(upgradeMenu(run, () => {}, 0, 1250));
+    expect(text).toContain('HIVE MIND DOWN');
+    expect(text).toContain('+1,250 TIME BONUS');
+    expect(render(upgradeMenu(run, () => {}, 0, null))).not.toContain('TIME BONUS');
+  });
+
   it('says when a pick completes a synergy, in place of the rarity word', () => {
     const run = runWithOffer(['piercing', 'rapidFire', 'extraLife']);
     // Twin shot is held, so Piercing shots would complete Lance.
@@ -364,6 +425,14 @@ describe('UNLOCKED', () => {
     expect(text).toContain('Continue');
   });
 
+  it('the first win also announces the Boss Rush mode', () => {
+    const victor = MILESTONES.filter((m) => m.id === 'victor');
+    expect(victor).toHaveLength(1);
+    const text = render(unlockedMenu(victor, () => {}, 0)).replace(/\s+/g, ' ');
+    expect(text).toContain('Mode · Boss Rush');
+    expect(text).toContain('Special · Gravity Well');
+  });
+
   it('ignores Enter and Esc until the guard has passed', () => {
     const cont = vi.fn();
     const menu = unlockedMenu(MILESTONES.slice(0, 1), cont, 1000);
@@ -393,6 +462,22 @@ describe('game over', () => {
     expect(text).toContain('Play again');
   });
 
+  it('a Boss Rush shows the clear time, bosses beaten and its rank on the Boss Rush table', () => {
+    const a = { playAgain: () => {}, title: () => {} };
+    const won = { ...result, won: true, rank: 1, rush: { time: 312, bosses: 3, total: 3 } };
+    const text = render(gameOverMenu(won, a, 0));
+    expect(text).toContain('RUSH CLEARED');
+    expect(text).toMatch(/Clear time\s+5:12/);
+    expect(text).toMatch(/Bosses beaten\s+3 \/ 3/);
+    expect(text).toContain('Rank #2 · Boss Rush');
+    expect(text).not.toContain('Wave');
+    const lost = render(gameOverMenu({ ...result, rank: 0, rush: { time: 95, bosses: 1, total: 3 } }, a, 0));
+    expect(lost).toContain('SHIP LOST');
+    expect(lost).toMatch(/Time survived\s+1:35/);
+    expect(lost).toMatch(/Bosses beaten\s+1 \/ 3/);
+    expect(lost).toContain('New best! · Boss Rush');
+  });
+
   it('a win, an invasion, and a run that missed the list', () => {
     const a = { playAgain: () => {}, title: () => {} };
     expect(render(gameOverMenu({ ...result, won: true, rank: 3 }, a, 0))).toContain('HIVE BROKEN');
@@ -416,8 +501,10 @@ describe('game over', () => {
 
 describe('records', () => {
   it('lists up to ten rows', () => {
-    const text = render(recordsMenu(() => records, { back: () => {}, reset: () => {} }));
+    const text = render(recordsMenu(sources(), { back: () => {}, reset: () => {} }));
     expect(text).toContain('RECORDS');
+    expect(text).toContain('Normal');
+    expect(text).toContain('Boss Rush');
     expect(text).toContain('009000');
     expect(text).toContain('W10/10');
     expect(text).toContain('WON');
@@ -426,12 +513,38 @@ describe('records', () => {
   });
 
   it('says so when there are none', () => {
-    expect(render(recordsMenu(() => [], { back: () => {}, reset: () => {} }))).toContain('No runs yet');
+    expect(render(recordsMenu(sources([], []), { back: () => {}, reset: () => {} }))).toContain('No runs yet');
+  });
+
+  it('Left and Right switch to the Boss Rush list: score, time, bosses and date', () => {
+    const menu = recordsMenu(sources(), { back: () => {}, reset: () => {} });
+    menu.key(key('right'), 0);
+    const text = render(menu);
+    expect(text).toContain('021500');
+    expect(text).toContain('5:12');
+    expect(text).toContain('3/3');
+    expect(text).toContain('2:20');
+    expect(text).toContain('2/3');
+    expect(text).toContain('31 Oct');
+    expect(text).not.toContain('W10/10');
+    menu.key(key('right'), 0); // stops at the end
+    expect(render(menu)).toContain('021500');
+    menu.key(key('left'), 0);
+    expect(render(menu)).toContain('W10/10');
+  });
+
+  it('an empty Boss Rush tab says whether Boss Rush is locked or just unplayed', () => {
+    const open = recordsMenu(sources(records, [], true), { back: () => {}, reset: () => {} });
+    open.key(key('right'), 0);
+    expect(render(open).replace(/\s+/g, ' ')).toContain('No Boss Rush runs yet');
+    const locked = recordsMenu(sources(records, [], false), { back: () => {}, reset: () => {} });
+    locked.key(key('right'), 0);
+    expect(render(locked).replace(/\s+/g, ' ')).toContain('Boss Rush is locked. Win a run to open it.');
   });
 
   it('R then Y resets; R again or another key cancels', () => {
     const a = { back: vi.fn(), reset: vi.fn() };
-    const menu = recordsMenu(() => records, a);
+    const menu = recordsMenu(sources(), a);
     menu.key(key('r'), 0);
     expect(a.reset).not.toHaveBeenCalled();
     expect(render(menu)).toContain('Erase every saved record?');
@@ -440,6 +553,7 @@ describe('records', () => {
     menu.key(key('r'), 0);
     menu.key(key('y'), 0);
     expect(a.reset).toHaveBeenCalledTimes(1);
+    expect(a.reset).toHaveBeenLastCalledWith('normal');
     expect(render(menu)).not.toContain('Erase every saved record?');
     menu.key(key('r'), 0);
     menu.key(key('escape'), 0); // cancels the question, does not leave
@@ -450,9 +564,19 @@ describe('records', () => {
     expect(a.reset).toHaveBeenCalledTimes(1);
   });
 
+  it('resets only the tab that is showing', () => {
+    const a = { back: vi.fn(), reset: vi.fn() };
+    const menu = recordsMenu(sources(), a);
+    menu.key(key('right'), 0);
+    menu.key(key('r'), 0);
+    expect(render(menu)).toContain('Erase every Boss Rush record?');
+    menu.key(key('y'), 0);
+    expect(a.reset).toHaveBeenCalledWith('rush');
+  });
+
   it('Esc goes back', () => {
     const a = { back: vi.fn(), reset: vi.fn() };
-    recordsMenu(() => records, a).key(key('escape'), 0);
+    recordsMenu(sources(), a).key(key('escape'), 0);
     expect(a.back).toHaveBeenCalledTimes(1);
   });
 });
@@ -494,6 +618,13 @@ describe('how to play', () => {
     expect(text).toContain('Auto-fire');
     expect(text).toContain('Ctrl+C');
     expect(text).not.toContain('KEY REPEAT');
+  });
+
+  it('covers fifteen waves, the Hive Heart and Boss Rush', () => {
+    const text = render(howToMenu('release', () => {}), 62, 100).replace(/\s+/g, ' ');
+    expect(text).toContain('fifteen waves');
+    expect(text).toContain('THE HIVE HEART');
+    expect(text).toContain('BOSS RUSH');
   });
 
   it('adds the key-repeat note only in repeat mode', () => {
