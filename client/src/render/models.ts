@@ -41,6 +41,7 @@ export type ModelName =
   | 'acid_drop'
   | 'brood_mother'
   | 'hive_mind'
+  | 'hive_heart'
   | 'helper'
   | 'pickup_spread'
   | 'pickup_laser'
@@ -68,6 +69,7 @@ const FILES: Record<string, readonly ModelName[]> = {
   acid_drop: ['acid_drop'],
   brood_mother: ['brood_mother'],
   hive_mind: ['hive_mind'],
+  hive_heart: ['hive_heart'],
   helper: ['helper'],
   pickups: ['pickup_spread', 'pickup_laser', 'pickup_slow', 'pickup_helper'],
   shots: ['shot_player', 'shot_alien'],
@@ -99,6 +101,8 @@ const outlineMaterial = new MeshBasicMaterial({ color: OUTLINE_COLOR, side: Back
 const flashMaterial = new MeshBasicMaterial({ color: 0xffffff });
 /** What a destroyed boss part is drawn as: a dark, dead hulk. */
 const wreckMaterial = new MeshBasicMaterial({ color: 0x1b1530 });
+/** What a cut vein's stump is drawn as: dried, dark red, so it still shows against the field. */
+const stumpMaterial = new MeshBasicMaterial({ color: 0x5c2440 });
 
 const COOL = new Color(0x4f8bff);
 const ICE = new Color(0x8fb4ff);
@@ -201,7 +205,8 @@ export class Model {
   private readonly meshes: Mesh[] = [];
   private readonly looks: (readonly Material[])[] = [];
   private readonly flashed: boolean[] = [];
-  private readonly wrecked: boolean[] = [];
+  /** 0 whole, 1 a dark wreck, 2 a dried stump. */
+  private readonly wrecked: number[] = [];
   private readonly partMeshes = new Map<string, number[]>();
   private look: Look = LOOK_NORMAL;
 
@@ -217,7 +222,7 @@ export class Model {
         this.meshes.push(mesh);
         this.looks.push(looksOf.get(mesh.material as Material) ?? [mesh.material as Material]);
         this.flashed.push(false);
-        this.wrecked.push(false);
+        this.wrecked.push(0);
       }
     });
     for (const name of Object.keys(this.parts)) {
@@ -232,7 +237,7 @@ export class Model {
 
   private apply(i: number): void {
     const looks = this.looks[i];
-    this.meshes[i].material = this.flashed[i] ? flashMaterial : this.wrecked[i] ? wreckMaterial : (looks[this.look] ?? looks[0]);
+    this.meshes[i].material = this.flashed[i] ? flashMaterial : this.wrecked[i] === 2 ? stumpMaterial : this.wrecked[i] === 1 ? wreckMaterial : (looks[this.look] ?? looks[0]);
   }
 
   private applyAll(): void {
@@ -259,13 +264,14 @@ export class Model {
     }
   }
 
-  /** Draws one named part as a dark wreck (a destroyed boss part), or back to normal. */
-  setPartWreck(name: string, on: boolean): void {
+  /** Draws one named part as a dark wreck (a destroyed boss part), or back to normal; `stump` makes it a dried red stump instead. */
+  setPartWreck(name: string, on: boolean, stump = false): void {
     const ids = this.partMeshes.get(name);
     if (!ids) return;
+    const state = on ? (stump ? 2 : 1) : 0;
     for (const i of ids) {
-      if (this.wrecked[i] === on) continue;
-      this.wrecked[i] = on;
+      if (this.wrecked[i] === state) continue;
+      this.wrecked[i] = state;
       this.apply(i);
     }
   }

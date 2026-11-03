@@ -189,6 +189,23 @@ describe('Effects', () => {
     expect(visibleCount(scene)).toBe(0);
   });
 
+  it('plays the Hive Heart death and a beat from the pool, and settles', () => {
+    const scene = new Scene();
+    const fx = new Effects(scene);
+    const pool = scene.children[0].children.length;
+    fx.heartBeat(0, 100, 1.2, 1);
+    fx.heartBeat(0, 100, -1.2, 3);
+    expect(visibleCount(scene)).toBeGreaterThan(0);
+    fx.update(1);
+    expect(visibleCount(scene)).toBe(0);
+    fx.bigExplosion(0, 100, 40, 20, 'heart');
+    for (let i = 0; i < 62; i++) fx.update(0.02);
+    expect(visibleCount(scene)).toBeGreaterThan(30);
+    for (let i = 0; i < 200; i++) fx.update(0.02);
+    expect(visibleCount(scene)).toBe(0);
+    expect(scene.children[0].children.length).toBe(pool);
+  });
+
   it('bursts a mine by how it went off: big for a shot, small dust on a bunker, a red blast at the ground', () => {
     const count = (cause: 'shot' | 'bunker' | 'ground', radius: number): number => {
       const scene = new Scene();

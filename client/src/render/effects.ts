@@ -33,6 +33,11 @@ const CORE_SPARK = [0xff56da, 0xffffff, 0xff8a45];
 const DEATH_BURST = [0xffffff, 0xfff27a, 0xffd36a, 0xff8a45, 0xff56da, 0xac55f7];
 /** The Hive Mind's death: the same, but redder. */
 const HIVE_DEATH_BURST = [0xffffff, 0xffe164, 0xff8a45, 0xff5a5a, 0xc0392b, 0xff56da];
+/** The Hive Heart's death: magenta, gold and acid. */
+const HEART_DEATH_BURST = [0xffffff, 0xff56da, 0xf5c542, 0xc6f23c, 0xff4fd8, 0xffe164];
+/** The Hive Heart's beat: hot magenta and white; a cut vein: its red flesh with the acid and gold of its glow. */
+const HEART_SPARK = [0xff56da, 0xffffff, 0xff4fd8];
+export const VEIN_SHARDS: readonly number[] = [0xd9334d, 0x8e2a3c, 0xc6f23c, 0xf5c542, 0xffffff];
 /** Sector 2's reds: a Splitter's seam, the Hive Mind's ring segments, and a bunker's crumbs. */
 export const SPLIT_SPARK: readonly number[] = [0xff8a3d, 0xffe14f, 0xc0392b, 0xffffff];
 export const SEGMENT_SHARDS: readonly number[] = [0xd04a64, 0x8e2a3c, 0xff5a5a, 0xffffff];
@@ -65,6 +70,9 @@ const COLORS = [
     ...CORE_SPARK,
     ...DEATH_BURST,
     ...HIVE_DEATH_BURST,
+    ...HEART_DEATH_BURST,
+    ...HEART_SPARK,
+    ...VEIN_SHARDS,
     ...SPLIT_SPARK,
     ...SEGMENT_SHARDS,
     ...BUNKER_CRUMBS,
@@ -117,7 +125,8 @@ export class Effects {
   private readonly pendingY = new Float32Array(MAX_PENDING);
   private readonly pendingBig = new Uint8Array(MAX_PENDING);
   private pendingCursor = 0;
-  private deathRed = false;
+  /** 0 the Brood Mother's death palette, 1 the Hive Mind's, 2 the Hive Heart's. */
+  private deathStyle = 0;
 
   private readonly flashMesh: Mesh;
   private flashLeft = 0;
@@ -424,8 +433,8 @@ export class Effects {
    * The boss dies: a string of bursts all over its body for `BOSS_DEATH_SECONDS`, then a huge
    * one, with a long shake and a white flash at the end. `halfWidth` is half its span.
    */
-  bigExplosion(x: number, y: number, halfWidth: number, halfHeight = 12, red = false): void {
-    this.deathRed = red;
+  bigExplosion(x: number, y: number, halfWidth: number, halfHeight = 12, style: boolean | 'heart' = false): void {
+    this.deathStyle = style === 'heart' ? 2 : style ? 1 : 0;
     for (let n = 0; n < 16; n++) {
       const u = n / 16;
       this.queueBurst(
@@ -437,7 +446,21 @@ export class Effects {
     }
     this.queueBurst(x, y, BOSS_DEATH_SECONDS, true);
     this.kick(BOSS_DEATH_SECONDS + 0.5, 3);
-    this.emit(x, y, 20, red ? HIVE_DEATH_BURST : DEATH_BURST, 100, 3.4, 0.6);
+    this.emit(x, y, 20, this.deathColors(), 100, 3.4, 0.6);
+  }
+
+  private deathColors(): readonly number[] {
+    return this.deathStyle === 2 ? HEART_DEATH_BURST : this.deathStyle === 1 ? HIVE_DEATH_BURST : DEATH_BURST;
+  }
+
+  /**
+   * The Hive Heart beats: a magenta ring leaves it, with a bright notch at the ring of shots'
+   * gap (`gapAngle`, radians) so a player can learn to read where to go; phase 3 shakes the screen a little.
+   */
+  heartBeat(x: number, y: number, gapAngle: number, phase: number): void {
+    this.waves.start(x, y, 10, 25, 0.22, 1.4, phase >= 3 ? 0xff5a5a : 0xff56da, gapAngle, 0.22);
+    this.emit(x, y, 5, HEART_SPARK, 40, 2, 0.3);
+    if (phase >= 3) this.kick(0.12, 1);
   }
 
   private queueBurst(x: number, y: number, delay: number, big: boolean): void {
@@ -502,14 +525,20 @@ export class Effects {
       const x = this.pendingX[i];
       const y = this.pendingY[i];
       if (this.pendingBig[i] === 1) {
-        this.emit(x, y, 44, this.deathRed ? HIVE_DEATH_BURST : DEATH_BURST, 150, 4.6, 0.8);
+        this.emit(x, y, 44, this.deathColors(), 150, 4.6, 0.8);
         this.emit(x, y, 24, FIRE, 90, 3.6, 0.7);
         this.waves.start(x, y, 8, 130, 0.5, 4, 0xffffff);
-        if (this.deathRed) this.waves.start(x, y, 4, 90, 0.6, 3, 0xff5a5a);
-        this.waveFlash(this.deathRed ? 0xffb0a0 : 0xffffff, 0.4, 0.3);
+        if (this.deathStyle === 1) this.waves.start(x, y, 4, 90, 0.6, 3, 0xff5a5a);
+        if (this.deathStyle === 2) {
+          // Three rings, one behind the other: magenta, gold and acid.
+          this.waves.start(x, y, 4, 110, 0.55, 3, 0xff56da);
+          this.waves.start(x, y, 2, 80, 0.65, 3, 0xf5c542);
+          this.waves.start(x, y, 2, 55, 0.75, 2, 0xc6f23c);
+        }
+        this.waveFlash(this.deathStyle === 1 ? 0xffb0a0 : this.deathStyle === 2 ? 0xffe6f8 : 0xffffff, 0.4, 0.3);
       } else {
         this.emit(x, y, 11, FIRE, 80, 4.4, 0.6);
-        this.emit(x, y, 5, this.deathRed ? HIVE_DEATH_BURST : DEATH_BURST, 60, 3.2, 0.55);
+        this.emit(x, y, 5, this.deathColors(), 60, 3.2, 0.55);
       }
     }
     this.waves.update(dt);

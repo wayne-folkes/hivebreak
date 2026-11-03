@@ -65,6 +65,19 @@ describe('Model part states', () => {
     expect(materialOf(m, 'plate')).toBe(before);
   });
 
+  it('draws a cut vein as a dried stump, different from a wreck, and restores it', () => {
+    const m = partsModel();
+    const before = materialOf(m, 'plate');
+    m.setPartWreck('plate', true);
+    const wreck = materialOf(m, 'plate');
+    m.setPartWreck('plate', true, true);
+    const stump = materialOf(m, 'plate');
+    expect(stump).not.toBe(wreck);
+    expect(stump).not.toBe(before);
+    m.setPartWreck('plate', false);
+    expect(materialOf(m, 'plate')).toBe(before);
+  });
+
   it('flashes the whole model, and ignores a part that does not exist', () => {
     const m = partsModel();
     const before = materialOf(m, 'plate');

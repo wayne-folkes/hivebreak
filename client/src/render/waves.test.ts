@@ -1,5 +1,5 @@
 import { Group } from 'three';
-import type { Mesh } from 'three';
+import type { Mesh, ShaderMaterial } from 'three';
 import { describe, expect, it } from 'vitest';
 import { WAVE_HALF_SIZE, WavePool, waveAlpha, waveRadius } from './waves';
 
@@ -47,5 +47,17 @@ describe('WavePool', () => {
     pool.clear();
     expect(visible(group)).toBe(0);
     expect((group.children[0] as Mesh).scale.x).toBe(WAVE_HALF_SIZE * 2);
+  });
+
+  it('gives a wave a notch only when asked, and a recycled slot forgets the last one', () => {
+    const group = new Group();
+    const pool = new WavePool(group);
+    const gap = (i: number): number => ((group.children[i] as Mesh).material as ShaderMaterial).uniforms.uGapHalf.value as number;
+    pool.start(0, 0, 4, 50, 0.5, 2, 0xff56da, 1.5, 0.2);
+    expect(gap(0)).toBe(0.2);
+    pool.start(0, 0, 4, 50, 0.5, 2, 0xff56da);
+    expect(gap(1)).toBe(0);
+    for (let i = 0; i < 6; i++) pool.start(0, 0, 4, 50, 0.5, 2, 0xff56da);
+    expect(gap(0)).toBe(0);
   });
 });

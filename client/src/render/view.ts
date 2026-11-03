@@ -27,10 +27,10 @@ import { AcidView } from './acidview';
 import { ArcView } from './arcs';
 import { BeamView } from './beams';
 import { BossBeamView, rayToFieldEdge } from './bossbeams';
-import { bayGlowName, bossPartNames, corePulse, hiveCorePulse, hiveGlowScale, launchWarning } from './bossparts';
+import { VEIN_STUMP_SCALE, bayGlowName, bossPartNames, corePulse, HEART_PULSE_SECONDS, heartBeatSwell, heartIdle, heartPulse, hiveCorePulse, hiveGlowScale, launchWarning, veinsStanding } from './bossparts';
 import { BunkerView } from './bunkerview';
 import { ACID_HALF_WIDTH } from '../game/hazards';
-import { ARC_SPARK, BOSS_DEATH_SECONDS, Effects, PINCER_TRAIL, POWER_UP_COLOR, SEGMENT_SHARDS, SHIELD_SPARK, WELL_SPARK } from './effects';
+import { ARC_SPARK, BOSS_DEATH_SECONDS, Effects, PINCER_TRAIL, POWER_UP_COLOR, SEGMENT_SHARDS, SHIELD_SPARK, VEIN_SHARDS, WELL_SPARK } from './effects';
 import { approachAngle, Tracker } from './interp';
 import { MendLinks } from './mendlinks';
 import type { Sample } from './interp';
@@ -196,6 +196,10 @@ interface WarpGhost {
   age: number;
 }
 
+/** The Hive Heart's shield and halo, art pixels (the heart itself is about 15 across from its centre). */
+const HEART_SHIELD_RADIUS = 17.5;
+const HEART_HALO_RADIUS = 17;
+
 /** A hex shell: a bright double ring and a faint fill, for the Shield Burst (and, smaller, the boss's core shield). */
 function hexShell(radius: number, ringColor: number, fillColor: number, fillOpacity: number): Group {
   const group = new Group();
@@ -276,6 +280,11 @@ export class GameView {
   private readonly bossModels: Partial<Record<BossKind, Model>> = {};
   private bossShield: Group | null = null;
   private hiveGlow: Group | null = null;
+  /** The Hive Heart's shield (while a vein stands) and the halo behind it once it is exposed. */
+  private heartShield: Group | null = null;
+  private heartHalo: { group: Group; disc: MeshBasicMaterial; ring: MeshBasicMaterial } | null = null;
+  /** Seconds since the Heart's last beat (a large number before the first). */
+  private heartAge = 10;
   private bossShieldFlash = 0;
   /** The parts the boss model was last set up for, so a new boss gets a fresh model. */
   private bossPartsRef: BossState['parts'] | null = null;
@@ -674,6 +683,12 @@ export class GameView {
       }
       case 'bossFired':
         this.effects.sparksIn(e.x, e.y, CORE_FIRE, 4, 40);
+        // The Hive Heart's second ring (phase 3) comes without a beat of its own: a small kick.
+        if (run.boss?.kind === 'hiveHeart' && this.heartAge > 0.05) this.heartAge = HEART_PULSE_SECONDS * 0.45;
+        break;
+      case 'heartBeat':
+        this.heartAge = 0;
+        this.effects.heartBeat(e.x, e.y, e.gapAngle, e.phase);
         break;
       case 'bossPartHit':
         if (e.part === 'core') this.effects.sparksIn(e.x, e.y, CORE_FIRE, 5, 60);
@@ -692,6 +707,15 @@ export class GameView {
           this.effects.sparksIn(e.x, e.y, SEGMENT_SHARDS, 6, 60);
           break;
         }
+        if (e.part === 'vein') {
+          // A vein is cut: red flesh and acid fly off, and with the last one the heart is exposed.
+          this.effects.partBurst(e.x, e.y, VEIN_SHARDS);
+          if (run.boss && !veinsStanding(run.boss.parts)) {
+            this.effects.coreBare(run.boss.x, run.boss.y);
+            this.effects.sparksIn(run.boss.x, run.boss.y, SHIELD_SPARK, 10, 90);
+          }
+          break;
+        }
         this.effects.partBurst(e.x, e.y);
         // The last plate: the core's shield pops and the bare core shows.
         if (e.part === 'plate' && run.boss && !platesStanding(run.boss)) {
@@ -701,14 +725,15 @@ export class GameView {
         break;
       case 'bossPhase':
         if (run.boss) {
-          const red = run.boss.kind === 'hiveMind';
+          const red = run.boss.kind === 'hiveMind' || (run.boss.kind === 'hiveHeart' && e.phase >= 3);
           this.effects.wave(run.boss.x, run.boss.y, 6, red ? 150 : 120, 0.45, 3, red ? 0xff5a5a : 0xff56da);
           this.effects.waveFlash(red ? 0xff5a5a : 0xff56da, 0.22, 0.35);
         }
         break;
       case 'bossKilled':
         this.bossDying = 0;
-        if (e.kind === 'hiveMind') this.effects.bigExplosion(e.x, e.y, HIVE_BLAST_HALF_SIZE, HIVE_BLAST_HALF_SIZE, true);
+        if (e.kind === 'hiveHeart') this.effects.bigExplosion(e.x, e.y, HEART_BLAST_HALF_WIDTH, HEART_BLAST_HALF_HEIGHT, 'heart');
+        else if (e.kind === 'hiveMind') this.effects.bigExplosion(e.x, e.y, HIVE_BLAST_HALF_SIZE, HIVE_BLAST_HALF_SIZE, true);
         else this.effects.bigExplosion(e.x, e.y, BOSS_BLAST_HALF_WIDTH);
         break;
       case 'bunkerHit':
@@ -1124,9 +1149,22 @@ export class GameView {
   private bossModelFor(kind: BossKind): Model {
     let model = this.bossModels[kind];
     if (!model) {
-      model = this.kit.create(kind === 'hiveMind' ? 'hive_mind' : 'brood_mother');
+      model = this.kit.create(kind === 'hiveHeart' ? 'hive_heart' : kind === 'hiveMind' ? 'hive_mind' : 'brood_mother');
       this.scene.add(model.holder);
-      if (kind === 'hiveMind') {
+      if (kind === 'hiveHeart') {
+        // The shield the veins hold up round the heart, and the halo behind it once it is exposed.
+        const shield = hexShell(HEART_SHIELD_RADIUS, 0x9dfafd, 0x52ddeb, 0.1);
+        shield.position.z = 10.6;
+        const disc = new MeshBasicMaterial({ color: 0x8f2a8a });
+        const ring = new MeshBasicMaterial({ color: 0xff56da });
+        const halo = new Group();
+        halo.add(new Mesh(new CircleGeometry(HEART_HALO_RADIUS, 16), disc), new Mesh(new RingGeometry(HEART_HALO_RADIUS, HEART_HALO_RADIUS + 2.4, 16), ring));
+        halo.position.z = -6;
+        halo.visible = false;
+        model.holder.add(shield, halo);
+        this.heartShield = shield;
+        this.heartHalo = { group: halo, disc, ring };
+      } else if (kind === 'hiveMind') {
         // The phase 3 glow: a red-pink disc and ring behind the core.
         const glow = new Group();
         glow.add(
@@ -1152,6 +1190,7 @@ export class GameView {
   private resetBossModel(model: Model, boss: BossState): void {
     this.bossPartsRef = boss.parts;
     this.bossNames = bossPartNames(boss.parts);
+    this.heartAge = 10;
     model.setFlash(false);
     for (const name of this.bossNames) {
       model.setPartWreck(name, false);
@@ -1192,11 +1231,16 @@ export class GameView {
     model.holder.position.set(x, y, 0);
 
     const dying = this.bossDying >= 0;
-    if (boss.kind === 'hiveMind') this.drawHive(run, boss, model, x, y, dying, dead, dt);
+    if (boss.kind === 'hiveHeart') this.drawHeart(boss, model, dying, dead, dt);
+    else if (boss.kind === 'hiveMind') this.drawHive(run, boss, model, x, y, dying, dead, dt);
     else this.drawBrood(boss, model, dying, dead);
     model.setLook(this.look);
 
-    if (boss.stun > 0 && !dying) this.stun.add(x, y + (boss.kind === 'hiveMind' ? 30 : 17), boss.kind === 'hiveMind' ? 28 : 38, 7, this.time, 0);
+    if (boss.stun > 0 && !dying) {
+      const hiveMind = boss.kind === 'hiveMind';
+      const heart = boss.kind === 'hiveHeart';
+      this.stun.add(x, y + (heart ? 24 : hiveMind ? 30 : 17), heart ? 30 : hiveMind ? 28 : 38, 7, this.time, 0);
+    }
   }
 
   private drawBrood(boss: BossState, model: Model, dying: boolean, dead: boolean): void {
@@ -1245,6 +1289,69 @@ export class GameView {
         const flare = this.bossShieldFlash > 0;
         shield.rotation.z = Math.PI / 6 + this.time * 0.9;
         shield.scale.setScalar((flare ? 1.18 : 1) + 0.04 * Math.sin(this.time * 9));
+      }
+    }
+  }
+
+  /**
+   * The Hive Heart: it swells and its core flares on each beat (the ring of shots itself is the
+   * ordinary enemy shots), a cut vein shrivels to a dark stump at its root, the veins' shield shows
+   * while one stands, and once they are all gone a halo glows behind the exposed heart, redder
+   * and bigger in phase 3. The sinking in phase 3 is just the boss's y.
+   */
+  private drawHeart(boss: BossState, model: Model, dying: boolean, dead: boolean, dt: number): void {
+    const t = this.enemyTime;
+    const parts = model.parts;
+    const heart = parts.heart;
+    const core = parts.heart_core;
+    this.heartAge += dt * this.enemyScale;
+    const env = heartPulse(this.heartAge);
+    for (let i = 0; i < boss.parts.length; i++) {
+      const part = boss.parts[i];
+      if (part.kind !== 'vein') continue;
+      const name = this.bossNames[i];
+      const node = parts[name];
+      if (!node) continue;
+      const alive = part.hp > 0;
+      model.setPartWreck(name, !alive, true);
+      node.scale.setScalar(alive ? 1 : VEIN_STUMP_SCALE);
+      // A live vein sways a little about its root; a stump hangs still.
+      node.rotation.z = alive && !dying ? Math.sin(t * 1.7 + i * 1.9) * 0.025 : 0;
+      if (!dying) model.setPartFlash(name, part.flash > 0 && alive);
+    }
+    if (dying) {
+      model.setFlash(Math.floor(this.bossDying * 12) % 3 === 0);
+    } else {
+      const size = heartIdle(boss.phase, t) * (1 + heartBeatSwell(boss.phase) * env);
+      if (heart) heart.scale.setScalar(size);
+      if (core) core.scale.setScalar(size * (1 + 0.4 * env));
+      const hit = boss.parts[boss.parts.length - 1].flash > 0 && boss.parts[boss.parts.length - 1].hp > 0;
+      model.setPartFlash('heart', hit);
+      model.setPartFlash('heart_core', hit || env > 0.85);
+    }
+
+    // The veins' shield, flaring when a shot is stopped on it.
+    const shield = this.heartShield;
+    if (shield) {
+      const up = !dying && veinsStanding(boss.parts);
+      shield.visible = up;
+      if (up) {
+        const flare = this.bossShieldFlash > 0;
+        shield.rotation.z = Math.PI / 6 + this.time * 0.9;
+        shield.scale.setScalar((flare ? 1.18 : 1) + 0.04 * Math.sin(this.time * 9));
+      }
+    }
+
+    // The exposed heart's halo: magenta in phase 2, red and swelling in phase 3.
+    const halo = this.heartHalo;
+    if (halo) {
+      const raw = !dying && !dead && boss.phase >= 2;
+      halo.group.visible = raw;
+      if (raw) {
+        const angry = boss.phase >= 3;
+        halo.disc.color.setHex(angry ? 0x7a1424 : 0x8f2a8a);
+        halo.ring.color.setHex(angry ? 0xff5a5a : 0xff56da);
+        halo.group.scale.setScalar((angry ? 1.12 : 1) + 0.12 * env + (angry ? 0.05 * Math.sin(this.time * 12) : 0));
       }
     }
   }
@@ -1382,6 +1489,9 @@ const MUZZLES = ['muzzle_L', 'muzzle_R'] as const;
 const BIG_BLAST = 100;
 /** Half the Brood Mother's width, for scattering its death bursts across its body. */
 const BOSS_BLAST_HALF_WIDTH = 46;
+/** The Hive Heart's span (its veins reach 46 each side, from 29 below to 21 above its centre), for scattering its death bursts. */
+const HEART_BLAST_HALF_WIDTH = 40;
+const HEART_BLAST_HALF_HEIGHT = 20;
 /** Half the Hive Mind's span (its spikes reach 42 from the centre), for scattering its death bursts. */
 const HIVE_BLAST_HALF_SIZE = 34;
 const BAY_SPARK: readonly number[] = [0xffb04f, 0xffe164, 0xffffff];

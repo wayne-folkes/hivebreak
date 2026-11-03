@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createBoss } from '../game/boss';
 import { HIVE_PARTS } from '../game/hivemind';
-import { LAUNCH_WARNING_SECONDS, bayGlowName, bossPartNames, corePulse, hiveCorePulse, hiveGlowScale, launchWarning } from './bossparts';
+import { HEART_PARTS } from '../game/heart';
+import { HEART_PULSE_SECONDS, LAUNCH_WARNING_SECONDS, bayGlowName, bossPartNames, corePulse, heartBeatSwell, heartIdle, heartPulse, hiveCorePulse, hiveGlowScale, launchWarning, veinsStanding } from './bossparts';
 
 describe('bossPartNames', () => {
   it('maps the Brood Mother layout onto the model nodes', () => {
@@ -15,6 +16,13 @@ describe('bossPartNames', () => {
     const boss = createBoss('hiveMind', () => id++);
     expect(boss.parts.length).toBe(HIVE_PARTS.length);
     expect(bossPartNames(boss.parts)).toEqual(['seg_0', 'seg_1', 'seg_2', 'seg_3', 'seg_4', 'seg_5', 'seg_6', 'seg_7', 'core']);
+  });
+
+  it('maps the Hive Heart layout: four veins then the core (drawn as the heart)', () => {
+    let id = 1;
+    const boss = createBoss('hiveHeart', () => id++);
+    expect(boss.parts.length).toBe(HEART_PARTS.length);
+    expect(bossPartNames(boss.parts)).toEqual(['vein_0', 'vein_1', 'vein_2', 'vein_3', 'core']);
   });
 
   it('finds the light strip under each bay', () => {
@@ -77,5 +85,42 @@ describe('hive core', () => {
     expect(hiveGlowScale(1, 1)).toBe(0);
     expect(hiveGlowScale(2, 1)).toBe(0);
     expect(hiveGlowScale(3, 1)).toBeGreaterThan(0.5);
+  });
+});
+
+describe('the Hive Heart', () => {
+  it('swells quickly to the peak of a beat, eases back, and is over after HEART_PULSE_SECONDS', () => {
+    expect(heartPulse(-0.1)).toBe(0);
+    expect(heartPulse(0)).toBe(0);
+    expect(heartPulse(0.05)).toBeCloseTo(1);
+    expect(heartPulse(0.1)).toBeLessThan(1);
+    expect(heartPulse(0.1)).toBeGreaterThan(heartPulse(0.2));
+    expect(heartPulse(HEART_PULSE_SECONDS - 0.001)).toBeLessThan(0.01);
+    expect(heartPulse(HEART_PULSE_SECONDS)).toBe(0);
+    expect(heartPulse(5)).toBe(0);
+  });
+
+  it('swells about 10% on a beat, more in phase 3, and throbs faster and deeper each phase', () => {
+    expect(heartBeatSwell(1)).toBeCloseTo(0.1);
+    expect(heartBeatSwell(2)).toBeCloseTo(0.1);
+    expect(heartBeatSwell(3)).toBeGreaterThan(heartBeatSwell(2));
+    let low1 = 1;
+    let low3 = 1;
+    for (let t = 0; t < 3; t += 0.01) {
+      low1 = Math.min(low1, heartIdle(1, t));
+      low3 = Math.min(low3, heartIdle(3, t));
+    }
+    expect(low3).toBeLessThan(low1);
+    expect(low1).toBeGreaterThan(0.95);
+  });
+
+  it('knows whether any vein still stands', () => {
+    let id = 1;
+    const boss = createBoss('hiveHeart', () => id++);
+    expect(veinsStanding(boss.parts)).toBe(true);
+    for (const p of boss.parts) if (p.kind === 'vein') p.hp = 0;
+    expect(veinsStanding(boss.parts)).toBe(false);
+    boss.parts[0].hp = 1;
+    expect(veinsStanding(boss.parts)).toBe(true);
   });
 });
