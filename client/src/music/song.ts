@@ -10,7 +10,7 @@
 // cutting, and never restart the song.
 
 /** The four tracks. Both bosses share the boss track, which shifts up a gear at each phase. */
-export type TrackId = 'title' | 'sector1' | 'sector2' | 'boss';
+export type TrackId = 'title' | 'sector1' | 'sector2' | 'sector3' | 'boss';
 
 /** Short one-off phrases over (or instead of) the track. */
 export type StingerId = 'waveClear' | 'upgrade' | 'victory' | 'gameOver';

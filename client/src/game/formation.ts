@@ -49,7 +49,7 @@ export const SPLIT_DROP = DROP_DISTANCE / 2;
 /** Two divers count as neighbours when their x is within this many slot widths. */
 const PAIR_REACH = 1.5;
 
-const KINDS: Record<string, AlienKind> = { d: 'drone', w: 'warden', v: 'diver', c: 'carrier', s: 'splitter' };
+const KINDS: Record<string, AlienKind> = { d: 'drone', w: 'warden', v: 'diver', c: 'carrier', s: 'splitter', t: 'warper', m: 'mender' };
 
 // Scratch space for stepFormation, so a step allocates nothing; the sim is synchronous.
 const slottedScratch: Alien[] = [];
@@ -100,6 +100,18 @@ export function spawnFormation(def: WaveDef, newId: () => number): { aliens: Ali
   formation.startCount = aliens.length;
   if (def.behaviours?.includes('split')) formation.split = createSplitState(cols);
   return { aliens, formation };
+}
+
+/**
+ * The pincer's fly-in during the wave intro: advances `formation.entry` and puts the formation's
+ * aliens on their (moving) slots. Does nothing on other waves.
+ * TODO(4a worker): implement with the pincer.
+ */
+export function stepFormationEntry(_formation: FormationState, _aliens: readonly Alien[], _def: WaveDef, _dt: number): void {}
+
+/** Whether the formation may fire and dive: not while the pincer is still flying in. */
+export function formationReady(formation: FormationState): boolean {
+  return !(formation.entry !== undefined && formation.entry > 0);
 }
 
 /** Sideways march speed: the wave's speed, rising up to three times over as aliens are destroyed. */

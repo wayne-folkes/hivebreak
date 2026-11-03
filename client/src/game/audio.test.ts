@@ -122,6 +122,11 @@ const EVENTS: Record<RunEvent['type'], RunEvent> = {
   synergyUnlocked: { type: 'synergyUnlocked', playerId: 0, synergy: 'lance' },
   won: { type: 'won' },
   lost: { type: 'lost', reason: 'lives' },
+  alienWarped: { type: 'alienWarped', alienId: 1, fromX: 0, fromY: 0, toX: 20, toY: 0 },
+  mendPulse: { type: 'mendPulse', alienId: 1, x: 0, y: 0, healed: [{ x: 20, y: 0 }] },
+  mineSpawned: { type: 'mineSpawned', mineId: 1, x: 0, y: 150 },
+  mineBurst: { type: 'mineBurst', mineId: 1, x: 0, y: 0, radius: 26, cause: 'shot' },
+  acidColumn: { type: 'acidColumn', columnId: 1, state: 'warn', x: 0, halfWidth: 8 },
 };
 
 /** The loudest a cue's parts get, before the master level. */

@@ -1,3 +1,4 @@
+import { WAVE_COUNT } from '../src/game/waves';
 import { describe, expect, it, vi } from 'vitest';
 import { Frame } from './frame';
 import type { KeyEvent } from './keys';
@@ -386,7 +387,7 @@ describe('game over', () => {
     const text = render(gameOverMenu(result, { playAgain: () => {}, title: () => {} }, 0));
     expect(text).toContain('SHIP LOST');
     expect(text).toContain('004250');
-    expect(text).toMatch(/Wave\s+7\/10/);
+    expect(text).toMatch(new RegExp(`Wave\\s+7/${WAVE_COUNT}`));
     expect(text).toContain('x6');
     expect(text).toContain('New best!');
     expect(text).toContain('Play again');

@@ -219,6 +219,13 @@ export function partsFor(event: RunEvent): Part[] {
       return arpeggio([523, 659, 784, 1047], 0.12, 'square', 0.14, 3.3);
     case 'lost':
       return arpeggio([392, 349, 311, 262], 0.3, 'triangle', 0.16, 2);
+    // Sector 3. TODO(4a sound): their sounds.
+    case 'alienWarped':
+    case 'mendPulse':
+    case 'mineSpawned':
+    case 'mineBurst':
+    case 'acidColumn':
+      return [];
     case 'specialChosen':
       // A soft confirm chime.
       return arpeggio([698, 880], 0.07, 'sine', 0.12, 2);

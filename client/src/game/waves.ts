@@ -1,12 +1,12 @@
 import type { WaveDef } from './types';
 
 // The waves of a run, as data. Rows run top to bottom, one character per column:
-// 'd' drone, 'w' warden, 'v' diver, 'c' carrier, 's' splitter, '.' empty slot. At most 6 columns by
+// 'd' drone, 'w' warden, 'v' diver, 'c' carrier, 's' splitter, 't' warper, 'm' mender, '.' empty slot. At most 6 columns by
 // 5 rows, so a formation always fits the field with room to march.
 //
-// A run is ten waves in two sectors of five, each ending in a boss (waves 5 and 10). The run loop
-// (run.ts) is folded in to play all ten and win after wave 10's Hive Mind; WAVE_COUNT is the length
-// of this list, so it follows.
+// A run is three sectors. The first two have five waves each, ending in a boss (waves 5 and 10);
+// sector 3 has four waves for now (11-14), and its boss, the Hive Heart, comes in slice 4b. The
+// run is won after the last wave; WAVE_COUNT is the length of this list, so it follows.
 
 /**
  * Tuning intent (slice 2a retune): one step harder than slice 1. March speed is about 25% up,
@@ -62,6 +62,46 @@ export const WAVES: readonly WaveDef[] = [
   },
   // 10: the Hive Mind. No formation; the boss has its own shots, so these numbers are unused.
   { rows: [], boss: 'hiveMind', marchSpeed: 0, fireRate: 0, diveRate: 0, sector: 2 },
+  // Sector 3, the heart of the hive (slice 4a; the Hive Heart at wave 15 comes in 4b). Draft
+  // numbers, tuned with the bot.
+  // 11: the pincer: the formation flies in as two halves and docks. Warpers ('t') join.
+  {
+    rows: ['.wttw.', 'dvddvd', 'tddddt', 'dddddd'],
+    marchSpeed: 30,
+    fireRate: 1.2,
+    diveRate: 0.25,
+    sector: 3,
+    behaviours: ['pincer'],
+  },
+  // 12: the weave: rows march in opposite directions, so gaps open and close. Menders ('m') join.
+  {
+    rows: ['wwmww', 'dsdsd', 'mdvdm', 'ddddd'],
+    marchSpeed: 30,
+    fireRate: 1.25,
+    diveRate: 0.26,
+    sector: 3,
+    behaviours: ['weave'],
+  },
+  // 13: mines drift down through a dense formation.
+  {
+    rows: ['wtwwtw', 'dmddmd', 'svddvs', 'dddddd', 'dddddd'],
+    marchSpeed: 32,
+    fireRate: 1.3,
+    diveRate: 0.28,
+    sector: 3,
+    mineRate: 0.35,
+  },
+  // 14: everything: the weave, Warpers, Menders and mines, plus acid rain.
+  {
+    rows: ['wtmmtw', 'sdvvds', 'dmddmd', 'tddddt', 'dddddd'],
+    marchSpeed: 33,
+    fireRate: 1.4,
+    diveRate: 0.3,
+    sector: 3,
+    behaviours: ['weave', 'pairedDives'],
+    mineRate: 0.3,
+    acidRate: 0.25,
+  },
 ];
 
 export const WAVE_COUNT = WAVES.length;

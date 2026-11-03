@@ -338,7 +338,7 @@ describe('pickUpgrade', () => {
 });
 
 describe('a whole run', () => {
-  it('is won by a bot with spare lives: it clears all ten waves and defeats both bosses', () => {
+  it('is won by a bot with spare lives: it clears every wave and defeats both bosses', () => {
     const { run, steps: n, events } = playWithBot(1, 99, 120 * 60 * 10);
     expect(run.phase).toBe('won');
     expect(run.wave).toBe(WAVE_COUNT - 1);
@@ -352,6 +352,7 @@ describe('a whole run', () => {
     expect(events.filter((e) => e.type === 'sectorStart')).toEqual([
       { type: 'sectorStart', sector: 1 },
       { type: 'sectorStart', sector: 2 },
+      { type: 'sectorStart', sector: 3 },
     ]);
     expect(events.filter((e) => e.type === 'bossPhase')).toEqual([2, 2, 3].map((phase) => ({ type: 'bossPhase', phase })));
     expect(run.aliens.filter((a) => a.mode === 'free')).toEqual([]);
@@ -1024,7 +1025,7 @@ const solid = (run: RunState) => run.bunkers.map(bunkerSolidCount);
 const BUNKER_3_X = 15;
 
 describe('sectors and bunkers', () => {
-  it('announces the sector and builds bunkers at waves 1 and 6 only, and keeps them between', () => {
+  it('announces the sector and builds bunkers at waves 1, 6 and 11 only, and keeps them between', () => {
     const run = createRun(1);
     expect(run.bunkers).toHaveLength(4);
     chooseSpecial(run, 'pulseBomb');
@@ -1046,8 +1047,8 @@ describe('sectors and bunkers', () => {
       for (const e of steps(run, 2)) if (e.type === 'sectorStart') announced.push([wave, e.sector]);
       expect(run.phase).toBe('waveIntro');
     }
-    expect(announced).toEqual([[0, 1], [5, 2]]);
-    expect(rebuilt).toEqual([5]);
+    expect(announced).toEqual([[0, 1], [5, 2], [10, 3]]);
+    expect(rebuilt).toEqual([5, 10]);
     expect(run.bunkers.every((b) => b.version === 0)).toBe(true);
     // Persistence in sector 1: the chewed bunker stays chewed through waves 3, 4 and the boss wave.
     const again = createRun(2);
@@ -1341,7 +1342,7 @@ describe('the Hive Mind', () => {
     expect(ofType(events, 'bossBeam').length).toBeGreaterThan(0);
   });
 
-  it('ends the run in a win when the core falls after wave 10, removing the Divers it launched', () => {
+  it('clears wave 10 when the core falls, removing the Divers it launched, and goes on to sector 3', () => {
     const run = hiveFight();
     const boss = run.boss!;
     for (const part of boss.parts) if (part.kind !== 'core') part.hp = 0;
@@ -1353,8 +1354,8 @@ describe('the Hive Mind', () => {
     const events = steps(run, 3);
     expect(ofType(events, 'bossKilled')).toEqual([expect.objectContaining({ kind: 'hiveMind', points: BOSS_POINTS.core })]);
     expect(events).toContainEqual({ type: 'waveClear', wave: 9 });
-    expect(has(events, 'won')).toBe(true);
-    expect(run.phase).toBe('won');
+    expect(has(events, 'won')).toBe(false);
+    expect(run.phase).toBe('upgradePick');
     expect(run.score - before).toBe(BOSS_POINTS.core);
     expect(run.aliens).toEqual([]);
   });

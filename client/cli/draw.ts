@@ -42,7 +42,7 @@ import { isBursting } from '../src/game/special';
 import { synergyDef } from '../src/game/synergies';
 import { upgradeDef } from '../src/game/upgrades';
 import { WELL_RADIUS, WELL_SECONDS } from '../src/game/well';
-import type { Box, BossPart, BossState, PlayerState, PowerUpKind, RunEvent, RunState, Shot, SpecialId } from '../src/game/types';
+import type { Box, BossPart, BossState, PlayerState, PowerUpKind, RunEvent, RunState, Sector, Shot, SpecialId } from '../src/game/types';
 import {
   BOSS_NAMES,
   bossBarLabel,
@@ -168,7 +168,7 @@ const SYNERGY_SECONDS = 2.2;
 
 /** What the field is doing to the world right now: sector tint, Time Stop, slow field, stun. */
 interface Mood {
-  sector: 1 | 2;
+  sector: Sector;
   frozen: boolean;
   slowed: boolean;
   stunned: boolean;

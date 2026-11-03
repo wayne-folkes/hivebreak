@@ -117,6 +117,8 @@ export const ALIEN_COLOUR: Record<AlienKind, Rgb> = {
   carrier: 0x3fd6a0,
   splitter: 0xe0455a,
   mini: 0xff7a6a,
+  warper: 0xa46bff,
+  mender: 0x4fff9b,
 };
 
 /** Two animation frames per kind, about the size of the kind's hit box (3 x 4 art pixels per pixel). */
@@ -145,6 +147,13 @@ export const ALIEN_SPRITES: Record<AlienKind, readonly [SpriteRows, SpriteRows]>
     ['beb', '.b.'],
     ['beb', 'b.b'],
   ],
+  // TODO(4a terminal): their own sprites.
+  get warper() {
+    return ALIEN_SPRITES.drone;
+  },
+  get mender() {
+    return ALIEN_SPRITES.drone;
+  },
 };
 
 /** The eye colour, and what it turns to on a badly hurt multi-hit alien. */

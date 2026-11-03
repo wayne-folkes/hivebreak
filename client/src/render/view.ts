@@ -296,6 +296,9 @@ export class GameView {
       carrier: new ViewPool(this.scene, make('carrier')),
       splitter: new ViewPool(this.scene, make('splitter')),
       mini: new ViewPool(this.scene, make('mini')),
+      // TODO(4a renderer): their own models.
+      warper: new ViewPool(this.scene, make('drone')),
+      mender: new ViewPool(this.scene, make('drone')),
     };
     this.playerShots = new ViewPool(this.scene, make('shot_player'));
     this.alienShots = new ViewPool(this.scene, make('shot_alien'));

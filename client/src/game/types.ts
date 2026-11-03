@@ -220,8 +220,12 @@ export interface Beam {
   topY: number;
 }
 
-/** 'splitter' breaks into two 'mini' drones when killed (sector 2); minis fly free. */
-export type AlienKind = 'drone' | 'warden' | 'diver' | 'carrier' | 'splitter' | 'mini';
+/**
+ * 'splitter' breaks into two 'mini' drones when killed (sector 2); minis fly free. Sector 3:
+ * 'warper' blinks to an empty slot the first time a hit doesn't kill it; 'mender' heals its
+ * damaged neighbours every few seconds.
+ */
+export type AlienKind = 'drone' | 'warden' | 'diver' | 'carrier' | 'splitter' | 'mini' | 'warper' | 'mender';
 
 /**
  * Where an alien is: in its formation slot, swooping at the player, flying back to its slot, or
@@ -255,6 +259,12 @@ export interface Alien {
   /** Velocity of a free alien, art pixels per second. */
   vx?: number;
   vy?: number;
+  /** Warper: true once it has blinked (it blinks only once). */
+  warped?: boolean;
+  /** Warper: seconds left of its warp-in at the new slot; shots pass through it meanwhile. */
+  warp?: number;
+  /** Mender: seconds until its next healing pulse. */
+  mendTimer?: number;
 }
 
 export interface FormationState {
@@ -271,6 +281,24 @@ export interface FormationState {
    * may add optional fields; aliens know their half from their column.
    */
   split?: SplitState;
+  /**
+   * Set on waves with the 'weave' behaviour: rows march in opposite directions on top of the
+   * formation's march. Even rows (0, 2, …) are shifted by +offset, odd rows by −offset.
+   */
+  weave?: WeaveState;
+  /**
+   * Set on waves with the 'pincer' behaviour: seconds left of the fly-in, during which the two
+   * halves sweep in from the sides to their slots and the formation neither marches, fires nor
+   * dives. Absent or 0 once docked.
+   */
+  entry?: number;
+}
+
+export interface WeaveState {
+  /** The rows' extra sideways shift, art pixels (see FormationState.weave). */
+  offset: number;
+  /** Which way the offset is moving: 1 growing, -1 shrinking. */
+  dir: 1 | -1;
 }
 
 export interface SplitState {
@@ -288,10 +316,10 @@ export interface SplitState {
 }
 
 /** Things a wave's formation can do beyond marching. */
-export type FormationBehaviour = 'split' | 'pairedDives';
+export type FormationBehaviour = 'split' | 'pairedDives' | 'weave' | 'pincer';
 
 /** Which sector a wave belongs to; the renderer and UI give each its own look and banner. */
-export type Sector = 1 | 2;
+export type Sector = 1 | 2 | 3;
 
 /**
  * A destructible bunker above the ship's row. Its shape is a pixel mask that both sides' shots
@@ -393,6 +421,30 @@ export interface WaveDef {
   boss?: BossKind;
   sector: Sector;
   behaviours?: readonly FormationBehaviour[];
+  /** Mines drifting down per second (sector 3; absent = none). */
+  mineRate?: number;
+  /** Acid rain columns started per second (sector 3; absent = none). */
+  acidRate?: number;
+}
+
+/** A mine drifting down the field (sector 3). A player's shot bursts it; see hazards.ts. */
+export interface Mine {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+}
+
+/** A column of acid rain (sector 3): marked at the top while 'warn', then 'rain' hurts ships and eats bunkers. */
+export interface AcidColumn {
+  id: number;
+  /** Centre x and half width, art pixels. */
+  x: number;
+  halfWidth: number;
+  state: 'warn' | 'rain';
+  /** Seconds left in the current state. */
+  timeLeft: number;
 }
 
 export type UpgradeId =
@@ -507,6 +559,12 @@ export interface RunState {
   upgradePool: UpgradeId[];
   /** Gravity Well: the vortex while it lasts, or null. */
   well: GravityWell | null;
+  /** Sector 3 hazards: mines drifting down and acid rain columns. Cleared at every wave start. */
+  mines: Mine[];
+  acid: AcidColumn[];
+  /** Seconds until the next mine and the next acid column (counted on enemy time). */
+  mineTimer: number;
+  acidTimer: number;
   rng: Rng;
   /** The next id to hand out to a shot, alien, pickup or boss part. */
   nextId: number;
@@ -552,5 +610,12 @@ export type RunEvent =
   | { type: 'bossBeam'; state: 'warn' | 'fire'; angle: number }
   | { type: 'chainSpark'; fromX: number; fromY: number; toX: number; toY: number }
   | { type: 'wellConsumed'; x: number; y: number }
+  // Sector 3.
+  | { type: 'alienWarped'; alienId: number; fromX: number; fromY: number; toX: number; toY: number }
+  | { type: 'mendPulse'; alienId: number; x: number; y: number; healed: readonly { x: number; y: number }[] }
+  | { type: 'mineSpawned'; mineId: number; x: number; y: number }
+  // A mine went off: shot by a player (damaging aliens in `radius`), against a bunker, or at the ship's row.
+  | { type: 'mineBurst'; mineId: number; x: number; y: number; radius: number; cause: 'shot' | 'bunker' | 'ground' }
+  | { type: 'acidColumn'; columnId: number; state: 'warn' | 'rain' | 'end'; x: number; halfWidth: number }
   | { type: 'won' }
   | { type: 'lost'; reason: 'lives' | 'invaded' };

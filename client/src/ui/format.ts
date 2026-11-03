@@ -255,6 +255,7 @@ export function waveSector(wave: number): Sector {
 export const SECTOR_SUBTITLES: Record<Sector, string> = {
   1: 'The outer hive',
   2: 'Deeper into the hive',
+  3: 'The heart of the hive',
 };
 
 /**

@@ -53,7 +53,7 @@ export function waveProgress(run: RunState): number {
 /** The track a wave plays: the boss theme on a boss wave, otherwise its sector's. */
 function trackFor(wave: number): TrackId {
   const def = WAVES[wave];
-  return def.boss ? 'boss' : def.sector === 2 ? 'sector2' : 'sector1';
+  return def.boss ? 'boss' : def.sector === 3 ? 'sector3' : def.sector === 2 ? 'sector2' : 'sector1';
 }
 
 /** What the music should be doing for this mode and run. */

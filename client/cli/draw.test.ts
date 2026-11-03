@@ -1,3 +1,4 @@
+import { WAVE_COUNT } from '../src/game/waves';
 import { describe, expect, it } from 'vitest';
 import { FieldView } from './draw';
 import type { HudInfo } from './draw';
@@ -238,7 +239,7 @@ describe('FieldView', () => {
     const top = rowText(frame, MIN.topRow);
     expect(top).toContain(formatScore(4250));
     expect(top).toContain('x3');
-    expect(top).toContain('WAVE 1/10');
+    expect(top).toContain(`WAVE 1/${WAVE_COUNT}`);
     expect(top).toContain(`BEST ${formatScore(4321)}`);
   });
 

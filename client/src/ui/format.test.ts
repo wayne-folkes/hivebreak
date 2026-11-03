@@ -256,8 +256,10 @@ describe('waveSector', () => {
     expect(waveSector(9)).toBe(2);
   });
 
-  it('stays in the last sector past the end', () => {
-    expect(waveSector(10)).toBe(2);
+  it('puts waves 11-14 in sector 3, and stays in the last sector past the end', () => {
+    expect(waveSector(10)).toBe(3);
+    expect(waveSector(13)).toBe(3);
+    expect(waveSector(20)).toBe(3);
     expect(waveSector(-3)).toBe(1);
   });
 });

@@ -1,6 +1,6 @@
 # Slice 4 plan: sector 3 and Boss Rush
 
-Drafted on 2026-11-03. Not approved yet.
+Approved on 2026-11-03.
 
 Goal: more game to play. A third sector of five waves goes in after the Hive Mind, with new aliens,
 field hazards and new formation tricks, and it ends in a new boss. Winning a run then opens

@@ -4,9 +4,9 @@ import { SLOT_SPACING_X } from './formation';
 import { WAVES, WAVE_COUNT, waveAlienCount, waveColumns } from './waves';
 
 describe('WAVES', () => {
-  it('has ten waves: sector 1 is waves 1-5 and sector 2 is waves 6-10', () => {
-    expect(WAVE_COUNT).toBe(10);
-    WAVES.forEach((w, i) => expect(w.sector).toBe(i < 5 ? 1 : 2));
+  it('has fourteen waves: sector 1 is waves 1-5, sector 2 waves 6-10 and sector 3 waves 11-14', () => {
+    expect(WAVE_COUNT).toBe(14);
+    WAVES.forEach((w, i) => expect(w.sector).toBe(i < 5 ? 1 : i < 10 ? 2 : 3));
   });
 
   it('fits every formation in at most 6 columns and 5 rows, with room to march', () => {
@@ -18,7 +18,7 @@ describe('WAVES', () => {
   });
 
   it('uses only known alien letters', () => {
-    for (const w of WAVES) for (const row of w.rows) expect(row).toMatch(/^[dwvcs.]+$/);
+    for (const w of WAVES) for (const row of w.rows) expect(row).toMatch(/^[dwvcstm.]+$/);
   });
 
   it('brings in wardens, carriers and divers from wave 2', () => {

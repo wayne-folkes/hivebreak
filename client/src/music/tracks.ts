@@ -8,6 +8,7 @@ import { title } from './tracks/title';
 // The soundtrack: four songs and four stingers, written as data in tracks/. See song.ts for the
 // format and pattern.ts for the pattern grammar; open /music.html in dev to audition them.
 
-export const TRACKS: Record<TrackId, Song> = { title, sector1, sector2, boss };
+// TODO(4a composer): sector 3's own track; until then it borrows sector 2's.
+export const TRACKS: Record<TrackId, Song> = { title, sector1, sector2, sector3: sector2, boss };
 
 export const STINGERS: Record<StingerId, Stinger> = stingers;

@@ -27,6 +27,10 @@ export const ALIEN_SPECS: Record<AlienKind, AlienSpec> = {
   // Small and fragile, always a free alien: it never has a slot, flies down like a launched Drone
   // and crashes into ships like a diver.
   mini: { hp: 1, points: 10, halfWidth: 5, halfHeight: 4 },
+  // Sector 3. Blinks to an empty slot the first time a hit doesn't kill it (see sector3.ts).
+  warper: { hp: 2, points: 60, halfWidth: 7, halfHeight: 6 },
+  // Sector 3. Heals its damaged neighbours every few seconds (see sector3.ts): kill it first.
+  mender: { hp: 3, points: 80, halfWidth: 8, halfHeight: 6 },
 };
 
 /** Sideways speed the two minis of a split Splitter fly apart at, art pixels per second. */

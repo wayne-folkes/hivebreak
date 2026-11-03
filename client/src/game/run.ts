@@ -18,7 +18,8 @@ import type { BossHit } from './boss';
 import type { BeamContact } from './hivemind';
 import { BUNKER_BOTTOM_Y, BUNKER_HEIGHT, createBunkers, erodeByRect, erodeColumn, hitBunker } from './bunkers';
 import { firstAlienHit, overlaps, shotBox, SHOT_HALF_HEIGHT } from './collision';
-import { hasInvaded, pickDivePair, pickShooter, rollEvent, slotPosition, spawnFormation, stepFormation } from './formation';
+import { formationReady, hasInvaded, pickDivePair, pickShooter, rollEvent, slotPosition, spawnFormation, stepFormation, stepFormationEntry } from './formation';
+import { MINE_BURST_DAMAGE, MINE_BURST_RADIUS, resetHazards, shootMine, stepHazards } from './hazards';
 import { FIELD_HEIGHT, FIELD_WIDTH } from './playfield';
 import {
   activatePowerUp,
@@ -48,6 +49,7 @@ import type { Alien, Box, Pickup, PlayerState, RunEvent, RunOptions, RunPhase, R
 import { NO_INPUT } from './types';
 import { CHAIN_DAMAGE, CHAIN_RANGE, UPGRADES, applyUpgrade, offerUpgrades } from './upgrades';
 import { WAVE_COUNT, WAVES, waveColumns } from './waves';
+import { alienHitSurvived, stepSector3Aliens } from './sector3';
 import { stepWell } from './well';
 
 // A whole run: the phases from the Special choice to a win or loss, and the fixed simulation step
@@ -68,6 +70,11 @@ import { stepWell } from './well';
 //   8. player shots meet the bunkers, then hit aliens, then the boss
 //   9. pickups fall and are caught
 //  10. the wave ends (cleared, boss defeated) or the run is lost
+//
+// Sector 3 adds its hazards (hazards.ts) in step 7, after the enemy shots: mines and acid rain move
+// on enemy time and hurt the ships they touch; in step 8 a player's shot can burst a mine first.
+// Its aliens (sector3.ts) tick with the formation in step 5, and a Warper blinks when a hit
+// doesn't kill it.
 //
 // Ten waves in two sectors; each sector gets fresh bunkers. A killed Splitter queues two minis,
 // which join the aliens once the pass that killed it is over.
@@ -124,6 +131,10 @@ export function createRun(seed: number, playerCount = 1, firstWave = 0, options:
     offer: [],
     upgradePool: options.upgrades ? [...options.upgrades] : UPGRADES.map((u) => u.id),
     well: null,
+    mines: [],
+    acid: [],
+    mineTimer: 0,
+    acidTimer: 0,
     rng: createRng(seed),
     nextId: 1,
   };
@@ -170,6 +181,7 @@ function startWave(run: RunState): void {
   run.slow = 0;
   run.stun = 0;
   run.well = null;
+  resetHazards(run);
   for (const p of run.players) {
     refillWaveGuards(p);
     p.pendingDrag = 0;
@@ -231,6 +243,8 @@ function stepIntro(run: RunState, inputs: readonly ShipInput[], dt: number, even
   run.time += dt;
   stepShips(run, inputs, dt, false, events);
   stepBossBy(run, dt, dt, events);
+  // The pincer flies its two halves in during the intro.
+  stepFormationEntry(run.formation, run.aliens, WAVES[run.wave], dt);
 }
 
 function stepPlaying(run: RunState, inputs: readonly ShipInput[], dt: number, events: RunEvent[]): void {
@@ -256,7 +270,7 @@ function stepPlaying(run: RunState, inputs: readonly ShipInput[], dt: number, ev
   stepAliens(run, def.boss === undefined, moveDt, dt, events);
   erodeBunkersByAliens(run);
   stepBossBy(run, edt, dt, events);
-  if (moveDt > 0 && !def.boss) {
+  if (moveDt > 0 && !def.boss && formationReady(run.formation)) {
     alienFire(run, def.fireRate, moveDt, events);
     startDives(run, def, moveDt, events);
   }
@@ -270,6 +284,10 @@ function stepPlaying(run: RunState, inputs: readonly ShipInput[], dt: number, ev
   events.push(...reflectShots(run));
   resolveHitsOnPlayers(run, events);
   stepBossBeams(run, dt, events);
+  for (const box of stepHazards(run, edt, events)) {
+    const victim = shipTouching(run, box, true);
+    if (victim) damagePlayer(victim, events);
+  }
 
   // 8. Player shots against aliens, then the boss.
   resolvePlayerShots(run, events);
@@ -379,7 +397,7 @@ function fireLaser(run: RunState, player: PlayerState, dt: number, events: RunEv
     let killed = false;
     for (let i = 0; i < damage && !killed; i++) killed = damageAlien(alien);
     if (killed) killAlien(run, alien, player, { charge: true, burst: true, kind: null }, events);
-    else events.push({ type: 'alienHit', alienId: alien.id, kind: alien.kind, x: alien.x, y: alien.y });
+    else alienHurt(run, alien, events);
     removeDead(run);
     flushSpawns(run);
   } else if (target.part && run.boss) {
@@ -460,7 +478,7 @@ function chainSparks(run: RunState, origin: Alien, killer: PlayerState, events: 
       let killed = false;
       for (let i = 0; i < CHAIN_DAMAGE && !killed; i++) killed = damageAlien(target);
       if (killed) killAlien(run, target, killer, { charge: true, burst: false, kind: null }, events);
-      else events.push({ type: 'alienHit', alienId: target.id, kind: target.kind, x: target.x, y: target.y });
+      else alienHurt(run, target, events);
       tips[arc] = target;
     }
   }
@@ -474,7 +492,24 @@ function burstAround(run: RunState, source: Alien, killer: PlayerState, events: 
     let killed = false;
     for (let i = 0; i < BURST_DAMAGE && !killed; i++) killed = damageAlien(alien);
     if (killed) killAlien(run, alien, killer, { charge: true, burst: false, kind: null }, events);
-    else events.push({ type: 'alienHit', alienId: alien.id, kind: alien.kind, x: alien.x, y: alien.y });
+    else alienHurt(run, alien, events);
+  }
+}
+
+/** An alien took damage and lived: the hit event, and a Warper's blink. */
+function alienHurt(run: RunState, alien: Alien, events: RunEvent[]): void {
+  events.push({ type: 'alienHit', alienId: alien.id, kind: alien.kind, x: alien.x, y: alien.y });
+  alienHitSurvived(run, alien, events);
+}
+
+/** A shot mine's burst: every living alien within MINE_BURST_RADIUS takes MINE_BURST_DAMAGE, credited to the shooter. */
+function mineBurstAt(run: RunState, x: number, y: number, killer: PlayerState | null, events: RunEvent[]): void {
+  for (const alien of run.aliens) {
+    if (alien.hp <= 0 || Math.hypot(alien.x - x, alien.y - y) > MINE_BURST_RADIUS) continue;
+    let killed = false;
+    for (let i = 0; i < MINE_BURST_DAMAGE && !killed; i++) killed = damageAlien(alien);
+    if (killed) killAlien(run, alien, killer, { charge: true, burst: false, kind: null }, events);
+    else alienHurt(run, alien, events);
   }
 }
 
@@ -515,6 +550,7 @@ function stepAliens(run: RunState, formationWave: boolean, dt: number, realDt: n
     else if (change === 'regroup') events.push({ type: 'formationRegroup' });
     cols = waveColumns(def);
   }
+  stepSector3Aliens(run, dt, events);
   const aliens = run.aliens;
   let kept = 0;
   for (const a of aliens) {
@@ -799,6 +835,18 @@ function landVolley(run: RunState, shot: Shot, raiseCombo: boolean): void {
 function resolvePlayerShots(run: RunState, events: RunEvent[]): void {
   for (const shot of run.shots) {
     if (shot.owner !== 'player') continue;
+    // A mine in the way bursts and takes the shot with it; its burst is the shot's hit (it counts
+    // for the volley, and its kills raise the combo as kills do).
+    if (run.mines.length > 0) {
+      const burst = shootMine(run, shot, events);
+      if (burst) {
+        const shooter = shot.playerId === null ? null : (run.players[shot.playerId] ?? null);
+        mineBurstAt(run, burst.x, burst.y, shooter, events);
+        landVolley(run, shot, false);
+        idScratch.add(shot.id);
+        continue;
+      }
+    }
     // Missiles fly over the bunkers. Lance and overcharge shots tunnel through and fly on; any
     // other shot is spent on the bunker, which is neither a hit nor a miss for the combo.
     if (run.bunkers.length > 0 && shot.kind !== 'missile') {
@@ -869,7 +917,7 @@ function hitAlien(run: RunState, shot: Shot, alien: Alien, events: RunEvent[]): 
   // can't refill the meter that fired it.
   const special = shot.kind === 'missile';
   if (killed) killAlien(run, alien, killer, { charge: !special, burst: !special, kind: shot.kind }, events);
-  else events.push({ type: 'alienHit', alienId: alien.id, kind: alien.kind, x: alien.x, y: alien.y });
+  else alienHurt(run, alien, events);
   if (killer && killer.stats.chain > 0) chainSparks(run, alien, killer, events);
   landVolley(run, shot, true);
 }
@@ -888,7 +936,7 @@ function stepRunWell(run: RunState, dt: number, events: RunEvent[]): void {
   events.push(...result.events);
   for (const hit of result.hits) {
     if (hit.killed) killAlien(run, hit.alien, owner, { charge: false, burst: false, kind: null }, events);
-    else events.push({ type: 'alienHit', alienId: hit.alien.id, kind: hit.alien.kind, x: hit.alien.x, y: hit.alien.y });
+    else alienHurt(run, hit.alien, events);
   }
   removeDead(run);
   flushSpawns(run);
@@ -933,6 +981,8 @@ function clearWave(run: RunState, events: RunEvent[]): void {
   run.pickups = [];
   run.beams = [];
   run.well = null;
+  run.mines = [];
+  run.acid = [];
   events.push({ type: 'waveClear', wave: run.wave });
   if (run.wave >= WAVE_COUNT - 1) {
     setPhase(run, 'won');
