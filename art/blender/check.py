@@ -15,9 +15,9 @@ import common as C  # noqa: E402
 
 NAMES = ["player", "drone", "warden", "diver", "shots", "carrier", "brood_mother", "pickups",
          "helper", "splitter", "mini", "hive_mind", "interceptor", "lancer", "bastion", "missile", "well",
-         "warper", "mender", "mine", "acid_drop"]
+         "warper", "mender", "mine", "acid_drop", "hive_heart"]
 TRI_LIMIT = 400
-TRI_LIMITS = {"brood_mother": 1200, "pickups": 800, "hive_mind": 1500}  # bigger models / several roots in one file
+TRI_LIMITS = {"brood_mother": 1200, "pickups": 800, "hive_mind": 1500, "hive_heart": 1500}  # bigger models / several roots in one file
 
 
 def run():

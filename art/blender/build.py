@@ -19,7 +19,8 @@ MODELS = [("player", "player"), ("drone", "drone"), ("warden", "warden"),
           ("splitter", "splitter"), ("mini", "mini"), ("hive_mind", "hive_mind"),
           ("interceptor", "interceptor"), ("lancer", "lancer"), ("bastion", "bastion"),
           ("missile", "missile"), ("well", "well"),
-          ("warper", "warper"), ("mender", "mender"), ("mine", "mine"), ("acid_drop", "acid_drop")]
+          ("warper", "warper"), ("mender", "mender"), ("mine", "mine"), ("acid_drop", "acid_drop"),
+          ("hive_heart", "hive_heart")]
 
 
 def main():

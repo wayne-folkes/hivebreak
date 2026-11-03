@@ -67,6 +67,7 @@ them at 3x with `image-rendering: pixelated`. It is separate from `npm run model
 | `bastion.glb` | `bastion` | `hull`, `wing_L/R` (armour pods), `tip_L/R` (emitter housings), `emitter_L/R` (glow), `cockpit`, `flame_L/R` | 19.4 x 18.2 |
 | `missile.glb` | `missile` | `body`, `fins`, `exhaust` (`glow2`, pivot at the nozzle) | 3 x 7 |
 | `well.glb` | `well` | `shell`, `core` (`glow`), `ring`, `ring2` (pivots at the centre, spin about the screen axis) | 17.6 x 17.3 |
+| `hive_heart.glb` | `hive_heart` | `heart`, `heart_core`, `vein_0`..`vein_3` (0 upper left, 1 upper right, 2 lower left, 3 lower right) | 108 x 52 |
 | `shots.glb` | `shot_player`, `shot_alien` | `bolt`, `diamond` | 1.6 x 7, 4 x 4.8 |
 
 ## Slice 2a models
@@ -136,6 +137,15 @@ so the flames hang below). Palettes: Interceptor `hull` #ffe9f6, `accent` #ff4fd
 `accent2` #ffb04f, `dark` #1f2644, `glow` #4fff9b (emitters), `glow2` #ffd36a. Missile: `hull`,
 `accent`, `dark`, `glow2` #ffb04f. Well: `dark` #2a0f52, `accent` #6b3fd0 (`ring`), `glow` #b79bff
 (`core`), `glow2` #ff4fd8 (`ring2`). `ring` and `ring2` are broken arcs so a spin shows.
+
+## Slice 4b models (sector 3 final boss)
+
+- **Hive Heart** (1400 tris, limit 1500): roles `hull` #d8344f (heart), `accent` #ff7a7a (highlights),
+  `accent2` #9a2f5a (veins), `dark` #4a1030, `glow` #ff4fd8 (`heart_core`), `glow2` #f5c542 (vein
+  nodes), `glow3` #c6f23c (beads). Not recentred: the heart is at the origin. `heart` (about 28 x 24,
+  30.8 x 26.4 with its dark rim) and `heart_core` pivot at (0, 0, 0). `vein_i` pivots at the vein root
+  (x = +-8, y up = 6 for veins 0/1, -2 for 2/3, z = -2.5, i.e. just behind the heart's mid-plane) and
+  reaches to a node at x = +-50, y up = 16 (upper) or -26 (lower).
 
 ## Files
 
