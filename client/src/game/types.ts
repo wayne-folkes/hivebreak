@@ -351,14 +351,15 @@ export interface BossBeam {
   timeLeft: number;
 }
 
-export type BossKind = 'broodMother' | 'hiveMind';
+export type BossKind = 'broodMother' | 'hiveMind' | 'hiveHeart';
 
 /** The pieces of a boss you can shoot. Plates shield the core; bays launch Drones. */
 /**
  * The pieces of a boss you can shoot. Brood Mother: plates shield the core; bays launch Drones.
  * Hive Mind: ring segments orbit the core and block shots that don't pass through a gap.
+ * Hive Heart: four veins feed and shield the heart (its core) until they are cut.
  */
-export type BossPartKind = 'plate' | 'bay' | 'core' | 'segment';
+export type BossPartKind = 'plate' | 'bay' | 'core' | 'segment' | 'vein';
 
 export interface BossPart {
   id: number;
@@ -403,6 +404,12 @@ export interface BossState {
   beamTimer?: number;
   /** Hive Mind: the phase 3 spiral's current rotation, radians. */
   spiralAngle?: number;
+  /**
+   * Hive Heart: seconds until its next beat (each beat fires a ring of shots with a gap), and how
+   * many beats it has made. heart.ts may add more optional fields here, prefixed `heart`.
+   */
+  beatTimer?: number;
+  beats?: number;
 }
 
 /**
@@ -504,8 +511,27 @@ export interface GravityWell {
   playerId: number;
 }
 
+/** A normal run plays the waves in order; Boss Rush plays only the boss waves, back to back. */
+export type RunMode = 'normal' | 'bossRush';
+
+/** Boss Rush's progress through its bosses. */
+export interface RushState {
+  /** The wave indices it plays, in order (the boss waves). */
+  stages: readonly number[];
+  /** Index into `stages` of the boss being fought (or next). */
+  stage: number;
+  /** Upgrade picks still to take before the first boss. */
+  picksLeft: number;
+  /** Seconds of play so far, the clear time (wave intros and fights; not picks or the Special choice). */
+  time: number;
+  /** Seconds into the current boss's fight, for its time bonus. */
+  stageTime: number;
+}
+
 /** What a run starts with, from the player's choices and unlocks. */
 export interface RunOptions {
+  /** 'bossRush' plays the boss waves back to back (default 'normal'). */
+  mode?: RunMode;
   /** The ship for each player, by player index (default: the Breaker). */
   ships?: readonly ShipId[];
   /** The upgrades the run may offer (default: every upgrade). */
@@ -567,6 +593,9 @@ export interface RunState {
   /** Seconds until the next mine and the next acid column (counted on enemy time). */
   mineTimer: number;
   acidTimer: number;
+  mode: RunMode;
+  /** Boss Rush's progress, or null in a normal run. */
+  rush: RushState | null;
   rng: Rng;
   /** The next id to hand out to a shot, alien, pickup or boss part. */
   nextId: number;
@@ -619,5 +648,9 @@ export type RunEvent =
   // A mine went off: shot by a player (damaging aliens in `radius`), against a bunker, or at the ship's row.
   | { type: 'mineBurst'; mineId: number; x: number; y: number; radius: number; cause: 'shot' | 'bunker' | 'ground' }
   | { type: 'acidColumn'; columnId: number; state: 'warn' | 'rain' | 'end'; x: number; halfWidth: number }
+  // The Hive Heart beats: a ring of shots goes out (`gapAngle` is where the ring's gap is, radians).
+  | { type: 'heartBeat'; x: number; y: number; phase: number; gapAngle: number }
+  // Boss Rush: a boss beaten under par scores a time bonus.
+  | { type: 'rushBonus'; stage: number; seconds: number; points: number }
   | { type: 'won' }
   | { type: 'lost'; reason: 'lives' | 'invaded' };

@@ -274,6 +274,14 @@ export function unlockedUpgrades(progress: Progress): UpgradeId[] {
 }
 
 /** The milestone that unlocks this, if any (null for the starting pool). */
+/**
+ * Whether Boss Rush is open: it unlocks with the first win (the 'victor' milestone, which also
+ * gives the Gravity Well), so players who won before Boss Rush existed have it already.
+ */
+export function bossRushUnlocked(progress: Progress): boolean {
+  return progress.milestones.includes('victor');
+}
+
 export function milestoneFor(unlock: Unlock): MilestoneDef | null {
   return MILESTONES.find((m) => sameUnlock(m.reward, unlock)) ?? null;
 }

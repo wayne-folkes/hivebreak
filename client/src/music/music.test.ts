@@ -31,6 +31,7 @@ const tracks: Record<TrackId, Song> = {
   sector1: song('sector1'),
   sector2: song('sector2'),
   sector3: song('sector3'),
+  heart: song('heart'),
   boss: song('boss', { phases: bossPhases }),
 };
 

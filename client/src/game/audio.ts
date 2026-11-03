@@ -266,6 +266,12 @@ export function partsFor(event: RunEvent): Part[] {
         { kind: 'noise', from: 700, to: 40, dur: 0.5, filter: 'lowpass', q: 0.7, vol: 0.35 },
         tone(70, 0.5, 'sine', 0.35, 28),
       ];
+    case 'heartBeat':
+      // Lub-dub: two low thumps, the second softer, under the ring of shots going out.
+      return [tone(70, 0.12, 'sine', 0.22, 38), tone(60, 0.1, 'sine', 0.14, 34, 0.16)];
+    case 'rushBonus':
+      // A bright run up for beating a boss under par.
+      return arpeggio([784, 988, 1175, 1568], 0.06, 'square', 0.1, 3);
     case 'acidColumn':
       if (event.state === 'warn') {
         // A sizzling hiss that rises, as the column is marked.

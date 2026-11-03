@@ -5,8 +5,10 @@ import { SLOT_SPACING_X, spawnFormation } from './formation';
 import { WAVES, WAVE_COUNT, waveAlienCount, waveColumns } from './waves';
 
 describe('WAVES', () => {
-  it('has fourteen waves: sector 1 is waves 1-5, sector 2 waves 6-10 and sector 3 waves 11-14', () => {
-    expect(WAVE_COUNT).toBe(14);
+  it('has fifteen waves in three sectors of five, each ending in its boss', () => {
+    expect(WAVE_COUNT).toBe(15);
+    expect(WAVES.map((w) => w.boss).filter(Boolean)).toEqual(['broodMother', 'hiveMind', 'hiveHeart']);
+    expect([4, 9, 14].map((i) => WAVES[i].boss)).toEqual(['broodMother', 'hiveMind', 'hiveHeart']);
     WAVES.forEach((w, i) => expect(w.sector).toBe(i < 5 ? 1 : i < 10 ? 2 : 3));
   });
 
@@ -126,7 +128,7 @@ describe('waveAlienCount', () => {
   });
 
   it('armours sector 3: each alien gets one extra hit point when the wave spawns', () => {
-    for (const w of WAVES) expect(w.armour ?? 0).toBe(w.sector === 3 ? 1 : 0);
+    for (const w of WAVES) expect(w.armour ?? 0).toBe(w.sector === 3 && !w.boss ? 1 : 0);
     const { aliens } = spawnFormation(WAVES[11], ((id) => () => id++)(1));
     for (const a of aliens) expect(a.hp).toBe(ALIEN_SPECS[a.kind].hp + 1);
   });

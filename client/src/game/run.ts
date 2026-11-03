@@ -135,6 +135,9 @@ export function createRun(seed: number, playerCount = 1, firstWave = 0, options:
     acid: [],
     mineTimer: 0,
     acidTimer: 0,
+    mode: options.mode ?? 'normal',
+    // TODO(4b Boss Rush worker): set up the rush (stages, picks) for mode 'bossRush'.
+    rush: null,
     rng: createRng(seed),
     nextId: 1,
   };

@@ -9,6 +9,7 @@ import { title } from './tracks/title';
 // The soundtrack: five songs and four stingers, written as data in tracks/. See song.ts for the
 // format and pattern.ts for the pattern grammar; open /music.html in dev to audition them.
 
-export const TRACKS: Record<TrackId, Song> = { title, sector1, sector2, sector3, boss };
+// TODO(4b composer): the Hive Heart's own track; until then it borrows the boss theme.
+export const TRACKS: Record<TrackId, Song> = { title, sector1, sector2, sector3, boss, heart: boss };
 
 export const STINGERS: Record<StingerId, Stinger> = stingers;

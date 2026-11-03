@@ -127,6 +127,8 @@ const EVENTS: Record<RunEvent['type'], RunEvent> = {
   mineSpawned: { type: 'mineSpawned', mineId: 1, x: 0, y: 150 },
   mineBurst: { type: 'mineBurst', mineId: 1, x: 0, y: 0, radius: 26, cause: 'shot' },
   acidColumn: { type: 'acidColumn', columnId: 1, state: 'warn', x: 0, halfWidth: 8 },
+  heartBeat: { type: 'heartBeat', x: 0, y: 100, phase: 1, gapAngle: -Math.PI / 2 },
+  rushBonus: { type: 'rushBonus', stage: 0, seconds: 20, points: 1000 },
 };
 
 /** The loudest a cue's parts get, before the master level. */

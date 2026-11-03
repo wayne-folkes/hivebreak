@@ -204,6 +204,7 @@ export function powerUpChips(powerUps: readonly ActivePowerUp[]): PowerUpChip[] 
 export const BOSS_NAMES: Record<BossKind, string> = {
   broodMother: 'Brood Mother',
   hiveMind: 'Hive Mind',
+  hiveHeart: 'Hive Heart',
 };
 
 /** The pick card's heading after a normal wave: "WAVE 3 CLEAR". */
@@ -269,7 +270,7 @@ export function sectorBanner(sector: Sector): { title: string; sub: string } | n
 
 /** The boss bar's phase tag, "PHASE 2": only the Hive Mind has one worth showing; the Brood Mother gets null. */
 export function bossPhaseLabel(kind: BossKind, phase: number): string | null {
-  return kind === 'hiveMind' ? `PHASE ${Math.max(1, Math.floor(phase))}` : null;
+  return kind === 'broodMother' ? null : `PHASE ${Math.max(1, Math.floor(phase))}`;
 }
 
 /** The boss bar's whole caption, "HIVE MIND · PHASE 2" (the Brood Mother is just its name). */

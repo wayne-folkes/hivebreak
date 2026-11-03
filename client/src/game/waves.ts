@@ -4,9 +4,9 @@ import type { WaveDef } from './types';
 // 'd' drone, 'w' warden, 'v' diver, 'c' carrier, 's' splitter, 't' warper, 'm' mender, '.' empty slot. At most 6 columns by
 // 5 rows, so a formation always fits the field with room to march.
 //
-// A run is three sectors. The first two have five waves each, ending in a boss (waves 5 and 10);
-// sector 3 has four waves for now (11-14), and its boss, the Hive Heart, comes in slice 4b. The
-// run is won after the last wave; WAVE_COUNT is the length of this list, so it follows.
+// A run is three sectors of five waves, each ending in a boss: the Brood Mother (wave 5), the Hive
+// Mind (wave 10) and the Hive Heart (wave 15). The run is won after the last wave; WAVE_COUNT is
+// the length of this list, so it follows. Boss Rush plays only the boss waves (see run.ts).
 
 /**
  * Tuning intent (slice 2a retune): one step harder than slice 1. March speed is about 25% up,
@@ -62,7 +62,7 @@ export const WAVES: readonly WaveDef[] = [
   },
   // 10: the Hive Mind. No formation; the boss has its own shots, so these numbers are unused.
   { rows: [], boss: 'hiveMind', marchSpeed: 0, fireRate: 0, diveRate: 0, sector: 2 },
-  // Sector 3, the heart of the hive (slice 4a; the Hive Heart at wave 15 comes in 4b). Its aliens
+  // Sector 3, the heart of the hive, ending in the Hive Heart. Its aliens
   // are armoured: one extra hit point each. A player who reaches sector 3 is well upgraded, and
   // without it the bot cleared these waves in two or three seconds, before a mine or acid column
   // had even arrived.
@@ -108,6 +108,8 @@ export const WAVES: readonly WaveDef[] = [
     acidRate: 0.25,
     armour: 1,
   },
+  // 15: the Hive Heart. No formation; the boss has its own attacks, so these numbers are unused.
+  { rows: [], boss: 'hiveHeart', marchSpeed: 0, fireRate: 0, diveRate: 0, sector: 3 },
 ];
 
 export const WAVE_COUNT = WAVES.length;

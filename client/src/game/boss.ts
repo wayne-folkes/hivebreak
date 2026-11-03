@@ -8,6 +8,7 @@ import {
   initHive,
   stepHive,
 } from './hivemind';
+import { HEART_PARTS, beamHitHeart, heartEntering, heartHealth, hitHeart, initHeart, stepHeart } from './heart';
 import { FIELD_HEIGHT, FIELD_WIDTH } from './playfield';
 import { SHIP_TOP, SHIP_Y, nearestPlayer } from './player';
 import type { Rng } from './rng';
@@ -95,10 +96,11 @@ export const BROOD_PARTS: readonly PartSpec[] = [
 export const BOSS_SPECS: Record<BossKind, BossSpec> = {
   broodMother: { parts: BROOD_PARTS },
   hiveMind: { parts: HIVE_PARTS },
+  hiveHeart: { parts: HEART_PARTS },
 };
 
 /** Base points for destroying a part, before any combo multiplier. The core's is the boss kill. */
-export const BOSS_POINTS: Record<BossPartKind, number> = { plate: 100, bay: 150, core: 2000, segment: 120 };
+export const BOSS_POINTS: Record<BossPartKind, number> = { plate: 100, bay: 150, core: 2000, segment: 120, vein: 200 };
 
 /** Seconds between Drone launches and between volleys, by phase. Each wait varies by +-15%. */
 export const LAUNCH_INTERVAL = { 1: 5, 2: 3 } as const;
@@ -168,11 +170,13 @@ export function createBoss(kind: BossKind, newId: () => number): BossState {
     stun: 0,
   };
   if (kind === 'hiveMind') initHive(boss);
+  else if (kind === 'hiveHeart') initHeart(boss);
   return boss;
 }
 
 /** True while the boss is still descending into view: it can't be hurt and doesn't attack. */
 export function bossEntering(boss: BossState): boolean {
+  if (boss.kind === 'hiveHeart') return heartEntering(boss);
   return boss.kind === 'hiveMind' ? hiveEntering(boss) : boss.y > BOSS_Y;
 }
 
@@ -209,6 +213,7 @@ export function platesStanding(boss: BossState): boolean {
  */
 export function bossHealth(boss: BossState): number {
   if (boss.kind === 'hiveMind') return hiveHealth(boss);
+  if (boss.kind === 'hiveHeart') return heartHealth(boss);
   let hp = 0;
   let max = 0;
   for (const p of boss.parts) {
@@ -264,6 +269,7 @@ function partTouching(boss: BossState, x: number, y: number, halfWidth: number, 
  */
 export function hitBoss(boss: BossState, shotBox: Box, damage: number): BossHit | null {
   if (boss.kind === 'hiveMind') return hitHive(boss, shotBox, damage);
+  if (boss.kind === 'hiveHeart') return hitHeart(boss, shotBox, damage);
   if (damage <= 0 || bossEntering(boss)) return null;
   // Most shots are nowhere near: skip the parts for those.
   if (Math.abs(shotBox.x - boss.x) >= BOSS_HALF_WIDTH + shotBox.halfWidth || Math.abs(shotBox.y - boss.y) >= BOSS_HALF_HEIGHT + shotBox.halfHeight) {
@@ -283,6 +289,7 @@ export function hitBoss(boss: BossState, shotBox: Box, damage: number): BossHit 
  */
 export function beamHitBoss(boss: BossState, x: number, bottomY: number): { part: BossPart; blocked: boolean; y: number } | null {
   if (boss.kind === 'hiveMind') return beamHitHive(boss, x, bottomY);
+  if (boss.kind === 'hiveHeart') return beamHitHeart(boss, x, bottomY);
   if (bossEntering(boss) || Math.abs(x - boss.x) >= BOSS_HALF_WIDTH) return null;
   let best: BossPart | null = null;
   let bestBottom = Infinity;
@@ -317,7 +324,7 @@ export function damageBossFixed(boss: BossState, amount: number): BossHit[] {
     dealt.set(part, (dealt.get(part) ?? 0) + d);
   };
 
-  const shield: BossPartKind = boss.kind === 'hiveMind' ? 'segment' : 'plate';
+  const shield: BossPartKind = boss.kind === 'hiveMind' ? 'segment' : boss.kind === 'hiveHeart' ? 'vein' : 'plate';
   for (let plates = standingParts(boss, shield); plates.length > 0 && remaining >= 1; plates = standingParts(boss, shield)) {
     const base = Math.floor(remaining / plates.length);
     const extra = remaining % plates.length;
@@ -367,6 +374,10 @@ export function stepBoss(boss: BossState, ctx: BossStepContext): BossStep {
   if (dt <= 0) return out;
   if (boss.kind === 'hiveMind') {
     stepHive(boss, ctx, out);
+    return out;
+  }
+  if (boss.kind === 'hiveHeart') {
+    stepHeart(boss, ctx, out);
     return out;
   }
   const standing = standingParts(boss);
