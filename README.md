@@ -48,6 +48,24 @@ recipes, the music sequencer, and whole runs played by a bot). `npm run build` t
 `npm run models` rebuilds the ship and alien models from the Blender scripts (needs Blender on your
 PATH). The exported `.glb` files are committed, so you only need Blender to change a model.
 
+### In a terminal
+
+The same game also runs in a terminal, drawn with half-block characters (no sound):
+
+```bash
+cd client
+npm install
+npm run cli
+```
+
+It needs a window of at least 62×42 characters, and is wider with side panels from 108 columns.
+Terminals with the kitty keyboard protocol (Ghostty, kitty, WezTerm, iTerm2, Alacritty) report key
+releases, so movement is exact; in others (Apple's Terminal) movement follows key repeat, which
+feels better with a short "Delay until repeat" in the keyboard settings. F turns on auto-fire.
+Progress and records are saved to `~/.hivebreak/save.json`; Backup on the title moves unlocks
+between the browser and the terminal with the same codes. `npm run cli -- --help` lists the
+options.
+
 ## Layout
 
 - `client/src/game/`: game logic, free of rendering and the DOM, unit-tested with Vitest. `run.ts`
@@ -59,6 +77,9 @@ PATH). The exported `.glb` files are committed, so you only need Blender to chan
   `/music.html` auditions the tracks and stingers.
 - `client/src/render/`: the Three.js renderer: models, effects, starfield, palette pass.
 - `client/src/ui/`: menus, HUD and wave banner, as plain DOM.
+- `client/cli/`: the terminal version: the same simulation, drawn into a cell grid (`frame.ts`,
+  `draw.ts`), read from raw key input (`keys.ts`), with text menus (`menus.ts`) and the loop in
+  `main.ts`. `npm run build:cli` bundles it into `client/dist-cli/hivebreak.mjs`.
 - `client/src/main.ts` and `client/src/app/`: the game loop, screen flow and the music director
   (`director.ts`), which picks the track and its layers from the run.
 - `art/blender/`: Blender Python scripts for the models; `art/previews/` has a render of each.

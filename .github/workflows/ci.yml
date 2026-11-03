@@ -39,3 +39,7 @@ jobs:
       - name: Type-check and build
         working-directory: client
         run: npm run build
+
+      - name: Build the terminal game
+        working-directory: client
+        run: npm run build:cli
