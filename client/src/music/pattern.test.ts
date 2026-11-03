@@ -85,6 +85,8 @@ describe('validateSong', () => {
     const gear = { bpm: 120, transpose: 0 };
     expect(validateSong(song({ id: 'boss', phases: [gear, gear, gear] }))).toEqual([]);
     expect(validateSong(song({ phases: [gear, gear, gear] }))).toHaveLength(1);
+    expect(validateSong(song({ id: 'heart' }))).toHaveLength(1);
+    expect(validateSong(song({ id: 'heart', phases: [gear, gear, gear] }))).toEqual([]);
   });
 
   it('reports a pattern that does not parse', () => {

@@ -95,8 +95,8 @@ export function validateSong(song: Song): string[] {
     errors.push(where(`loopSteps ${song.loopSteps} is not a whole number of bars`));
   }
   if (song.channels.length === 0) errors.push(where('has no channels'));
-  if (song.id === 'boss' ? song.phases?.length !== 3 : song.phases !== undefined) {
-    errors.push(where('the boss track needs exactly three phases, and no other track has any'));
+  if (song.id === 'boss' || song.id === 'heart' ? song.phases?.length !== 3 : song.phases !== undefined) {
+    errors.push(where('the boss tracks (boss and heart) need exactly three phases, and no other track has any'));
   }
   for (const channel of song.channels) {
     const drums = channel.instrument === 'drums';

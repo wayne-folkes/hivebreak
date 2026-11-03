@@ -25,7 +25,7 @@ describe('musicState: which track', () => {
   it('plays the sector track by the wave, switching to sector 2 at wave 6 and sector 3 at wave 11', () => {
     for (let wave = 0; wave < WAVE_COUNT; wave++) {
       const def = WAVES[wave];
-      const expected = def.boss ? 'boss' : def.sector === 1 ? 'sector1' : def.sector === 2 ? 'sector2' : 'sector3';
+      const expected = def.boss === 'hiveHeart' ? 'heart' : def.boss ? 'boss' : def.sector === 1 ? 'sector1' : def.sector === 2 ? 'sector2' : 'sector3';
       expect(musicState('playing', runAt(wave)).track).toBe(expected);
     }
     expect(musicState('playing', runAt(4)).track).toBe('boss');
@@ -34,12 +34,21 @@ describe('musicState: which track', () => {
     expect(musicState('playing', runAt(9)).track).toBe('boss');
     expect(musicState('playing', runAt(10)).track).toBe('sector3');
     expect(musicState('playing', runAt(13)).track).toBe('sector3');
+    expect(musicState('playing', runAt(14)).track).toBe('heart');
   });
 
   it('plays the boss track from the boss wave intro on', () => {
     for (const wave of BOSS_WAVES) {
-      expect(musicState('playing', runAt(wave, 'waveIntro')).track).toBe('boss');
+      expect(musicState('playing', runAt(wave, 'waveIntro')).track).toBe(WAVES[wave].boss === 'hiveHeart' ? 'heart' : 'boss');
     }
+  });
+
+  it("plays the Hive Heart's own track on wave 15, and the shared boss theme on the other two bosses", () => {
+    expect(WAVES[14].boss).toBe('hiveHeart');
+    expect(musicState('playing', runAt(14)).track).toBe('heart');
+    expect(musicState('playing', runAt(14, 'waveIntro')).track).toBe('heart');
+    expect(musicState('playing', runAt(4)).track).toBe('boss');
+    expect(musicState('playing', runAt(9)).track).toBe('boss');
   });
 
   it('keeps the run track through the upgrade pick, until the next wave starts', () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parsePattern, validateSong, validateStinger } from './pattern';
 import type { Channel, Layer, Song } from './song';
+import { HEART_BEAT_SECONDS } from '../game/heart';
 import { STINGERS, TRACKS } from './tracks';
 
 const songs = Object.values(TRACKS);
@@ -14,8 +15,8 @@ const tokensIn = (text: string): string[] => text.split(/\s+/).filter((t) => t !
 const barLengths = (text: string): number[] => text.split('|').map((bar) => tokensIn(bar).length);
 
 describe('the soundtrack', () => {
-  it('has the five tracks, each filed under its own id', () => {
-    expect(Object.keys(TRACKS).sort()).toEqual(['boss', 'sector1', 'sector2', 'sector3', 'title']);
+  it('has the six tracks, each filed under its own id', () => {
+    expect(Object.keys(TRACKS).sort()).toEqual(['boss', 'heart', 'sector1', 'sector2', 'sector3', 'title']);
     for (const [id, song] of Object.entries(TRACKS)) expect(song.id).toBe(id);
   });
 
@@ -141,6 +142,44 @@ describe('the soundtrack', () => {
     expect(base.some((c) => c.instrument === 'drums')).toBe(true);
     expect(base.some((c) => c.name === 'bass')).toBe(true);
     expect(base.some((c) => c.name === 'riff')).toBe(true);
+  });
+
+  it('heart: its own track, with the boss layers, three phases and a drum kit of its own', () => {
+    const heart = TRACKS.heart;
+    expect(heart).not.toBe(TRACKS.boss);
+    expect(heart.channels.find((c) => c.name === 'bass')?.loop).not.toBe(TRACKS.boss.channels.find((c) => c.name === 'bass')?.loop);
+    expect(heart.phases).toHaveLength(3);
+    for (const layer of ['base', 'mid', 'high', 'danger', 'phase2', 'phase3'] as const) {
+      expect(layersOf(heart).has(layer), layer).toBe(true);
+    }
+    const base = heart.channels.filter((c) => c.layer === 'base');
+    expect(base.some((c) => c.instrument === 'drums')).toBe(true);
+    expect(base.some((c) => c.name === 'bass')).toBe(true);
+  });
+
+  it('heart: the lub-dub kick lands on every heartbeat, in every phase gear', () => {
+    const heart = TRACKS.heart;
+    const phases = heart.phases ?? [];
+    // Phase 1: half a bar (one lub-dub) lasts exactly one heartbeat.
+    const halfBar = heart.stepsPerBar / 2 / heart.stepsPerBeat;
+    expect(halfBar * (60 / phases[0].bpm)).toBeCloseTo(HEART_BEAT_SECONDS, 6);
+    // Phase 2 beats 0.75 times as far apart (see heart.ts), so the tempo is 1/0.75 times faster.
+    expect(phases[1].bpm / phases[0].bpm).toBeCloseTo(1 / 0.75, 6);
+    expect(halfBar * (60 / phases[1].bpm)).toBeCloseTo(HEART_BEAT_SECONDS * 0.75, 6);
+    // Phase 3 keeps phase 2's tempo and climbs.
+    expect(phases[2].bpm).toBe(phases[1].bpm);
+    expect(phases[0].transpose).toBe(0);
+    expect(phases[2].transpose).toBeGreaterThan(phases[1].transpose);
+    // Lub (accented) on the first step of each half bar, dub two steps later, in every bar.
+    const drums = heart.channels.find((c) => c.name === 'drums');
+    const hits = parsePattern(drums?.loop ?? '', true).notes;
+    for (let bar = 0; bar < heart.loopSteps / heart.stepsPerBar; bar++) {
+      for (const half of [0, 8]) {
+        const at = bar * heart.stepsPerBar + half;
+        expect(hits.find((n) => n.at === at && n.drum === 'k')?.accent, `bar ${bar + 1} lub`).toBe(true);
+        expect(hits.some((n) => n.at === at + 2 && n.drum === 'k'), `bar ${bar + 1} dub`).toBe(true);
+      }
+    }
   });
 });
 
