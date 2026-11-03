@@ -606,4 +606,55 @@ describe('rate limits', () => {
       expect(ctx.sources - before, event.type).toBe(2 * partsFor(event).length);
     }
   });
+
+  it('rate-limits a mine burst against a bunker, but not a shot one', () => {
+    vi.stubGlobal('window', { AudioContext: FakeAudioContext });
+    const sound = new Sound();
+    sound.unlock();
+    const ctx = FakeAudioContext.last;
+    if (!ctx) throw new Error('no audio context was created');
+
+    const bunker: RunEvent = { type: 'mineBurst', mineId: 1, x: 0, y: 0, radius: 26, cause: 'bunker' };
+    const before = ctx.sources;
+    sound.handle([bunker, bunker, bunker]);
+    expect(ctx.sources - before).toBe(partsFor(bunker).length);
+
+    const shot = EVENTS.mineBurst;
+    const shotBefore = ctx.sources;
+    sound.handle([shot, shot]);
+    expect(ctx.sources - shotBefore).toBe(2 * partsFor(shot).length);
+  });
+});
+
+describe('slice 4a sounds', () => {
+  it('gives each mine burst cause its own sound', () => {
+    const causes = ['shot', 'bunker', 'ground'] as const;
+    const sounds = causes.map((cause) =>
+      JSON.stringify(partsFor({ type: 'mineBurst', mineId: 1, x: 0, y: 0, radius: 26, cause })),
+    );
+    expect(new Set(sounds).size).toBe(causes.length);
+  });
+
+  it('keeps the bunker thud shorter than the shot explosion', () => {
+    const thud = partsFor({ type: 'mineBurst', mineId: 1, x: 0, y: 0, radius: 26, cause: 'bunker' });
+    const boom = partsFor({ type: 'mineBurst', mineId: 1, x: 0, y: 0, radius: 26, cause: 'shot' });
+    expect(soundLength(thud)).toBeLessThan(soundLength(boom));
+  });
+
+  it('keeps the mine blip quieter than a chain spark, since mines arrive often', () => {
+    expect(loudest(partsFor(EVENTS.mineSpawned))).toBeLessThan(loudest(partsFor(EVENTS.chainSpark)));
+  });
+
+  it('keeps the mend chime quieter than a kill', () => {
+    expect(loudest(partsFor(EVENTS.mendPulse))).toBeLessThan(loudest(partsFor(EVENTS.alienKilled)));
+  });
+
+  it('gives the acid rain a longer fizz than its warning hiss, and ends it in silence', () => {
+    const warn = partsFor(EVENTS.acidColumn);
+    const rain = partsFor({ type: 'acidColumn', columnId: 1, state: 'rain', x: 0, halfWidth: 8 });
+    expect(soundLength(warn)).toBeGreaterThan(0);
+    expect(soundLength(rain)).toBeGreaterThan(soundLength(warn));
+    expect(soundLength(rain)).toBeLessThanOrEqual(1.6);
+    expect(partsFor({ type: 'acidColumn', columnId: 1, state: 'end', x: 0, halfWidth: 8 })).toEqual([]);
+  });
 });

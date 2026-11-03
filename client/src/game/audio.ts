@@ -100,13 +100,27 @@ export function playerFireReady(lastAt: number, now: number): boolean {
   return cueReady(lastAt, now, PLAYER_FIRE_GAP);
 }
 
+/**
+ * What a sound is filed under for its voice limit and rate limit. It is an event type, except that
+ * a mine burst against a bunker is a cue of its own (see cueOf).
+ */
+export type Cue = RunEvent['type'] | 'mineBurst:bunker';
+
 /** Shortest gap (seconds) between two sounds of a frequent cue; a sound inside the gap is dropped. */
-export const CUE_GAP: Partial<Record<RunEvent['type'], number>> = {
+export const CUE_GAP: Partial<Record<Cue, number>> = {
   bunkerHit: 0.08,
   bossBeam: 0.25,
   chainSpark: 0.05,
   wellConsumed: 0.06,
+  mineSpawned: 0.15,
+  mendPulse: 0.3,
+  'mineBurst:bunker': 0.1,
 };
+
+/** The cue an event sounds as: its type, or 'mineBurst:bunker' for a mine burst against a bunker. */
+export function cueOf(event: RunEvent): Cue {
+  return event.type === 'mineBurst' && event.cause === 'bunker' ? 'mineBurst:bunker' : event.type;
+}
 
 /** One note or noise burst in a cue. Times are seconds, relative to the cue's start. */
 export type Part =
@@ -219,12 +233,52 @@ export function partsFor(event: RunEvent): Part[] {
       return arpeggio([523, 659, 784, 1047], 0.12, 'square', 0.14, 3.3);
     case 'lost':
       return arpeggio([392, 349, 311, 262], 0.3, 'triangle', 0.16, 2);
-    // Sector 3. TODO(4a sound): their sounds.
+    // Sector 3.
     case 'alienWarped':
+      // A quick sci-fi blink: the pitch sweeps up fast, with a shimmer of noise over it.
+      return [
+        tone(500, 0.12, 'square', 0.07, 2000),
+        { kind: 'noise', from: 2000, to: 6000, dur: 0.12, filter: 'bandpass', q: 2, vol: 0.05 },
+      ];
     case 'mendPulse':
+      // A soft, warm chime that rises, as a heal. It's quiet, since menders pulse often.
+      return arpeggio([440, 587], 0.1, 'sine', 0.07, 2);
     case 'mineSpawned':
+      // A very quiet low blip. Mines arrive often, so it hardly sounds.
+      return [tone(220, 0.05, 'sine', 0.02, 160)];
     case 'mineBurst':
+      if (event.cause === 'shot') {
+        // A punchy explosion: a bit bigger than an alien's kill.
+        return [
+          { kind: 'noise', from: 1800, to: 60, dur: 0.3, filter: 'lowpass', q: 0.7, vol: 0.36 },
+          tone(160, 0.22, 'triangle', 0.16, 40),
+        ];
+      }
+      if (event.cause === 'bunker') {
+        // A short crunchy thud, as the mine breaks on a bunker.
+        return [
+          { kind: 'noise', from: 1400, to: 300, dur: 0.1, filter: 'bandpass', q: 2.5, vol: 0.12 },
+          tone(110, 0.1, 'square', 0.05, 60),
+        ];
+      }
+      // A deeper boom, when a mine reaches the ship's row.
+      return [
+        { kind: 'noise', from: 700, to: 40, dur: 0.5, filter: 'lowpass', q: 0.7, vol: 0.35 },
+        tone(70, 0.5, 'sine', 0.35, 28),
+      ];
     case 'acidColumn':
+      if (event.state === 'warn') {
+        // A sizzling hiss that rises, as the column is marked.
+        return [{ kind: 'noise', from: 1200, to: 4500, dur: 0.3, filter: 'bandpass', q: 1.5, vol: 0.1 }];
+      }
+      if (event.state === 'rain') {
+        // A quiet fizz, two bands of noise, for as long as the rain falls.
+        return [
+          { kind: 'noise', from: 2500, to: 1800, dur: 1, filter: 'bandpass', q: 1.2, vol: 0.07 },
+          { kind: 'noise', from: 4000, to: 3000, dur: 0.8, filter: 'bandpass', q: 1.5, vol: 0.04, delay: 0.1 },
+        ];
+      }
+      // The rain stops in silence.
       return [];
     case 'specialChosen':
       // A soft confirm chime.
@@ -378,7 +432,7 @@ export class Sound {
   /** When a player's shot last made a sound, in AudioContext seconds. */
   private lastFireAt = -Infinity;
   /** When a frequent cue (see CUE_GAP) last made a sound, in AudioContext seconds. */
-  private readonly lastPlayedAt = new Map<RunEvent['type'], number>();
+  private readonly lastPlayedAt = new Map<Cue, number>();
 
   constructor(settings: SoundSettings = DEFAULT_SOUND_SETTINGS) {
     this.on = settings.enabled;
@@ -432,11 +486,12 @@ export class Sound {
         if (!playerFireReady(this.lastFireAt, this.now())) continue;
         if (this.play(event.type, partsFor(event))) this.lastFireAt = this.now();
       } else {
-        const gap = CUE_GAP[event.type];
+        const cue = cueOf(event);
+        const gap = CUE_GAP[cue];
         if (gap === undefined) {
-          this.play(event.type, partsFor(event));
-        } else if (cueReady(this.lastPlayedAt.get(event.type) ?? -Infinity, this.now(), gap)) {
-          if (this.play(event.type, partsFor(event))) this.lastPlayedAt.set(event.type, this.now());
+          this.play(cue, partsFor(event));
+        } else if (cueReady(this.lastPlayedAt.get(cue) ?? -Infinity, this.now(), gap)) {
+          if (this.play(cue, partsFor(event))) this.lastPlayedAt.set(cue, this.now());
         }
       }
     }
