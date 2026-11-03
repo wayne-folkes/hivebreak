@@ -147,14 +147,25 @@ export const ALIEN_SPRITES: Record<AlienKind, readonly [SpriteRows, SpriteRows]>
     ['beb', '.b.'],
     ['beb', 'b.b'],
   ],
-  // TODO(4a terminal): their own sprites.
-  get warper() {
-    return ALIEN_SPRITES.drone;
-  },
-  get mender() {
-    return ALIEN_SPRITES.drone;
-  },
+  // Sector 3. The Warper is an angular arrowhead with a teal core; the Mender a green blob with a white cross.
+  warper: [
+    ['hb.bh', 'bbtbb', '.bdb.'],
+    ['hb.bh', 'bbtbb', '..d..'],
+  ],
+  mender: [
+    ['dbwbd', 'bwwwb', '.bwb.'],
+    ['.bwb.', 'bwwwb', 'dbwbd'],
+  ],
 };
+
+/** The Warper's second hue and the Mender's cross; the white and teal an alien's palette adds for them. */
+export const WARPER_TEAL = 0x3fe8d0;
+
+/** A mine, 3 x 2 pixels: steel with a light (r) that the renderer blinks, dim (R) when it is off. */
+export const MINE_SPRITE: SpriteRows = ['hrh', 'sds'];
+export const MINE_SPRITE_OFF: SpriteRows = ['hRh', 'sds'];
+export const MINE_STEEL = 0x9a98b0;
+export const MINE_RED = 0xff3a3a;
 
 /** The eye colour, and what it turns to on a badly hurt multi-hit alien. */
 const EYE = 0xfff27a;
@@ -165,7 +176,7 @@ const EYE_HURT = 0xff3030;
  * red-eyed look once it has lost hit points.
  */
 export function alienPalette(kind: AlienKind, hp: number, maxHp: number, flash: boolean, tint: (c: Rgb) => Rgb = (c) => c): Record<string, Rgb> {
-  if (flash) return { h: 0xffffff, b: 0xffffff, d: 0xe8e4ff, e: 0xffffff };
+  if (flash) return { h: 0xffffff, b: 0xffffff, d: 0xe8e4ff, e: 0xffffff, t: 0xffffff, w: 0xffffff };
   const base = ALIEN_COLOUR[kind];
   const hurt = maxHp > 1 ? Math.min(1, Math.max(0, 1 - hp / maxHp)) : 0;
   const body = darken(base, hurt * 0.45);
@@ -174,6 +185,8 @@ export function alienPalette(kind: AlienKind, hp: number, maxHp: number, flash: 
     b: tint(body),
     d: tint(darken(base, 0.45 + hurt * 0.2)),
     e: tint(hurt > 0 && hp <= 1 ? EYE_HURT : EYE),
+    t: tint(WARPER_TEAL),
+    w: tint(0xffffff),
   };
 }
 

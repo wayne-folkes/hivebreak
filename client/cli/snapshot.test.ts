@@ -25,6 +25,9 @@ interface Scene {
   setup?: (run: RunState) => void;
   /** Called every step with the run, to tweak it (keeps a scene looking busy). */
   tick?: (run: RunState, t: number) => void;
+  /** Events to hand the view (as if the step produced them) at second `at` of the scene (default: just before the end, so the effect is still bright). */
+  inject?: (run: RunState) => RunEvent[];
+  at?: number;
 }
 
 function play(scene: Scene): { frame: Frame; view: FieldView; run: RunState } {
@@ -35,6 +38,7 @@ function play(scene: Scene): { frame: Frame; view: FieldView; run: RunState } {
   let events: RunEvent[] = chooseSpecial(run, scene.special ?? 'pulseBomb');
   view.events(events, run);
   let setUp = false;
+  let injected = false;
   const hud = { best: 12340, demo: false, autofire: true, keyMode: 'repeat' as const };
   const steps = Math.round(scene.seconds / DT);
   for (let i = 0; i < steps; i++) {
@@ -43,13 +47,17 @@ function play(scene: Scene): { frame: Frame; view: FieldView; run: RunState } {
       scene.setup?.(run);
       setUp = true;
     }
+    if (scene.inject && !injected && t >= (scene.at ?? scene.seconds - 0.12)) {
+      view.events(scene.inject(run), run);
+      injected = true;
+    }
     scene.tick?.(run, t);
     events = stepRun(run, [{ move: Math.sin(t * 1.3), drag: 0, fire: true, special: false }], DT);
     view.events(events, run);
     // Keep the frames light: draw every step only near the end, else just every 6th.
     if (i % 6 === 0 || i > steps - 3) {
       frame.clear();
-      view.draw(frame, layout, run, hud, DT * 6);
+      view.draw(frame, layout, run, hud, i > steps - 3 ? DT : DT * 6);
     }
   }
   frame.clear();
@@ -62,7 +70,74 @@ const upgrades = (run: RunState, ids: UpgradeId[]) => {
   p.upgrades.push(...ids);
 };
 
+/** First alien of a kind that is in the formation. */
+const firstOf = (run: RunState, kind: string) => run.aliens.find((a) => a.kind === kind);
+
 const SCENES: Scene[] = [
+  { name: 'sector3-intro', wave: 10, seconds: 0.6 },
+  { name: 'sector3-w11', wave: 10, seconds: 7 },
+  {
+    name: 'sector3-w11-warp',
+    wave: 10,
+    seconds: 7,
+    setup: (run) => {
+      const w = firstOf(run, 'warper');
+      if (w) w.warp = 0.3;
+    },
+    tick: (run) => {
+      const w = firstOf(run, 'warper');
+      if (w && w.warp !== undefined && w.warp > 0.01) w.warp = 0.3 - ((run.time * 2) % 0.28) + 0.01;
+    },
+    inject: (run) => {
+      const w = firstOf(run, 'warper');
+      return w ? [{ type: 'alienWarped', alienId: w.id, fromX: w.x + 70, fromY: w.y + 20, toX: w.x, toY: w.y }] : [];
+    },
+  },
+  {
+    name: 'sector3-w12-mend',
+    wave: 11,
+    seconds: 8,
+    setup: (run) => {
+      for (const a of run.aliens) if (a.kind !== 'mender' && a.hp > 1 && a.id % 2 === 0) a.hp -= 1;
+    },
+    inject: (run) => {
+      const m = firstOf(run, 'mender');
+      if (!m) return [];
+      const near = run.aliens.filter((a) => a !== m && Math.hypot(a.x - m.x, a.y - m.y) < 40).slice(0, 4);
+      return [{ type: 'mendPulse', alienId: m.id, x: m.x, y: m.y, healed: near.map((a) => ({ x: a.x, y: a.y })) }];
+    },
+  },
+  {
+    name: 'sector3-w13-mines',
+    wave: 12,
+    seconds: 8,
+    setup: (run) => {
+      run.mines.push({ id: 9001, x: -50, y: 70, vx: 0, vy: 0 }, { id: 9002, x: 40, y: -20, vx: 0, vy: 0 }, { id: 9003, x: 0, y: 150, vx: 0, vy: 0 });
+    },
+    tick: (run) => {
+      for (const m of run.mines) if (m.id >= 9000) m.vy = 0;
+    },
+    inject: () => [
+      { type: 'mineBurst', mineId: 9100, x: 60, y: 60, radius: 26, cause: 'shot' },
+      { type: 'mineBurst', mineId: 9101, x: -60, y: -90, radius: 8, cause: 'bunker' },
+      { type: 'mineBurst', mineId: 9102, x: 0, y: -150, radius: 16, cause: 'ground' },
+    ],
+  },
+  {
+    name: 'sector3-w14-acid',
+    wave: 13,
+    seconds: 7,
+    setup: (run) => {
+      run.acid.push(
+        { id: 9201, x: -70, y: 0, halfWidth: 7, state: 'warn', timeLeft: 5 } as RunState['acid'][number],
+        { id: 9202, x: 20, y: 0, halfWidth: 7, state: 'rain', timeLeft: 5 } as RunState['acid'][number],
+        { id: 9203, x: 80, y: 0, halfWidth: 7, state: 'warn', timeLeft: 5 } as RunState['acid'][number],
+      );
+    },
+    tick: (run) => {
+      for (const c of run.acid) if (c.id >= 9200) c.timeLeft = 5;
+    },
+  },
   { name: 'wave1', wave: 0, seconds: 4 },
   { name: 'wave1-intro', wave: 0, seconds: 0.3 },
   { name: 'sector2', wave: 5, seconds: 7 },

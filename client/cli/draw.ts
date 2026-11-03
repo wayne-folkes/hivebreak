@@ -7,9 +7,14 @@ import {
   ALIEN_SPRITES,
   Canvas,
   HELPER_SPRITE,
+  MINE_RED,
+  MINE_SPRITE,
+  MINE_SPRITE_OFF,
+  MINE_STEEL,
   SHIP_COLOUR,
   SHIP_FLAMES,
   SHIP_SPRITES,
+  WARPER_TEAL,
   WINGMAN_SPRITE,
   alienPalette,
   darken,
@@ -36,7 +41,9 @@ import {
 import { FIELD_HEIGHT, FIELD_WIDTH } from '../src/game/playfield';
 import { SHIP_TOP, SHIP_Y, SHIP_BOX_OFFSET_Y, isAlive, wingmanXs } from '../src/game/player';
 import { hasPowerUp, helperPosition } from '../src/game/powerups';
+import { ACID_HALF_WIDTH } from '../src/game/hazards';
 import { WAVE_INTRO_SECONDS } from '../src/game/run';
+import { MEND_INTERVAL, WARP_SECONDS } from '../src/game/sector3';
 import { SHIPS } from '../src/game/ships';
 import { isBursting } from '../src/game/special';
 import { synergyDef } from '../src/game/synergies';
@@ -91,8 +98,13 @@ const DANGER = 0xff6b6b;
 const GOLD = 0xffe14f;
 
 /** The sky at the top and bottom of the field, by situation: a faint gradient gives it depth. */
-const SKY = { normal: [0x07040f, 0x1a1030], red: [0x12040a, 0x2e0a16], frozen: [0x06142a, 0x12405c], slow: [0x0c0820, 0x2c1a66] } as const;
-const WALL = { normal: 0x2c2450, red: 0x4a0f24 } as const;
+const SKY = { normal: [0x07040f, 0x1a1030], red: [0x12040a, 0x2e0a16], acid: [0x040703, 0x131a06], frozen: [0x06142a, 0x12405c], slow: [0x0c0820, 0x2c1a66] } as const;
+const WALL = { normal: 0x2c2450, red: 0x4a0f24, acid: 0x3a4a12 } as const;
+
+/** Sector 3's colours: acid green and gold. */
+const ACID = 0xc6f23c;
+const GOLD3 = 0xf5c542;
+const MEND_GREEN = 0x4fff9b;
 
 export const POWER_UP_COLOUR: Record<PowerUpKind, Rgb> = { spread: 0xffb04f, laser: 0x4ff0ff, slow: 0x9b7bff, helper: 0x4fff9b };
 const POWER_UP_LETTER: Record<PowerUpKind, string> = { spread: 'S', laser: 'L', slow: 'T', helper: 'H' };
@@ -114,6 +126,11 @@ function killColours(kind: keyof typeof ALIEN_SPRITES): Rgb[] {
   return [0xffffff, lighten(base.b, 0.4), base.b, base.d];
 }
 
+/** The sky colours (top, bottom) for a sector's normal look. */
+function skyFor(sector: Sector): readonly [Rgb, Rgb] {
+  return sector === 3 ? SKY.acid : sector === 2 ? SKY.red : SKY.normal;
+}
+
 // Starfield -------------------------------------------------------------------------------------
 
 interface Star {
@@ -123,11 +140,11 @@ interface Star {
   phase: number;
 }
 
-/** Pixels per second each layer scrolls down, and its colours (cool for sector 1, warm for sector 2). */
+/** Pixels per second each layer scrolls down, and its colours (cool for sector 1, warm for sector 2, acid for sector 3). */
 const STAR_LAYERS = [
-  { speed: 1.5, count: 28, cool: 0x342d66, warm: 0x6b2a3a },
-  { speed: 3.2, count: 18, cool: 0x5b52a0, warm: 0xa8503f },
-  { speed: 6.5, count: 9, cool: 0x8f86c9, warm: 0xd9826b },
+  { speed: 1.5, count: 28, cool: 0x342d66, warm: 0x6b2a3a, acid: 0x2c3a10 },
+  { speed: 3.2, count: 18, cool: 0x5b52a0, warm: 0xa8503f, acid: 0x5f7a1c },
+  { speed: 6.5, count: 9, cool: 0x8f86c9, warm: 0xd9826b, acid: 0xb9d94a },
 ] as const;
 
 /** Stars from a fixed seed, so the field looks the same every run. */
@@ -216,8 +233,9 @@ export class FieldView {
           const sector = sectorStart && sectorStart.type === 'sectorStart' ? sectorBanner(sectorStart.sector) : null;
           const def = WAVES[Math.min(Math.max(0, e.wave), WAVES.length - 1)];
           if (sector) {
-            this.banner('wave', sector.title, sector.sub, 0xa8203c, WAVE_INTRO_SECONDS);
-            this.flashWash(0xff5a3c, 0.16, 0.7);
+            const acid = sectorStart?.type === 'sectorStart' && sectorStart.sector === 3;
+            this.banner('wave', sector.title, sector.sub, acid ? 0x4f6b12 : 0xa8203c, WAVE_INTRO_SECONDS);
+            this.flashWash(acid ? ACID : 0xff5a3c, 0.16, 0.7);
           } else {
             const boss = def?.boss ? `BOSS: ${BOSS_NAMES[def.boss].toUpperCase()}` : null;
             this.banner('wave', `WAVE ${e.wave + 1}`, boss, def?.boss ? 0xa8203c : 0x6a1a8a, WAVE_INTRO_SECONDS);
@@ -334,6 +352,57 @@ export class FieldView {
         case 'specialFired':
           this.specialEffect(e.special, e.x, e.y);
           break;
+        case 'alienWarped': {
+          const from = toPixel(e.fromX, e.fromY);
+          const to = toPixel(e.toX, e.toY);
+          const rows = ALIEN_SPRITES.warper[0];
+          // A teal trail of afterimages from where it was to where it is, then a puff at each end.
+          for (let g = 0; g < 4; g++) {
+            const k = g / 4;
+            fx.ghost(from.px + (to.px - from.px) * k, from.py + (to.py - from.py) * k, rows, WARPER_TEAL, 0.7 - g * 0.15, 0.3 + g * 0.04, g * 0.03);
+          }
+          fx.burst({ x: from.px, y: from.py, count: 8, speed: 18, life: 0.35, colours: [0xffffff, WARPER_TEAL, 0xa46bff, 0x4a2a8a] });
+          fx.ring(from.px, from.py, 2, 12, 0.22, WARPER_TEAL);
+          fx.ring(to.px, to.py, 18, 4, 0.25, WARPER_TEAL);
+          break;
+        }
+        case 'mendPulse': {
+          const m = toPixel(e.x, e.y);
+          fx.ring(m.px, m.py, 4, 36, 0.45, MEND_GREEN);
+          fx.ring(m.px, m.py, 2, 22, 0.35, 0xd8ffe8, 0.06);
+          fx.burst({ x: m.px, y: m.py, count: 6, speed: 12, life: 0.4, colours: [0xffffff, MEND_GREEN, 0x1f9e63] });
+          for (const h of e.healed) {
+            const t = toPixel(h.x, h.y);
+            fx.arc(m.px, m.py, t.px, t.py, 0.4, [0xffffff, 0xd8ffe8, MEND_GREEN, 0x1f9e63], 0.7);
+            // Green sparks drifting up off the healed alien.
+            fx.burst({ x: t.px, y: t.py, count: 4, speed: 8, life: 0.55, colours: [0xffffff, MEND_GREEN, 0x1f9e63], gravity: -14, spreadX: 1.5, spreadY: 0.5 });
+          }
+          break;
+        }
+        case 'mineBurst': {
+          const p = toPixel(e.x, e.y);
+          if (e.cause === 'shot') {
+            fx.burst({ x: p.px, y: p.py, count: 24, speed: 36, life: 0.55, colours: FIRE, spreadX: 1.5, spreadY: 1 });
+            fx.burst({ x: p.px, y: p.py, count: 8, speed: 30, life: 0.5, colours: [MINE_STEEL, 0x6c6a88], gravity: 30 });
+            fx.ring(p.px, p.py, e.radius * 0.25, e.radius, 0.3, 0xffd36a);
+            fx.ring(p.px, p.py, e.radius * 0.15, e.radius * 0.7, 0.25, 0xffffff, 0.04);
+          } else if (e.cause === 'bunker') {
+            fx.burst({ x: p.px, y: p.py, count: 10, speed: 16, life: 0.45, colours: [0xffffff, ACID, 0x7d8f2a], gravity: 22 });
+            fx.ring(p.px, p.py, 2, e.radius * 1.2, 0.2, ACID);
+          } else {
+            fx.burst({ x: p.px, y: p.py, count: 20, speed: 32, life: 0.5, colours: FIRE, spreadX: 1.5, spreadY: 1 });
+            fx.ring(p.px, p.py, e.radius * 0.3, e.radius * 1.3, 0.3, 0xff8a45);
+            fx.ring(p.px, p.py, e.radius * 0.2, e.radius, 0.25, 0xffffff, 0.04);
+          }
+          break;
+        }
+        case 'acidColumn': {
+          if (e.state !== 'rain') break;
+          // The rain starts: a spatter along the top of the column.
+          const p = toPixel(e.x, FIELD_HEIGHT / 2);
+          fx.burst({ x: p.px, y: p.py + 1, count: 8, speed: 14, life: 0.3, colours: [0xffffff, ACID, 0x7d8f2a], gravity: 20, spreadX: (e.halfWidth / ART_PER_PX_X) * 0.9 });
+          break;
+        }
         default:
           break;
       }
@@ -391,7 +460,9 @@ export class FieldView {
     this.drawPickups(frame, layout, run, mood.time);
     this.drawLasers(cv, run);
     this.drawAliens(cv, run, mood);
+    this.drawMines(cv, run);
     this.drawBoss(cv, run, mood);
+    this.drawAcid(cv, run);
     for (const player of run.players) this.drawShip(cv, run, player);
     this.drawShots(cv, run, mood);
     this.fx.draw(cv);
@@ -440,7 +511,7 @@ export class FieldView {
   // Field ---------------------------------------------------------------------------------------
 
   private drawBackground(cv: Canvas, m: Mood): void {
-    const [top, bottom] = m.frozen ? SKY.frozen : m.slowed ? SKY.slow : m.sector === 2 ? SKY.red : SKY.normal;
+    const [top, bottom] = m.frozen ? SKY.frozen : m.slowed ? SKY.slow : skyFor(m.sector);
     for (let y = 0; y < FIELD_PX_H; y++) {
       const t = y / (FIELD_PX_H - 1);
       const c = mix(top, bottom, t * t * 0.7);
@@ -449,7 +520,7 @@ export class FieldView {
     for (const s of this.stars) {
       const layer = STAR_LAYERS[s.layer];
       const y = (s.y + this.starTime * layer.speed) % FIELD_PX_H;
-      let c: Rgb = m.sector === 2 && !m.frozen && !m.slowed ? layer.warm : layer.cool;
+      let c: Rgb = !m.frozen && !m.slowed && m.sector === 2 ? layer.warm : !m.frozen && !m.slowed && m.sector === 3 ? layer.acid : layer.cool;
       if (m.frozen) c = mix(c, 0xd3f1ff, 0.55);
       else if (m.slowed) c = mix(c, 0x52ddeb, 0.5);
       // The near stars twinkle.
@@ -572,9 +643,103 @@ export class FieldView {
       const spec = ALIEN_SPECS[a.kind];
       const frames = ALIEN_SPRITES[a.kind];
       const { px, py } = toPixel(a.x, a.y);
-      const pal = alienPalette(a.kind, a.hp, spec.hp, a.flash > 0, m.tint);
       const frameIndex = Math.floor(run.time * 3) % 2;
+      if (a.warp !== undefined && a.warp > 0) {
+        this.drawWarpingIn(cv, a.warp, frames[frameIndex], px, py, run.time);
+        continue;
+      }
+      let pal = alienPalette(a.kind, a.hp, spec.hp, a.flash > 0, m.tint);
+      // A Mender about to pulse brightens.
+      if (a.kind === 'mender' && a.flash <= 0 && (a.mendTimer ?? MEND_INTERVAL) < 0.45 && Math.floor(run.time * 16) % 2 === 0) {
+        pal = { ...pal, b: m.tint(lighten(MEND_GREEN, 0.35)), h: m.tint(0xffffff), d: m.tint(MEND_GREEN) };
+      }
       drawSpriteCentred(cv, frames[frameIndex], px, py, pal);
+    }
+  }
+
+  /** A Warper arriving at its new slot: it flickers between teal and white while four specks close in on it. */
+  private drawWarpingIn(cv: Canvas, warp: number, rows: readonly string[], px: number, py: number, time: number): void {
+    const u = Math.min(1, Math.max(0, warp / WARP_SECONDS)); // 1 as it lands, 0 when done
+    const on = Math.floor(time * 30) % 2 === 0;
+    const body = on ? WARPER_TEAL : mix(WARPER_TEAL, 0xffffff, 0.7);
+    const pal = { h: 0xffffff, b: mix(0xa46bff, body, 0.35 + 0.65 * u), d: darken(body, 0.35), e: 0xffffff, t: 0xffffff, w: 0xffffff };
+    // It solidifies: the last third of the warp-in shows it every frame.
+    if (on || u < 0.35) drawSpriteCentred(cv, rows, px, py, pal);
+    else for (let j = 0; j < rows.length; j++) cv.blend(px + (j % 2 ? 2 : -2), py - 1 + j, WARPER_TEAL, 0.6);
+    const r = u * 5;
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) cv.blend(px + dx * (r + 3), py + dy * (r * 0.7 + 2), WARPER_TEAL, 0.5 + 0.5 * u);
+  }
+
+  private drawMines(cv: Canvas, run: RunState): void {
+    for (const mine of run.mines) {
+      const { px, py } = toPixel(mine.x, mine.y);
+      const lit = Math.floor(run.time * 3 + mine.id) % 2 === 0;
+      const pal = { h: lighten(MINE_STEEL, 0.4), s: MINE_STEEL, d: darken(MINE_STEEL, 0.5), r: MINE_RED, R: darken(MINE_RED, 0.62) };
+      // The light's glow.
+      if (lit) {
+        cv.blend(px - 2, py - 1, MINE_RED, 0.18);
+        cv.blend(px + 2, py - 1, MINE_RED, 0.18);
+        cv.blend(px, py - 2, MINE_RED, 0.3);
+      }
+      drawSpriteCentred(cv, lit ? MINE_SPRITE : MINE_SPRITE_OFF, px, py, pal);
+    }
+  }
+
+  /** Acid columns: a dashed gold marker (and faint guide) while 'warn', falling green streaks in a dim curtain while 'rain'. */
+  private drawAcid(cv: Canvas, run: RunState): void {
+    for (const col of run.acid) {
+      const half = col.halfWidth || ACID_HALF_WIDTH;
+      const left = Math.round(toPixel(col.x - half, 0).px);
+      const right = Math.max(left + 1, Math.round(toPixel(col.x + half, 0).px));
+      const bottom = Math.round(toPixel(0, SHIP_Y).py);
+      const t = run.time;
+      if (col.state === 'warn') {
+        const blink = 0.55 + 0.45 * Math.sin(t * 24);
+        // The marker: a dashed bar on the top two rows, marching.
+        for (let x = left; x < right; x++) {
+          const on = Math.floor((x + Math.floor(t * 10)) / 2) % 2 === 0;
+          cv.blend(x, 0, GOLD3, on ? blink : 0.25);
+          cv.blend(x, 1, GOLD3, on ? 0.35 * blink : 0.1);
+        }
+        // Brackets at the ends, and a faint guide down both edges and a tint between.
+        cv.blend(left, 2, GOLD3, 0.7);
+        cv.blend(right - 1, 2, GOLD3, 0.7);
+        for (let y = 3; y <= bottom; y++) {
+          if (y % 3 === 0) {
+            cv.blend(left, y, GOLD3, 0.22);
+            cv.blend(right - 1, y, GOLD3, 0.22);
+          }
+        }
+        for (let y = 2; y <= bottom; y++) for (let x = left + 1; x < right - 1; x++) cv.blend(x, y, GOLD3, 0.025);
+      } else {
+        // Fade in over the first 0.1 s and out over the last 0.2 s.
+        const alpha = Math.min(1, col.timeLeft / 0.2);
+        for (let y = 0; y <= bottom; y++) {
+          for (let x = left; x < right; x++) cv.blend(x, y, ACID, 0.1 * alpha);
+          if (y % 2 === 0) {
+            cv.blend(left, y, ACID, 0.3 * alpha);
+            cv.blend(right - 1, y, ACID, 0.3 * alpha);
+          }
+        }
+        // Streaks: each column of pixels has one or two falling at their own speeds.
+        for (let x = left; x < right; x++) {
+          for (let k = 0; k < 3; k++) {
+            const seed = (x * 7 + k * 13 + col.id * 5) % 11;
+            const speed = 70 + seed * 9;
+            const length = 4 + (seed % 4);
+            const head = (t * speed + seed * 17 + k * 40) % (bottom + length);
+            for (let i = 0; i < length; i++) {
+              const y = head - i;
+              if (y < 0 || y > bottom) continue;
+              cv.blend(x, y, i === 0 ? 0xeaff9a : ACID, (i === 0 ? 1 : 0.9 - i * 0.16) * alpha);
+            }
+          }
+        }
+        // Splash where the rain lands.
+        for (let x = left; x < right; x++) {
+          if (Math.floor(t * 20 + x) % 3 === 0) cv.blend(x, bottom + 1, ACID, 0.7 * alpha);
+        }
+      }
     }
   }
 
@@ -864,8 +1029,8 @@ export class FieldView {
   // Walls, status lines and panels ----------------------------------------------------------------
 
   private drawWalls(frame: Frame, layout: Layout, m: Mood): void {
-    const wall = m.sector === 2 ? WALL.red : WALL.normal;
-    const sky = m.sector === 2 ? SKY.red[0] : SKY.normal[0];
+    const wall = m.sector === 3 ? WALL.acid : m.sector === 2 ? WALL.red : WALL.normal;
+    const sky = skyFor(m.sector)[0];
     for (let r = 0; r < FIELD_ROWS; r++) {
       frame.text(layout.fieldCol - 1, layout.fieldRow + r, '│', wall, sky);
       frame.text(layout.fieldCol + FIELD_COLS, layout.fieldRow + r, '│', wall, sky);

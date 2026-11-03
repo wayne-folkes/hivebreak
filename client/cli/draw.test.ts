@@ -7,8 +7,9 @@ import { Frame } from './frame';
 import type { Rgb } from './frame';
 import { FIELD_COLS, FIELD_PX_H, FIELD_PX_W, computeLayout, toPixel } from './layout';
 import type { Layout } from './layout';
-import { ALIEN_COLOUR, SHIP_COLOUR } from './sprites';
+import { ALIEN_COLOUR, MINE_RED, MINE_STEEL, SHIP_COLOUR, WARPER_TEAL } from './sprites';
 import { SHIP_Y } from '../src/game/player';
+import { WARP_SECONDS } from '../src/game/sector3';
 import { chooseSpecial, createRun, stepRun } from '../src/game/run';
 import type { RunEvent, RunState, ShipId, ShipInput } from '../src/game/types';
 import { formatScore } from '../src/ui/format';
@@ -463,5 +464,139 @@ describe('FieldView', () => {
       if (c === 0xffffff || c === 0x9dfafd || c === 0x52ddeb) lit++;
     }
     expect(lit).toBeGreaterThan((FIELD_PX_H - 12 - top.py) * 0.9);
+  });
+  describe('sector 3', () => {
+    const fieldPixel = (frame: Frame, layout: Layout, x: number, y: number) => frame.pixelAt(layout.fieldCol + x, layout.fieldRow * 2 + y);
+    /** How many field pixels differ between two frames. */
+    const diff = (a: Frame, b: Frame, layout: Layout) => {
+      let n = 0;
+      for (let y = 0; y < FIELD_PX_H; y++) for (let x = 0; x < FIELD_PX_W; x++) if (fieldPixel(a, layout, x, y) !== fieldPixel(b, layout, x, y)) n++;
+      return n;
+    };
+
+    it('draws waves 11 to 14 playing, with every new thing on screen, without throwing', () => {
+      for (const wave of [10, 11, 12, 13]) {
+        const view = new FieldView();
+        const run = startedRun(wave);
+        const events: RunEvent[] = [];
+        for (let i = 0; i < 10; i++) {
+          events.push(...step(run, 1, { move: Math.sin(i), drag: 0, fire: true, special: false }));
+          view.events(events.splice(0), run);
+          expect(() => render(view, run, WIDE)).not.toThrow();
+        }
+      }
+    });
+
+    it('gives sector 3 its own sky, greener than the first sector', () => {
+      const one = render(new FieldView(), startedRun(0), MIN);
+      const three = render(new FieldView(), startedRun(10), MIN);
+      // A corner of the field with no star in it.
+      const a = fieldPixel(one, MIN, 0, 0);
+      const b = fieldPixel(three, MIN, 0, 0);
+      expect(a & 0xff).toBeGreaterThan((a >> 8) & 0xff); // sector 1: violet-blue
+      expect((b >> 8) & 0xff).toBeGreaterThan(b & 0xff); // sector 3: acid green
+    });
+
+    it('draws a mine as steel with a red light that blinks', () => {
+      const run = startedRun(12);
+      run.mines.push({ id: 0, x: 0, y: 0, vx: 0, vy: 0 });
+      const p = toPixel(0, 0);
+      run.time = 0;
+      const lit = render(new FieldView(), run, MIN);
+      expect(hasColour(lit, MIN, MINE_STEEL, p.px - 2, p.py - 2, p.px + 2, p.py + 2)).toBe(true);
+      expect(hasColour(lit, MIN, MINE_RED, p.px - 2, p.py - 2, p.px + 2, p.py + 2)).toBe(true);
+      run.time = 0.4;
+      const dark = render(new FieldView(), run, MIN);
+      expect(hasColour(dark, MIN, MINE_STEEL, p.px - 2, p.py - 2, p.px + 2, p.py + 2)).toBe(true);
+      expect(hasColour(dark, MIN, MINE_RED, p.px - 2, p.py - 2, p.px + 2, p.py + 2)).toBe(false);
+    });
+
+    it('marks a warning column at its top, and rains down to the ship from a raining one', () => {
+      const run = startedRun(13);
+      run.time = 0.3;
+      const empty = render(new FieldView(), run, MIN);
+      const x = toPixel(0, 0).px;
+
+      run.acid.push({ id: 1, x: 0, halfWidth: 7, state: 'warn', timeLeft: 0.8 });
+      const warn = render(new FieldView(), run, MIN);
+      // Gold-tinted pixels along the top rows, and a faint guide further down.
+      let top = 0;
+      for (let dx = -2; dx <= 2; dx++) if (fieldPixel(warn, MIN, Math.round(x) + dx, 0) !== fieldPixel(empty, MIN, Math.round(x) + dx, 0)) top++;
+      expect(top).toBeGreaterThan(2);
+      expect(diff(warn, empty, MIN)).toBeGreaterThan(20);
+      // Warn is lighter than rain.
+      run.acid[0].state = 'rain';
+      run.acid[0].timeLeft = 1;
+      const rain = render(new FieldView(), run, MIN);
+      expect(diff(rain, empty, MIN)).toBeGreaterThan(diff(warn, empty, MIN));
+      // The rain reaches the ship's row, and its streak heads are bright acid.
+      const bottom = toPixel(0, SHIP_Y).py;
+      let reaches = false;
+      for (let y = Math.floor(bottom) - 6; y <= Math.floor(bottom); y++) for (let dx = -2; dx <= 2; dx++) if (fieldPixel(rain, MIN, Math.round(x) + dx, y) !== fieldPixel(empty, MIN, Math.round(x) + dx, y)) reaches = true;
+      expect(reaches).toBe(true);
+      expect(hasColour(rain, MIN, 0xeaff9a, x - 3, 0, x + 3, bottom + 1)).toBe(true);
+      // Outside the column nothing changes.
+      expect(fieldPixel(rain, MIN, 2, 40)).toBe(fieldPixel(empty, MIN, 2, 40));
+    });
+
+    it('flickers a Warper while it warps in, then settles', () => {
+      const run = startedRun(10);
+      step(run, 6); // the formation is in place
+      const warper = run.aliens.find((a) => a.kind === 'warper' && a.mode === 'formation');
+      expect(warper).toBeDefined();
+      const w = warper!;
+      run.time = 0;
+      const normal = render(new FieldView(), run, MIN);
+      w.warp = WARP_SECONDS;
+      const a = render(new FieldView(), run, MIN);
+      run.time = 1 / 30;
+      const b = render(new FieldView(), run, MIN);
+      expect(diff(a, normal, MIN)).toBeGreaterThan(3);
+      expect(diff(a, b, MIN)).toBeGreaterThan(3);
+      const p = toPixel(w.x, w.y);
+      expect(hasColour(a, MIN, WARPER_TEAL, p.px - 5, p.py - 4, p.px + 5, p.py + 4)).toBe(true);
+      // With no warp left it is the normal sprite again.
+      w.warp = 0;
+      run.time = 0;
+      const after = render(new FieldView(), run, MIN);
+      expect(hasColour(after, MIN, WARPER_TEAL, p.px - 3, p.py - 2, p.px + 3, p.py + 2)).toBe(true);
+      expect(diff(after, a, MIN)).toBeGreaterThan(3);
+    });
+
+    it('makes effects for a warp, a heal pulse and each kind of mine burst, and ages them out', () => {
+      const run = startedRun(11);
+      const events: RunEvent[][] = [
+        [{ type: 'alienWarped', alienId: 1, fromX: -40, fromY: 100, toX: 30, toY: 120 }],
+        [{ type: 'mendPulse', alienId: 2, x: 0, y: 100, healed: [{ x: 20, y: 100 }, { x: -20, y: 100 }] }],
+        [{ type: 'mineBurst', mineId: 3, x: 0, y: 0, radius: 26, cause: 'shot' }],
+        [{ type: 'mineBurst', mineId: 4, x: 0, y: -90, radius: 8, cause: 'bunker' }],
+        [{ type: 'mineBurst', mineId: 5, x: 0, y: -150, radius: 16, cause: 'ground' }],
+        [{ type: 'acidColumn', columnId: 6, state: 'rain', x: 0, halfWidth: 7 }],
+      ];
+      for (const e of events) {
+        const view = new FieldView();
+        view.events(e, run);
+        expect(view.effectCount).toBeGreaterThan(0);
+        for (let i = 0; i < 20; i++) expect(() => render(view, run, MIN, HUD, 0.1)).not.toThrow();
+        expect(view.effectCount).toBe(0);
+      }
+    });
+
+    it('draws the afterimage of a warp: a teal trail between where it was and where it went', () => {
+      const run = startedRun(10);
+      const view = new FieldView();
+      view.events([{ type: 'alienWarped', alienId: -1, fromX: -80, fromY: 20, toX: 80, toY: 20 }], run);
+      const frame = render(view, run, MIN, HUD, 0.02);
+      const from = toPixel(-80, 20);
+      const to = toPixel(80, 20);
+      let teal = 0;
+      for (let y = Math.floor(from.py) - 4; y <= Math.floor(from.py) + 4; y++) {
+        for (let x = Math.floor(from.px) - 6; x <= Math.ceil(to.px) + 6; x++) {
+          const c = fieldPixel(frame, MIN, x, y);
+          if (((c >> 8) & 0xff) > 0x60 && ((c >> 16) & 0xff) < 0x50) teal++;
+        }
+      }
+      expect(teal).toBeGreaterThan(8);
+    });
   });
 });

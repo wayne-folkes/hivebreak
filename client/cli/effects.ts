@@ -1,5 +1,6 @@
 import { ART_PER_PX_X, ART_PER_PX_Y } from './layout';
 import { Canvas, mix } from './sprites';
+import type { SpriteRows } from './sprites';
 import type { Rgb } from './frame';
 
 // The terminal's short-lived effects: sparks, expanding rings and jagged lightning arcs. All of it
@@ -11,6 +12,7 @@ import type { Rgb } from './frame';
 export const MAX_PARTICLES = 480;
 export const MAX_RINGS = 24;
 export const MAX_ARCS = 24;
+export const MAX_GHOSTS = 16;
 
 interface Particle {
   x: number;
@@ -44,6 +46,18 @@ interface Arc {
   colours: readonly Rgb[];
 }
 
+/** A fading, single-coloured copy of a sprite (a Warper's afterimage). */
+interface Ghost {
+  x: number;
+  y: number;
+  rows: SpriteRows;
+  colour: Rgb;
+  /** Opacity at its brightest. */
+  alpha: number;
+  age: number;
+  life: number;
+}
+
 export interface BurstOptions {
   x: number;
   y: number;
@@ -70,6 +84,7 @@ export class Effects {
   private particles: Particle[] = [];
   private rings: Ring[] = [];
   private arcs: Arc[] = [];
+  private ghosts: Ghost[] = [];
   private seed = 0x9e3779b9;
 
   /** A seeded random number in [0, 1). */
@@ -83,7 +98,7 @@ export class Effects {
 
   /** How many effects are alive (for tests). */
   get count(): number {
-    return this.particles.length + this.rings.length + this.arcs.length;
+    return this.particles.length + this.rings.length + this.arcs.length + this.ghosts.length;
   }
 
   get particleCount(): number {
@@ -94,6 +109,7 @@ export class Effects {
     this.particles.length = 0;
     this.rings.length = 0;
     this.arcs.length = 0;
+    this.ghosts.length = 0;
   }
 
   /** A burst of sparks. */
@@ -123,8 +139,14 @@ export class Effects {
     this.rings.push({ x, y, r0, r1, age: -delay, life, colour, delay });
   }
 
-  /** A jagged bolt between two pixel positions. */
-  arc(x0: number, y0: number, x1: number, y1: number, life: number, colours: readonly Rgb[]): void {
+  /** A copy of a sprite, centred on a pixel position, that fades out over `life` seconds (starting after `delay`). */
+  ghost(x: number, y: number, rows: SpriteRows, colour: Rgb, alpha: number, life: number, delay = 0): void {
+    if (this.ghosts.length >= MAX_GHOSTS) this.ghosts.shift();
+    this.ghosts.push({ x, y, rows, colour, alpha, age: -delay, life });
+  }
+
+  /** A jagged bolt between two pixel positions; `jitter` is how far (pixels) the bolt strays from the straight line. */
+  arc(x0: number, y0: number, x1: number, y1: number, life: number, colours: readonly Rgb[], jitter = 2.4): void {
     if (this.arcs.length >= MAX_ARCS) this.arcs.shift();
     const dx = x1 - x0;
     const dy = y1 - y0;
@@ -135,7 +157,7 @@ export class Effects {
     const points = [{ x: x0, y: y0 }];
     for (let i = 1; i < segs; i++) {
       const t = i / segs;
-      const off = (this.random() - 0.5) * 2.4;
+      const off = (this.random() - 0.5) * jitter;
       points.push({ x: x0 + dx * t + nx * off, y: y0 + dy * t + ny * off });
     }
     points.push({ x: x1, y: y1 });
@@ -158,10 +180,25 @@ export class Effects {
     this.rings = this.rings.filter((r) => r.age < r.life);
     for (const a of this.arcs) a.age += dt;
     this.arcs = this.arcs.filter((a) => a.age < a.life);
+    for (const g of this.ghosts) g.age += dt;
+    this.ghosts = this.ghosts.filter((g) => g.age < g.life);
   }
 
   /** Draws everything onto the canvas. */
   draw(cv: Canvas): void {
+    for (const g of this.ghosts) {
+      if (g.age < 0) continue;
+      const alpha = g.alpha * (1 - g.age / g.life);
+      const w = Math.max(...g.rows.map((r) => r.length));
+      const left = Math.round(g.x - w / 2);
+      const top = Math.round(g.y - g.rows.length / 2);
+      for (let j = 0; j < g.rows.length; j++) {
+        for (let i = 0; i < g.rows[j].length; i++) {
+          const ch = g.rows[j][i];
+          if (ch !== '.' && ch !== ' ') cv.blend(left + i, top + j, g.colour, alpha);
+        }
+      }
+    }
     for (const r of this.rings) {
       if (r.age < 0) continue;
       const u = r.age / r.life;
