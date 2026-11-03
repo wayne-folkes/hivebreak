@@ -45,7 +45,7 @@ import type { Target } from './shots';
 import { stepShot } from './shots';
 import { CHARGE_PER_BOSS_PART, chargeSpecial, fireSpecial, killCharge, reflectShots, tickBurst } from './special';
 import { BATTERY_CHARGE, BURST_DAMAGE, BURST_RADIUS, STORM_EXTRA_HOPS, hasSynergy, killBursts, unlockSynergies } from './synergies';
-import type { Alien, Box, Pickup, PlayerState, RunEvent, RunOptions, RunPhase, RunState, ShipInput, Shot, ShotKind, SpecialId, WaveDef } from './types';
+import type { Alien, Box, BossKind, Pickup, PlayerState, RunEvent, RunOptions, RunPhase, RunState, ShipInput, Shot, ShotKind, SpecialId, WaveDef } from './types';
 import { NO_INPUT } from './types';
 import { CHAIN_DAMAGE, CHAIN_RANGE, UPGRADES, applyUpgrade, offerUpgrades } from './upgrades';
 import { WAVE_COUNT, WAVES, waveColumns } from './waves';
@@ -101,6 +101,13 @@ export const BUNKER_HIT_EVENT_SECONDS = 0.1;
 export const BEAM_BURN_SECONDS = 0.1;
 export const BEAM_BURN_WIDTH = 4;
 
+/** Boss Rush: upgrade picks taken before the first boss. */
+export const RUSH_START_PICKS = 3;
+/** Boss Rush: a boss beaten faster than its par (seconds, intro included) scores a time bonus. */
+export const RUSH_PAR_SECONDS: Readonly<Record<BossKind, number>> = { broodMother: 60, hiveMind: 90, hiveHeart: 120 };
+/** Boss Rush: points for each second under par. */
+export const RUSH_BONUS_PER_SECOND = 50;
+
 /**
  * Starts a run waiting in the Special choice, at wave 0 or, for testing, at `firstWave` (an
  * index into the wave list; the dev server's `?wave=` uses it to reach the boss quickly).
@@ -136,14 +143,56 @@ export function createRun(seed: number, playerCount = 1, firstWave = 0, options:
     mineTimer: 0,
     acidTimer: 0,
     mode: options.mode ?? 'normal',
-    // TODO(4b Boss Rush worker): set up the rush (stages, picks) for mode 'bossRush'.
     rush: null,
     rng: createRng(seed),
     nextId: 1,
   };
+  if (run.mode === 'bossRush') {
+    // Boss Rush plays only the boss waves; `firstWave` doesn't apply.
+    const stages = WAVES.flatMap((w, i) => (w.boss !== undefined ? [i] : []));
+    run.rush = { stages, stage: 0, picksLeft: RUSH_START_PICKS, time: 0, stageTime: 0 };
+    run.wave = stages[0];
+  }
   startWave(run);
   setPhase(run, 'chooseSpecial');
   return run;
+}
+
+/** Index of the wave played before the current one: the previous boss in Boss Rush, else the one before. */
+function previousWave(run: RunState): number {
+  return run.rush ? (run.rush.stages[run.rush.stage - 1] ?? -1) : run.wave - 1;
+}
+
+/** Whether the current wave starts a new sector (so: fresh bunkers and a banner). */
+function sectorChanged(run: RunState): boolean {
+  return WAVES[previousWave(run)]?.sector !== WAVES[run.wave].sector;
+}
+
+/**
+ * How many bosses a Boss Rush has beaten: the stage it is on, one more once it is won, and one
+ * more while the pick after a boss is open (the stage only advances when the pick is taken).
+ * 0 for a normal run.
+ */
+export function rushBossesBeaten(run: RunState): number {
+  const rush = run.rush;
+  if (!rush) return 0;
+  const afterBoss = run.phase === 'upgradePick' && rush.picksLeft === 0;
+  return Math.min(rush.stages.length, rush.stage + (run.phase === 'won' || afterBoss ? 1 : 0));
+}
+
+/** Boss Rush: opens the next of the starting picks, or goes on to the first boss when none can be offered. */
+function offerRushPick(run: RunState): void {
+  const rush = run.rush;
+  if (!rush) return;
+  if (rush.picksLeft > 0) {
+    run.offer = offerUpgrades(run.rng, run.players[0], OFFER_SIZE, { pool: run.upgradePool });
+    if (run.offer.length > 0) {
+      setPhase(run, 'upgradePick');
+      return;
+    }
+    rush.picksLeft = 0;
+  }
+  startWave(run);
 }
 
 function setPhase(run: RunState, phase: RunPhase): void {
@@ -160,7 +209,10 @@ export function chooseSpecial(run: RunState, special: SpecialId, playerId = 0): 
   if (run.phase !== 'chooseSpecial' || !player) return [];
   player.special = special;
   player.specialCharge = 0;
-  if (run.players.every((p) => p.special !== null)) setPhase(run, 'waveIntro');
+  if (run.players.every((p) => p.special !== null)) {
+    if (run.rush) offerRushPick(run);
+    else setPhase(run, 'waveIntro');
+  }
   return [{ type: 'specialChosen', playerId, special }];
 }
 
@@ -172,7 +224,8 @@ export function chooseSpecial(run: RunState, special: SpecialId, playerId = 0): 
 function startWave(run: RunState): void {
   const def = WAVES[run.wave];
   // Fresh bunkers for the run's first wave and whenever the sector changes; otherwise they carry on.
-  if (run.bunkers.length === 0 || WAVES[run.wave - 1]?.sector !== def.sector) run.bunkers = createBunkers(() => run.nextId++);
+  // (Boss Rush compares with the boss before, so each boss gets fresh ones.)
+  if (run.bunkers.length === 0 || sectorChanged(run)) run.bunkers = createBunkers(() => run.nextId++);
   const spawned = spawnFormation(def, () => run.nextId++);
   run.aliens = spawned.aliens;
   run.formation = spawned.formation;
@@ -184,6 +237,7 @@ function startWave(run: RunState): void {
   run.slow = 0;
   run.stun = 0;
   run.well = null;
+  if (run.rush) run.rush.stageTime = 0;
   resetHazards(run);
   for (const p of run.players) {
     refillWaveGuards(p);
@@ -208,7 +262,7 @@ export function stepRun(run: RunState, inputs: readonly ShipInput[], dt: number)
   if (run.phase === 'waveIntro' && run.phaseTime === 0) {
     // A sector starts with the run's first wave (the clock hasn't run yet) and when the sector changes.
     const sector = WAVES[run.wave].sector;
-    if (run.time === 0 || WAVES[run.wave - 1]?.sector !== sector) events.push({ type: 'sectorStart', sector });
+    if (run.time === 0 || sectorChanged(run)) events.push({ type: 'sectorStart', sector });
     events.push({ type: 'waveStart', wave: run.wave });
   }
   run.phaseTime += dt;
@@ -235,19 +289,46 @@ export function pickUpgrade(run: RunState, choice: number, playerId = 0): RunEve
   const events: RunEvent[] = [{ type: 'upgradePicked', playerId, upgrade }];
   for (const synergy of unlockSynergies(player)) events.push({ type: 'synergyUnlocked', playerId, synergy });
   run.offer = [];
+  if (run.rush) {
+    if (run.rush.picksLeft > 0) {
+      // One of the starting picks: another, or the first boss.
+      run.rush.picksLeft--;
+      offerRushPick(run);
+    } else {
+      advanceRush(run);
+    }
+    return events;
+  }
   run.wave++;
   startWave(run);
   return events;
+}
+
+/** Boss Rush: on to the next boss (not the next wave). */
+function advanceRush(run: RunState): void {
+  const rush = run.rush;
+  if (!rush) return;
+  rush.stage++;
+  run.wave = rush.stages[rush.stage];
+  startWave(run);
 }
 
 /** The wave intro: ships can steer (but not fire), time runs, and a boss descends into view. */
 function stepIntro(run: RunState, inputs: readonly ShipInput[], dt: number, events: RunEvent[]): void {
   tickRunEffects(run, dt);
   run.time += dt;
+  tickRush(run, dt);
   stepShips(run, inputs, dt, false, events);
   stepBossBy(run, dt, dt, events);
   // The pincer flies its two halves in during the intro.
   stepFormationEntry(run.formation, run.aliens, WAVES[run.wave], dt);
+}
+
+/** Boss Rush's clocks run in the wave intro and while playing, on real time. */
+function tickRush(run: RunState, dt: number): void {
+  if (!run.rush) return;
+  run.rush.time += dt;
+  run.rush.stageTime += dt;
 }
 
 function stepPlaying(run: RunState, inputs: readonly ShipInput[], dt: number, events: RunEvent[]): void {
@@ -256,6 +337,7 @@ function stepPlaying(run: RunState, inputs: readonly ShipInput[], dt: number, ev
   // 1-2. Effects, ships and Warpers' warp-ins, on real time.
   tickRunEffects(run, dt);
   run.time += dt;
+  tickRush(run, dt);
   stepShips(run, inputs, dt, true, events);
   stepWarps(run, dt);
 
@@ -991,7 +1073,19 @@ function clearWave(run: RunState, events: RunEvent[]): void {
   run.mines = [];
   run.acid = [];
   events.push({ type: 'waveClear', wave: run.wave });
-  if (run.wave >= WAVE_COUNT - 1) {
+  const rush = run.rush;
+  let lastWave = run.wave >= WAVE_COUNT - 1;
+  if (rush) {
+    // A boss beaten under par scores a bonus for each second to spare.
+    const par = RUSH_PAR_SECONDS[WAVES[run.wave].boss ?? 'broodMother'];
+    if (rush.stageTime < par) {
+      const points = Math.round((par - rush.stageTime) * RUSH_BONUS_PER_SECOND);
+      run.score += points;
+      events.push({ type: 'rushBonus', stage: rush.stage, seconds: rush.stageTime, points });
+    }
+    lastWave = rush.stage >= rush.stages.length - 1;
+  }
+  if (lastWave) {
     setPhase(run, 'won');
     events.push({ type: 'won' });
     return;
@@ -999,8 +1093,11 @@ function clearWave(run: RunState, events: RunEvent[]): void {
   run.offer = offerUpgrades(run.rng, run.players[0], OFFER_SIZE, { guaranteeRare: bossWave, pool: run.upgradePool });
   // Nothing left to offer (every unlocked upgrade maxed): straight on to the next wave.
   if (run.offer.length === 0) {
-    run.wave++;
-    startWave(run);
+    if (rush) advanceRush(run);
+    else {
+      run.wave++;
+      startWave(run);
+    }
     return;
   }
   setPhase(run, 'upgradePick');
