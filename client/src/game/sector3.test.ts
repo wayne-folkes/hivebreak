@@ -60,6 +60,21 @@ function hurt(run: RunState, alien: Alien): RunEvent[] {
 const shotAt = (x: number, y: number): Shot => ({ id: 1, owner: 'player', kind: 'normal', damage: 1, homing: 0, bouncesLeft: 0, playerId: 0, x, y, vx: 0, vy: 260, pierceLeft: 0, hits: 0, volley: 0 });
 
 describe('Warper', () => {
+  it('blinks when a Pulse Bomb hits it and it lives', () => {
+    const run = createRun(3, 1, WAVE_11);
+    chooseSpecial(run, 'pulseBomb');
+    for (let i = 0; i < Math.ceil(WAVE_INTRO_SECONDS / DT) + 1; i++) stepRun(run, [NO_INPUT], DT);
+    expect(run.phase).toBe('playing');
+    const warper = run.aliens.find((a) => a.kind === 'warper' && a.mode === 'formation') as Alien;
+    // Enough hp to live through the pulse.
+    warper.hp = 9;
+    run.players[0].specialCharge = 1;
+    const events = stepRun(run, [{ move: 0, drag: 0, fire: false, special: true }], DT);
+    expect(events.some((e) => e.type === 'blast')).toBe(true);
+    expect(events.filter((e) => e.type === 'alienWarped' && e.alienId === warper.id)).toHaveLength(1);
+    expect(warper.warped).toBe(true);
+  });
+
   it('blinks once, on its first surviving hit, to an empty slot with an event', () => {
     const run = runOn(WAVE_11);
     const warper = at(run, 2, 0);
@@ -210,8 +225,8 @@ describe('Mender', () => {
     expect(events[0]).toMatchObject({ type: 'mendPulse', alienId: mender.id, x: mender.x, y: mender.y });
     const healed = (events[0] as Extract<RunEvent, { type: 'mendPulse' }>).healed;
     expect(healed).toHaveLength(2);
-    expect(healed).toContainEqual({ x: neighbour.x, y: neighbour.y });
-    expect(healed).toContainEqual({ x: diagonal.x, y: diagonal.y });
+    expect(healed).toContainEqual({ alienId: neighbour.id, x: neighbour.x, y: neighbour.y });
+    expect(healed).toContainEqual({ alienId: diagonal.id, x: diagonal.x, y: diagonal.y });
   });
 
   it("never heals past full hp (the wave's armour counts), and says nothing when nobody needs it", () => {

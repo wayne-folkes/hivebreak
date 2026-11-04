@@ -3,7 +3,7 @@ import { LEGACY_RECORD_WAVES } from '../game/records';
 import type { RunRecord } from '../game/records';
 import type { RushRecord } from '../game/rushrecords';
 import type { SourceKind } from '../game/controls';
-import type { ActivePowerUp, BossKind, PowerUpKind, Rarity, Sector, ShipDef, SpecialId, SynergyId, UpgradeId } from '../game/types';
+import type { ActivePowerUp, BossKind, PowerUpKind, Rarity, RunPhase, Sector, ShipDef, SpecialId, SynergyId, UpgradeId } from '../game/types';
 import type { Unlock } from '../game/progress';
 import { SHIPS } from '../game/ships';
 import { SPECIALS } from '../game/special';
@@ -216,6 +216,14 @@ export function waveClearHeading(wave: number): string {
 /** The pick card's heading after a boss: "BROOD MOTHER DOWN". */
 export function bossDownHeading(kind: BossKind): string {
   return `${BOSS_NAMES[kind].toUpperCase()} DOWN`;
+}
+
+/**
+ * Is the boss bar shown in this phase? Not while the Special or an upgrade is being picked: a run
+ * started at a boss wave (Boss Rush's starting picks, or a dev jump) already holds its boss then.
+ */
+export function bossBarVisible(phase: RunPhase): boolean {
+  return phase !== 'chooseSpecial' && phase !== 'upgradePick';
 }
 
 /** The boss bar's fill as a CSS percentage, 0 to 100, from bossHealth()'s 0 to 1. */

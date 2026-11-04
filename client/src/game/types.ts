@@ -646,7 +646,7 @@ export type RunEvent =
   | { type: 'wellConsumed'; x: number; y: number }
   // Sector 3.
   | { type: 'alienWarped'; alienId: number; fromX: number; fromY: number; toX: number; toY: number }
-  | { type: 'mendPulse'; alienId: number; x: number; y: number; healed: readonly { x: number; y: number }[] }
+  | { type: 'mendPulse'; alienId: number; x: number; y: number; healed: readonly { alienId: number; x: number; y: number }[] }
   | { type: 'mineSpawned'; mineId: number; x: number; y: number }
   // A mine went off: shot by a player (damaging aliens in `radius`), against a bunker, or at the ship's row.
   | { type: 'mineBurst'; mineId: number; x: number; y: number; radius: number; cause: 'shot' | 'bunker' | 'ground' }

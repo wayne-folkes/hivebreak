@@ -436,6 +436,28 @@ describe('hazards in a run', () => {
     expect(run.players[0].lives).toBe(lives - 1);
   });
 
+  it('in co-op, a mine going off at the ships\' row hurts both ships in its blast', () => {
+    const run = createRun(3, 2, MINE_WAVE);
+    chooseSpecial(run, 'pulseBomb', 0);
+    chooseSpecial(run, 'pulseBomb', 1);
+    run.bunkers = [];
+    for (let i = 0; i < Math.ceil(WAVE_INTRO_SECONDS / DT) + 1; i++) stepRun(run, [NO_INPUT, NO_INPUT], DT);
+    expect(run.phase).toBe('playing');
+    run.mineTimer = 1000;
+    run.acidTimer = 1000;
+    run.aliens = [];
+    run.shots = [];
+    const [a, b] = run.players;
+    const lives = [a.lives, b.lives];
+    // Both ships side by side, inside one mine's blast; the blast lasts a single step.
+    a.x = -MINE_BLAST / 2;
+    b.x = MINE_BLAST / 2;
+    mineAt(run, 0, MINE_GROUND_Y + 0.01);
+    const events = stepRun(run, [NO_INPUT, NO_INPUT], DT);
+    expect(events.filter((e) => e.type === 'mineBurst')).toHaveLength(1);
+    expect([a.lives, b.lives]).toEqual([lives[0] - 1, lives[1] - 1]);
+  });
+
   it('a bunker shelters the ship under it while the rain eats into it', () => {
     const run = playingRun();
     run.bunkers = createBunkers(() => run.nextId++);

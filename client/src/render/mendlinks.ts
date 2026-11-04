@@ -5,8 +5,8 @@ import type { Scene } from 'three';
 // a wide dark-green line with a bright core, flickering for a moment and thinning away. Pooled:
 // each link is two stretched cubes built once; starting one only places them.
 //
-// A link is anchored to its Mender and follows it as the formation marches, so the line does not
-// slide off the aliens while it lasts.
+// A link is anchored at both ends, to its Mender and to the alien it healed, and each end follows
+// its alien as the formation marches and weaves, so the line stays on them while it lasts.
 
 /** Seconds a link lasts. */
 export const LINK_SECONDS = 0.4;
@@ -32,13 +32,14 @@ interface Link {
   core: Mesh;
   spark: Mesh;
   age: number;
-  /** The Mender (alien id) the link hangs from, and where the healed alien is relative to it. */
+  /** The Mender (alien id) the link hangs from, and the alien it healed. */
   anchor: number;
-  dx: number;
-  dy: number;
-  /** The Mender's position as of the last `follow` (or the pulse), where the link starts. */
+  target: number;
+  /** Where each end was drawn as of the last `follow` (or the pulse). */
   fromX: number;
   fromY: number;
+  toX: number;
+  toY: number;
 }
 
 export class MendLinks {
@@ -59,10 +60,11 @@ export class MendLinks {
         spark: new Mesh(cube, spark),
         age: LINK_SECONDS,
         anchor: -1,
-        dx: 0,
-        dy: 0,
+        target: -1,
         fromX: 0,
         fromY: 0,
+        toX: 0,
+        toY: 0,
       };
       link.halo.position.z = 3.2;
       link.core.position.z = 3.4;
@@ -74,34 +76,43 @@ export class MendLinks {
     scene.add(this.group);
   }
 
-  /** Starts a link from the Mender `anchor`, at (fromX, fromY), to the alien healed at (toX, toY). */
-  add(anchor: number, fromX: number, fromY: number, toX: number, toY: number): void {
+  /** Starts a link from the Mender `anchor`, at (fromX, fromY), to the alien `target` it healed, at (toX, toY). */
+  add(anchor: number, fromX: number, fromY: number, target: number, toX: number, toY: number): void {
     const link = this.links[this.cursor];
     this.cursor = (this.cursor + 1) % MAX_LINKS;
     link.age = 0;
     link.anchor = anchor;
+    link.target = target;
     link.fromX = fromX;
     link.fromY = fromY;
-    link.dx = toX - fromX;
-    link.dy = toY - fromY;
+    link.toX = toX;
+    link.toY = toY;
     link.halo.visible = link.core.visible = link.spark.visible = true;
     this.place(link, 1, true);
   }
 
-  /** Tells the links hanging from Mender `anchor` where it is drawn now. */
-  follow(anchor: number, x: number, y: number): void {
+  /** Tells the links at either end of alien `id` where it is drawn now. */
+  follow(id: number, x: number, y: number): void {
     for (const link of this.links) {
-      if (link.anchor !== anchor || link.age >= LINK_SECONDS) continue;
-      link.fromX = x;
-      link.fromY = y;
+      if (link.age >= LINK_SECONDS) continue;
+      if (link.anchor === id) {
+        link.fromX = x;
+        link.fromY = y;
+      }
+      if (link.target === id) {
+        link.toX = x;
+        link.toY = y;
+      }
     }
   }
 
   private place(link: Link, thickness: number, lit: boolean): void {
-    const length = Math.hypot(link.dx, link.dy);
-    const angle = Math.atan2(link.dy, link.dx);
-    const mx = link.fromX + link.dx / 2;
-    const my = link.fromY + link.dy / 2;
+    const dx = link.toX - link.fromX;
+    const dy = link.toY - link.fromY;
+    const length = Math.hypot(dx, dy);
+    const angle = Math.atan2(dy, dx);
+    const mx = link.fromX + dx / 2;
+    const my = link.fromY + dy / 2;
     const show = lit && thickness > 0;
     link.halo.visible = link.core.visible = show;
     link.spark.visible = show && link.age < 0.18;
@@ -112,8 +123,8 @@ export class MendLinks {
     link.halo.scale.set(length, HALO_THICK * thickness, 1);
     link.core.scale.set(length, CORE_THICK * Math.max(0.6, thickness), 1);
     // A white pop at the healed alien, just as the link lands.
-    link.spark.position.x = link.fromX + link.dx;
-    link.spark.position.y = link.fromY + link.dy;
+    link.spark.position.x = link.toX;
+    link.spark.position.y = link.toY;
     link.spark.scale.setScalar(4 * (1 - link.age / 0.18));
   }
 

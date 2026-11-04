@@ -53,6 +53,7 @@ import type { Box, BossPart, BossState, PlayerState, PowerUpKind, RunEvent, RunS
 import {
   BOSS_NAMES,
   bossBarLabel,
+  bossBarVisible,
   bossPhaseLabel,
   comboLabel,
   formatClock,
@@ -1316,7 +1317,7 @@ export class FieldView {
 
   private drawBossBar(frame: Frame, layout: Layout, run: RunState): void {
     const boss = run.boss;
-    if (!boss) return;
+    if (!boss || !bossBarVisible(run.phase)) return;
     const health = Math.min(1, Math.max(0, bossHealth(boss)));
     const label = ` ${bossBarLabel(boss.kind, boss.phase)} `;
     const labelLen = [...label].length;

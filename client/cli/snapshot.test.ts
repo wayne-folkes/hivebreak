@@ -108,7 +108,7 @@ const SCENES: Scene[] = [
       const m = firstOf(run, 'mender');
       if (!m) return [];
       const near = run.aliens.filter((a) => a !== m && Math.hypot(a.x - m.x, a.y - m.y) < 40).slice(0, 4);
-      return [{ type: 'mendPulse', alienId: m.id, x: m.x, y: m.y, healed: near.map((a) => ({ x: a.x, y: a.y })) }];
+      return [{ type: 'mendPulse', alienId: m.id, x: m.x, y: m.y, healed: near.map((a) => ({ alienId: a.id, x: a.x, y: a.y })) }];
     },
   },
   {

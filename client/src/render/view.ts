@@ -762,7 +762,7 @@ export class GameView {
         this.effects.mendRing(e.x, e.y);
         this.mendGlow.set(e.alienId, MEND_GLOW_SECONDS);
         for (const h of e.healed) {
-          this.links.add(e.alienId, e.x, e.y, h.x, h.y);
+          this.links.add(e.alienId, e.x, e.y, h.alienId, h.x, h.y);
           this.effects.mended(h.x, h.y);
         }
         break;
@@ -945,6 +945,8 @@ export class GameView {
     const known = this.alienTracks.sample(a.id, alpha, this.sample);
     const { x, y, dx, dy } = known ? this.sample : { x: a.x, y: a.y, dx: 0, dy: 0 };
     model.holder.position.set(x, y, 0);
+    // A Mender's heal links follow both their ends as the formation marches and weaves.
+    this.links.follow(a.id, x, y);
     let flash = a.flash > 0;
     let look = this.look;
     if (a.kind === 'warper') {
@@ -1001,8 +1003,6 @@ export class GameView {
       if (parts.leg_L) parts.leg_L.rotation.z = Math.sin(t * 3 + phase) * 0.18;
       if (parts.leg_R) parts.leg_R.rotation.z = -Math.sin(t * 3 + phase + 1) * 0.18;
       this.drawMenderCross(a, model, dt);
-      // Its links follow it as the formation marches.
-      this.links.follow(a.id, x, y);
     } else if (a.kind === 'splitter') {
       model.body.rotation.y = Math.sin(t * 1.5 + phase) * 0.22;
       // The two halves chomp a little, and the seam between them glows and throbs.

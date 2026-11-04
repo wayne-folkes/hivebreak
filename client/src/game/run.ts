@@ -370,9 +370,11 @@ function stepPlaying(run: RunState, inputs: readonly ShipInput[], dt: number, ev
   events.push(...reflectShots(run));
   resolveHitsOnPlayers(run, events);
   stepBossBeams(run, dt, events);
+  // A mine's blast or a raining column hurts every ship under it, not just the first.
   for (const box of stepHazards(run, edt, events)) {
-    const victim = shipTouching(run, box, true);
-    if (victim) damagePlayer(victim, events);
+    for (const p of run.players) {
+      if (isAlive(p) && p.invulnerable <= 0 && overlaps(box, shipBox(p))) damagePlayer(p, events);
+    }
   }
 
   // 8. Player shots against aliens, then the boss.
@@ -415,7 +417,8 @@ function useSpecial(run: RunState, player: PlayerState, events: RunEvent[]): voi
   // Pulse Bomb kills score and can drop pickups, but don't charge the meter or burst.
   for (const hit of result.hits) {
     if (hit.killed) killAlien(run, hit.alien, player, { charge: false, burst: false, kind: null }, events);
-    else events.push({ type: 'alienHit', alienId: hit.alien.id, kind: hit.alien.kind, x: hit.alien.x, y: hit.alien.y });
+    // A survivor takes the hit like any other, so a Warper blinks.
+    else alienHurt(run, hit.alien, events);
   }
   removeDead(run);
   flushSpawns(run);

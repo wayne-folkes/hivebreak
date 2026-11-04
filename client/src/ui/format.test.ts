@@ -6,6 +6,7 @@ import type { RushRecord } from '../game/rushrecords';
 import {
   bossBarLabel,
   bossBarPercent,
+  bossBarVisible,
   bossPhaseLabel,
   bossDownHeading,
   comboLabel,
@@ -207,6 +208,15 @@ describe('powerUpChips', () => {
   it('skips a power-up with no time left, and shows nothing for none', () => {
     expect(powerUpChips([{ kind: 'spread', timeLeft: 0 }])).toEqual([]);
     expect(powerUpChips([])).toEqual([]);
+  });
+});
+
+describe('bossBarVisible', () => {
+  it('hides the bar while the Special or an upgrade is picked', () => {
+    expect(bossBarVisible('chooseSpecial')).toBe(false);
+    expect(bossBarVisible('upgradePick')).toBe(false);
+    expect(bossBarVisible('waveIntro')).toBe(true);
+    expect(bossBarVisible('playing')).toBe(true);
   });
 });
 

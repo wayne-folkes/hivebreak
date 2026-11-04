@@ -7,6 +7,7 @@ import type { PlayerState, PowerUpKind, RunState, SpecialId, SynergyId, UpgradeI
 import { byId } from './card';
 import {
   bossBarPercent,
+  bossBarVisible,
   comboLabel,
   formatClock,
   formatScore,
@@ -341,9 +342,9 @@ export class Hud {
     );
   }
 
-  /** The boss bar: name and health while a boss stands, gone once it is dead. */
+  /** The boss bar: name and health while a boss stands (not during the picks), gone once it is dead. */
   private drawBoss(run: RunState): void {
-    const boss = run.boss;
+    const boss = bossBarVisible(run.phase) ? run.boss : null;
     const health = boss ? bossHealth(boss) : 0;
     // A boss with nothing left is dead (or about to be removed); hide the bar either way. A sliver
     // of health still shows as 1%.

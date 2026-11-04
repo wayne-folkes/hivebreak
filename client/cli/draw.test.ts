@@ -568,7 +568,7 @@ describe('FieldView', () => {
       const run = startedRun(11);
       const events: RunEvent[][] = [
         [{ type: 'alienWarped', alienId: 1, fromX: -40, fromY: 100, toX: 30, toY: 120 }],
-        [{ type: 'mendPulse', alienId: 2, x: 0, y: 100, healed: [{ x: 20, y: 100 }, { x: -20, y: 100 }] }],
+        [{ type: 'mendPulse', alienId: 2, x: 0, y: 100, healed: [{ alienId: 3, x: 20, y: 100 }, { alienId: 4, x: -20, y: 100 }] }],
         [{ type: 'mineBurst', mineId: 3, x: 0, y: 0, radius: 26, cause: 'shot' }],
         [{ type: 'mineBurst', mineId: 4, x: 0, y: -90, radius: 8, cause: 'bunker' }],
         [{ type: 'mineBurst', mineId: 5, x: 0, y: -150, radius: 16, cause: 'ground' }],
