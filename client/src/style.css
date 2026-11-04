@@ -189,6 +189,14 @@ body {
   background: var(--scrim);
   font-family: var(--font-body);
   color: var(--ink);
+  transition: opacity 0.2s ease;
+}
+
+/* The title, left alone for a while, fades away to show the demo behind it (ui/idle.ts). */
+.menu.is-idle {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.6s ease;
 }
 
 .panel {

@@ -57,6 +57,7 @@ import {
   timeBonusLabel,
 } from './ui';
 import { pickReady, rushBossLabel } from './ui/format';
+import { IdleFade } from './ui/idle';
 import type { MenuCard, RunResult } from './ui';
 
 // The game: the loop that steps the simulation and draws it, the input sources, sound, storage
@@ -523,6 +524,45 @@ const upgradeCard = new UpgradeCard(takeUpgrade);
 const overCard = new GameOverCard({ playAgain: () => startRun(run.mode), title: showTitle });
 
 const titleScreen: Screen = { card: titleCard, open: () => titleCard.show(), path: '/' };
+
+// The title fades away while nobody touches anything, so the demo behind it can be watched (see
+// ui/idle.ts). The mouse counts as input here too. A tap that wakes it must not also press the
+// button that appears under it, so the click that follows is swallowed.
+const titleIdle = new IdleFade((faded) => titleCard.root.classList.toggle('is-idle', faded));
+let pointerStirred = false;
+let swallowClickUntil = 0;
+const WAKE_CLICK_MS = 700;
+for (const type of ['pointermove', 'pointerdown', 'wheel'] as const) {
+  window.addEventListener(
+    type,
+    () => {
+      pointerStirred = true;
+      if (type === 'pointerdown' && titleIdle.isFaded) swallowClickUntil = performance.now() + WAKE_CLICK_MS;
+    },
+    { passive: true },
+  );
+}
+window.addEventListener(
+  'click',
+  (e) => {
+    if (performance.now() >= swallowClickUntil) return;
+    swallowClickUntil = 0;
+    e.preventDefault();
+    e.stopPropagation();
+  },
+  true,
+);
+
+/** Ticks the title's idle fade. Returns true on the frame some input woke it, which the menu then doesn't see. */
+function stepTitleIdle(dt: number): boolean {
+  const stirred = pointerStirred;
+  pointerStirred = false;
+  if (mode !== 'title' || topScreen() !== titleScreen) {
+    titleIdle.wake();
+    return false;
+  }
+  return titleIdle.update(dt, stirred || controls.used());
+}
 const howtoScreen: Screen = { card: howtoCard, open: () => howtoCard.show(), path: '/howto' };
 const settingsScreen: Screen = { card: settingsCard, open: () => settingsCard.show(), path: '/settings' };
 const recordsScreen: Screen = { card: recordsCard, open: () => recordsCard.show(), path: '/records' };
@@ -701,7 +741,7 @@ function frame(now: number): void {
   // Gamepad buttons don't count as the interaction browsers need to start audio, but a key or tap
   // earlier will have; keep asking while a pad is in use.
   if (controls.lastUsed === 'gamepad' && controls.used()) unlockAudio();
-  handleInput();
+  if (!stepTitleIdle(frameDt)) handleInput();
   // Special is read like any action, and only from a live run: cards never see it, so it can't
   // double as a menu button.
   if (live() && controls.pressed('special')) specialCarry = true;
